@@ -1168,6 +1168,21 @@ function getFilesForPathCS(folderPathFromJS) {
         $.writeln(logPrefix + "Execution started.");
         $.writeln(logPrefix + "Received folderPathFromJS: '" + folderPathFromJS + "' (Type: " + typeof folderPathFromJS + ")");
 
+        // CEP 환경 완전 초기화를 위해 Premiere Pro API 먼저 호출 (insertSoundsBetweenClips와 동일한 방식)
+        try {
+            $.writeln(logPrefix + "Initializing CEP environment by calling Premiere Pro APIs...");
+            var seq = app.project.activeSequence; // Premiere Pro API 호출로 CEP 환경 깨우기
+            var appName = app.name; // 추가 API 호출
+            $.writeln(logPrefix + "Premiere Pro API calls completed. App: " + (appName || "Unknown") + ", Active sequence: " + (seq ? "Present" : "None"));
+
+            // sendEvent로 추가 초기화
+            sendEvent("CEP 환경 초기화 완료", true);
+            $.writeln(logPrefix + "CEP environment fully initialized.");
+        } catch (initError) {
+            $.writeln(logPrefix + "Warning during CEP initialization: " + initError.toString());
+            // 초기화 실패해도 계속 진행 (경고만 출력)
+        }
+
         if (!folderPathFromJS || typeof folderPathFromJS !== 'string' || folderPathFromJS.replace(/\s/g, '').length === 0) {
             var errMsgInvalidPath = "Error: folderPathFromJS is invalid or empty. Value: '" + folderPathFromJS + "'";
             $.writeln(logPrefix + errMsgInvalidPath);
@@ -1202,21 +1217,44 @@ function getFilesForPathCS(folderPathFromJS) {
 
         $.writeln(logPrefix + "Found " + soundFilesResult.files.length + " files from getSoundFilesFromFolder for path: " + soundFilesResult.path);
 
-        var event = new CSXSEvent();
-        event.type = "com.adobe.soundInserter.events.FileListEvent";
-        event.data = JSON.stringify({
-            soundFiles: soundFilesResult.files, // soundFilesResult.files 사용
-            folderPath: soundFilesResult.path // soundFilesResult.path 사용
-        });
-        event.scope = "APPLICATION";
-        // Ensure csInterface is accessible here
-        // event.appId = csInterface.getApplicationID(); // 주석 처리
-        // event.extensionId = csInterface.getExtensionID(); // 주석 처리
-        // csInterface.dispatchEvent(event); // 주석 처리
-        event.dispatch(); // CSXSEvent 객체의 dispatch 메소드 사용으로 변경
+        // CSXSEvent 사용을 안전하게 처리
+        try {
+            if (typeof CSXSEvent === 'undefined') {
+                $.writeln(logPrefix + "CSXSEvent is not defined. CEP environment not ready. Returning files via fallback method.");
+                // CSXSEvent가 정의되지 않은 경우에도 파일 목록을 fallback 방식으로 전달
+                var fileListJson = JSON.stringify({
+                    soundFiles: soundFilesResult.files,
+                    folderPath: soundFilesResult.path,
+                    fallbackMode: true,
+                    reason: "CSXSEvent undefined"
+                });
+                return "fallback_data:" + fileListJson;
+            }
 
-        $.writeln(logPrefix + "Dispatched FileListEvent for path: " + soundFilesResult.path);
-        return "success_getFilesForPathCS";
+            var event = new CSXSEvent();
+            event.type = "com.adobe.soundInserter.events.FileListEvent";
+            event.data = JSON.stringify({
+                soundFiles: soundFilesResult.files, // soundFilesResult.files 사용
+                folderPath: soundFilesResult.path // soundFilesResult.path 사용
+            });
+            event.scope = "APPLICATION";
+            event.dispatch(); // CSXSEvent 객체의 dispatch 메소드 사용으로 변경
+
+            $.writeln(logPrefix + "Dispatched FileListEvent for path: " + soundFilesResult.path);
+            return "success_getFilesForPathCS";
+
+        } catch (cepError) {
+            $.writeln(logPrefix + "Error during CSXSEvent creation/dispatch: " + cepError.toString());
+            $.writeln(logPrefix + "Returning file information via return value instead of event.");
+
+            // 이벤트 전송 실패 시 대안: 파일 정보를 반환값으로 전달
+            var fileListJson = JSON.stringify({
+                soundFiles: soundFilesResult.files,
+                folderPath: soundFilesResult.path,
+                fallbackMode: true
+            });
+            return "fallback_data:" + fileListJson;
+        }
 
     } catch (e) {
         var errorMsg = logPrefix + "CRITICAL ERROR: " + e.name + " - " + e.message + " (Line: " + e.line + ", File: " + e.fileName + ")";

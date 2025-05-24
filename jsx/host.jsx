@@ -436,40 +436,58 @@ function getSoundFilesFromFolder(folderPath, filterByDefaultPrefix) {
 
                 if (isAudioFile) {
                     debugFileLog += "\n - " + decodedFileName + " (오디오 파일)";
-                    // filterByDefaultPrefix 플래그에 따라 "Default" 접두사 확인
-                    if (filterByDefaultPrefix) {
-                        if (decodedFileName.indexOf("Default") === 0) {
-                            $.writeln("'Default' 필터 통과 (필터 활성): " + decodedFileName);
-                            soundFileDetails.push({
-                                name: decodedFileName,
-                                fsName: file.fsName
-                            });
+
+                    // 필터링 로직 개선
+                    var shouldIncludeFile = false;
+                    var hasDefaultPrefix = decodedFileName.indexOf("Default") === 0;
+
+                    if (filterByDefaultPrefix === true || filterByDefaultPrefix === "default_only") {
+                        // "Default"로 시작하는 파일만 포함
+                        if (hasDefaultPrefix) {
+                            shouldIncludeFile = true;
                             debugFileLog += " -> Default 필터 통과";
+                            $.writeln("'Default' 필터 통과 (Default만): " + decodedFileName);
                         } else {
-                            $.writeln("'Default' 필터 제외 (필터 활성): " + decodedFileName);
-                            debugFileLog += " -> Default 필터 제외";
+                            debugFileLog += " -> Default 필터 제외 (Default만 모드)";
+                            $.writeln("'Default' 필터 제외 (Default만 모드): " + decodedFileName);
+                        }
+                    } else if (filterByDefaultPrefix === "exclude_default") {
+                        // "Default"로 시작하지 않는 파일만 포함
+                        if (!hasDefaultPrefix) {
+                            shouldIncludeFile = true;
+                            debugFileLog += " -> Default 제외 필터 통과";
+                            $.writeln("'Default' 제외 필터 통과: " + decodedFileName);
+                        } else {
+                            debugFileLog += " -> Default 제외 필터에 의해 제외됨";
+                            $.writeln("'Default' 제외 필터에 의해 제외됨: " + decodedFileName);
                         }
                     } else {
-                        // filterByDefaultPrefix가 false이면 "Default" 검사 없이 모든 오디오 파일 추가
-                        $.writeln("'Default' 필터 비활성, 오디오 파일 추가: " + decodedFileName);
+                        // false, "all" 또는 기타 값: 모든 오디오 파일 포함
+                        shouldIncludeFile = true;
+                        debugFileLog += " -> 모든 파일 포함 모드";
+                        $.writeln("모든 파일 포함 모드, 오디오 파일 추가: " + decodedFileName);
+                    }
+
+                    if (shouldIncludeFile) {
                         soundFileDetails.push({
                             name: decodedFileName,
                             fsName: file.fsName
                         });
-                        debugFileLog += " -> Default 필터 비활성, 추가됨";
                     }
                 }
             }
         }
         $.writeln("발견 및 필터링된 파일 로그:" + debugFileLog);
-        var finalMsg = filterByDefaultPrefix ? "최종 필터링된 'Default' 오디오 파일 수: " : "최종 필터링된 전체 오디오 파일 수: ";
-        $.writeln(finalMsg + soundFileDetails.length);
 
-        // if (soundFileDetails.length === 0) {
-        //     $.writeln("조건을 만족하는 오디오 파일을 찾지 못함");
-        //     return null;
-        // }
-        // return soundFileDetails; // 이전에는 배열 또는 null 반환
+        var finalMsg = "";
+        if (filterByDefaultPrefix === true || filterByDefaultPrefix === "default_only") {
+            finalMsg = "최종 필터링된 'Default' 오디오 파일 수: ";
+        } else if (filterByDefaultPrefix === "exclude_default") {
+            finalMsg = "최종 필터링된 'Default 제외' 오디오 파일 수: ";
+        } else {
+            finalMsg = "최종 필터링된 전체 오디오 파일 수: ";
+        }
+        $.writeln(finalMsg + soundFileDetails.length);
 
         // 항상 객체 반환: { files: Array, path: String }
         // 조건 만족하는 오디오 파일 없더라도, 폴더 자체는 유효했으므로 빈 배열과 경로 반환
@@ -507,8 +525,8 @@ function browseSoundFolder() {
             var path = folder.fsName;
             $.writeln("선택된 폴더: " + path);
 
-            // "Default" 필터링 없이 모든 오디오 파일 목록 가져오기 (UI 버튼용)
-            var soundFilesData = getSoundFilesFromFolder(path, false); // 객체를 반환받음
+            // "Default" 접두사가 없는 오디오 파일 목록 가져오기 (개별 효과음 대체용)
+            var soundFilesData = getSoundFilesFromFolder(path, "exclude_default"); // 객체를 반환받음
 
             var filesForEvent = []; // 기본값은 빈 배열
             var pathToUse = path; // 기본값은 선택된 경로
@@ -532,7 +550,7 @@ function browseSoundFolder() {
             eventObj.type = "com.adobe.soundInserter.events.FileListEvent";
             eventObj.data = JSON.stringify(eventData);
             eventObj.dispatch();
-            $.writeln("FileListEvent 발송 (모든 오디오 파일): " + JSON.stringify(eventData));
+            $.writeln("FileListEvent 발송 (Default 제외 오디오 파일): " + JSON.stringify(eventData));
 
             return path;
         }
@@ -1170,7 +1188,7 @@ function getFilesForPathCS(folderPathFromJS) {
 
         $.writeln(logPrefix + "Folder exists: " + folder.fsName);
 
-        var soundFilesResult = getSoundFilesFromFolder(pathForFolderObject, false);
+        var soundFilesResult = getSoundFilesFromFolder(pathForFolderObject, "exclude_default");
 
         // getSoundFilesFromFolder는 이제 항상 객체 { files: [], path: "" } 를 반환 (폴더 존재 시)
         // null 체크는 getSoundFilesFromFolder 내부에서 폴더 미존재 등 심각한 오류 발생 시에만 해당됨

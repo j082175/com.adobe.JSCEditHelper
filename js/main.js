@@ -297,25 +297,24 @@ function insertSounds() {
         folderPath = folderPath.replace(/["']/g, "");
     }
 
-    // Escape backslashes for JSX string
-    folderPath = folderPath.replace(/\\/g, "\\\\");
+    // folderPath = folderPath.replace(/\\/g, "\\\\"); // JSON.stringify가 이스케이프를 처리하므로 주석 처리
 
-    // uc624ub958 ubc29uc9c0ub97c uc704ud55c ud30cub77cubbf8ud130 uc804ub2ec ubc29uc2dd ubcc0uacbd
-    var jsxParams = JSON.stringify({
-        folderPath: folderPath,
-        audioTrack: audioTrack,
-    });
+    // var jsxParams = JSON.stringify({
+    //     folderPath: folderPath,
+    //     audioTrack: audioTrack,
+    // });
+    // jsxParams = jsxParams.replace(/\"/g, '\\'); // JSON.stringify를 사용하면 이 부분도 필요 없음
+    // console.log("Sending params to JSX:", jsxParams);
 
-    // ucd94uac00 uc774uc2a4ucf00uc774ud551 ucc98ub9ac
-    jsxParams = jsxParams.replace(/\"/g, '\\"');
-
-    console.log("Sending params to JSX:", jsxParams);
-
-    // Call JSX function with JSON parameters
+    // JSON.stringify를 사용하여 각 인자를 안전하게 전달하도록 수정
     var jsxCode =
-        'insertSoundsBetweenClips("' + folderPath + '", "' + audioTrack + '")';
+        "insertSoundsBetweenClips(" +
+        JSON.stringify(folderPath) +
+        ", " +
+        JSON.stringify(audioTrack) +
+        ")";
 
-    console.log("Executing JSX code:", jsxCode);
+    console.log("Executing JSX code:", jsxCode); // 이 로그는 디버깅에 도움이 되므로 유지하는 것이 좋습니다.
 
     csInterface.evalScript(jsxCode, function (result) {
         console.log("JSX result:", result);

@@ -8,15 +8,22 @@ var csInterface = new CSInterface();
 // 설정 저장 및 불러오기를 위한 키
 var SOUND_FOLDER_KEY = "soundInserter_folder";
 
+// 전역 변수 추가
+var currentFolderPath = ""; // 현재 선택된 폴더 경로 저장
+
 // 초기화 함수
 function init() {
     // 테마 색상 설정
     updateThemeWithAppSkinInfo();
 
-    // 이전에 저장된 폴더 경로 불러오기
+    // 이전에 저장된 폴더 경로 불러오기 및 currentFolderPath, 새로고침 버튼 상태 설정
     var savedFolder = localStorage.getItem(SOUND_FOLDER_KEY);
     if (savedFolder) {
         document.getElementById("sound-folder").value = savedFolder;
+        currentFolderPath = savedFolder; // currentFolderPath에 저장된 경로 반영
+        document.getElementById("refreshSounds").disabled = false; // 저장된 경로 있으면 새로고침 버튼 활성화
+    } else {
+        document.getElementById("refreshSounds").disabled = true; // 저장된 경로 없으면 비활성화
     }
 
     // 이벤트 리스너 등록
@@ -212,17 +219,39 @@ function showDebugInfo() {
 function setupEventListeners() {
     // 효과음 삽입 버튼
     var insertButton = document.getElementById("insert-sounds");
-    insertButton.addEventListener("click", insertSounds);
+    if (insertButton) {
+        insertButton.addEventListener("click", insertSounds);
+    } else {
+        console.error("Button with ID 'insert-sounds' not found.");
+    }
 
-    // 폴더 찾기 버튼
-    var browseButton = document.getElementById("browse-folder");
-    browseButton.addEventListener("click", browseSoundFolder);
+    // 폴더 찾기 버튼 ID 수정
+    var browseButton = document.getElementById("browseFolder"); // "browse-folder"에서 "browseFolder"로 수정
+    if (browseButton) {
+        browseButton.addEventListener("click", browseSoundFolder);
+    } else {
+        console.error("Button with ID 'browseFolder' not found.");
+    }
 
-    // 폴더 경로 변경 시 저장
+    // 새로고침 버튼 리스너 (추가된 부분)
+    var refreshButton = document.getElementById("refreshSounds");
+    if (refreshButton) {
+        refreshButton.addEventListener("click", refreshSoundButtons);
+    } else {
+        console.error("Button with ID 'refreshSounds' not found.");
+    }
+
+    // 폴더 경로 input 변경 시 저장 및 새로고침 버튼 상태 업데이트
     var folderInput = document.getElementById("sound-folder");
-    folderInput.addEventListener("change", function () {
-        localStorage.setItem(SOUND_FOLDER_KEY, this.value);
-    });
+    if (folderInput) {
+        folderInput.addEventListener("change", function () {
+            localStorage.setItem(SOUND_FOLDER_KEY, this.value);
+            currentFolderPath = this.value; // currentFolderPath도 업데이트
+            document.getElementById("refreshSounds").disabled = !this.value; // 경로 유무에 따라 새로고침 버튼 활성화/비활성화
+        });
+    } else {
+        console.error("Input with ID 'sound-folder' not found.");
+    }
 }
 
 // 효과음 폴더 찾기 대화상자
@@ -356,114 +385,155 @@ function updateThemeWithAppSkinInfo() {
     }
 }
 
-// 새로 추가된 함수: FileListEvent 처리
+// FileListEvent 핸들러 수정
 function handleFileListEvent(event) {
-    try {
-        console.log(
-            "FileListEvent received. typeof event.data:",
-            typeof event.data
-        );
-        // console.log("event.data raw content:", event.data); // 필요시 상세 내용 로깅
+    var statusPanel = document.getElementById("statusPanel");
+    var container = document.getElementById("individualSoundButtonsContainer");
+    container.innerHTML = ""; // 이전 버튼들 제거
 
+    try {
+        var eventDataString = event.data;
         var parsedData;
-        if (typeof event.data === "string") {
-            if (event.data.trim() === "") {
-                console.error("Received empty string data for FileListEvent.");
+
+        if (typeof eventDataString === "string") {
+            if (eventDataString.trim() === "") {
                 updateStatus(
-                    "효과음 목록 데이터를 받지 못했습니다 (빈 문자열).",
-                    false
+                    "효과음 목록 이벤트 수신: 데이터 비어 있음.",
+                    "error"
                 );
                 return;
             }
             try {
-                parsedData = JSON.parse(event.data);
+                parsedData = JSON.parse(eventDataString);
             } catch (e) {
-                console.error("Error parsing event.data string:", e);
-                console.error("Malformed JSON string was:", event.data);
                 updateStatus(
-                    "효과음 목록 데이터 파싱 오류: " + e.toString(),
-                    false
+                    "효과음 목록 JSON 파싱 오류: " +
+                        e.message +
+                        "<br>수신데이터: " +
+                        escapeHtml(eventDataString),
+                    "error"
                 );
                 return;
             }
-        } else if (typeof event.data === "object" && event.data !== null) {
-            parsedData = event.data; // 이미 객체 형태인 경우 그대로 사용
-            console.log("event.data is already an object, using directly.");
+        } else if (
+            typeof eventDataString === "object" &&
+            eventDataString !== null
+        ) {
+            parsedData = eventDataString;
         } else {
-            console.error(
-                "Received event.data is not a string or a valid object. Type:" +
-                    typeof event.data
-            );
             updateStatus(
-                "효과음 목록 데이터 타입 오류. 수신 데이터: " +
-                    String(event.data),
-                false
+                "효과음 목록 이벤트: 알 수 없는 데이터 타입 - " +
+                    typeof eventDataString,
+                "error"
             );
             return;
         }
 
-        if (!parsedData) {
-            console.error("Parsed data is null or undefined after type check.");
-            updateStatus("효과음 목록 데이터를 처리할 수 없습니다.", false);
+        if (!parsedData || !parsedData.soundFiles) {
+            updateStatus(
+                "효과음 목록 데이터 형식이 잘못되었습니다 (soundFiles 누락).",
+                "error"
+            );
             return;
         }
 
         var soundFiles = parsedData.soundFiles;
-        var folderPath = parsedData.folderPath; // folderPath도 사용될 수 있으므로 유지
+        var folderPathFromEvent = parsedData.folderPath;
 
-        var container = document.getElementById(
-            "individualSoundButtonsContainer"
-        );
-        var placeholder = document.getElementById("soundButtonPlaceholder");
-        container.innerHTML = ""; // 기존 버튼이나 메시지 초기화
+        if (folderPathFromEvent) {
+            currentFolderPath = folderPathFromEvent; // 경로 저장
+            localStorage.setItem(SOUND_FOLDER_KEY, currentFolderPath); // localStorage에도 저장
 
-        if (soundFiles && Array.isArray(soundFiles) && soundFiles.length > 0) {
+            var folderPathSpanEl = document.getElementById("folderPathSpan");
+            if (folderPathSpanEl) {
+                folderPathSpanEl.textContent = 짧은경로(currentFolderPath);
+            } else {
+                console.warn(
+                    "Element with ID 'folderPathSpan' not found. Cannot display folder path."
+                );
+            }
+
+            var refreshButton = document.getElementById("refreshSounds");
+            if (refreshButton) {
+                refreshButton.disabled = false; // 새로고침 버튼 활성화
+            }
+        } else if (currentFolderPath === "") {
+            var refreshButton = document.getElementById("refreshSounds");
+            if (refreshButton) {
+                refreshButton.disabled = true; // 경로 없으면 비활성화
+            }
+        }
+
+        if (soundFiles && soundFiles.length > 0) {
             soundFiles.forEach(function (soundFile) {
-                if (
-                    soundFile &&
-                    typeof soundFile.name === "string" &&
-                    typeof soundFile.fsName === "string"
-                ) {
+                if (soundFile && soundFile.name && soundFile.fsName) {
                     var button = document.createElement("button");
                     button.textContent = soundFile.name;
                     button.setAttribute("data-fsname", soundFile.fsName);
-                    button.classList.add("sound-file-button");
                     button.addEventListener("click", onSoundFileButtonClick);
                     container.appendChild(button);
-                } else {
-                    console.warn("Invalid soundFile item:", soundFile);
                 }
             });
+            updateStatus(
+                soundFiles.length + "개의 효과음 파일을 폴더에서 로드했습니다.",
+                "success"
+            );
         } else {
-            var messageText =
-                "선택된 폴더에 사용 가능한 효과음 파일이 없습니다.";
-            if (parsedData && !Array.isArray(soundFiles)) {
-                messageText = "수신된 효과음 목록이 올바르지 않습니다.";
-            }
-            if (placeholder) {
-                container.appendChild(placeholder);
-                placeholder.textContent = messageText;
-            } else {
-                var p = document.createElement("p");
-                p.id = "soundButtonPlaceholder";
-                p.textContent = messageText;
-                container.appendChild(p);
-            }
+            updateStatus("선택된 폴더에 오디오 파일이 없습니다.", "info");
         }
     } catch (e) {
-        console.error("Error handling FileListEvent (outer catch):", e);
-        updateStatus(
-            "효과음 목록 표시 중 예기치 않은 오류 발생: " + e.toString(),
-            false
-        );
-        var errorContainer = document.getElementById(
+        updateStatus("효과음 목록 표시 중 오류 발생: " + e.toString(), "error");
+        // ExtendScript 콘솔에도 로그를 남기려면:
+        // if (csInterface) { csInterface.evalScript('$.writeln("JS handleFileListEvent Error: ' + escapeJsStringForEvalScript(e.toString() + (e.stack ? "\\nStack: " + e.stack : "")) + '")'); }
+    }
+}
+
+// 새로고침 버튼 로직
+function refreshSoundButtons() {
+    if (currentFolderPath && currentFolderPath !== "") {
+        var container = document.getElementById(
             "individualSoundButtonsContainer"
         );
-        if (errorContainer) {
-            errorContainer.innerHTML =
-                "<p>효과음 목록을 불러오는데 실패했습니다. (catch)</p>";
-        }
+        container.innerHTML = "";
+        updateStatus(
+            "'" +
+                짧은경로(currentFolderPath) +
+                "' 폴더의 효과음 목록을 새로고침합니다...",
+            "info"
+        );
+
+        var pathArg = JSON.stringify(currentFolderPath); // JSON.stringify를 사용하여 경로 인자 준비
+        csInterface.evalScript(
+            "getFilesForPathCS(" + pathArg + ")", // 준비된 인자 사용
+            function (result) {
+                if (
+                    typeof result === "string" &&
+                    result.indexOf("error:") === 0
+                ) {
+                    updateStatus(
+                        "새로고침 중 ExtendScript 오류: " + result,
+                        "error"
+                    );
+                }
+            }
+        );
+    } else {
+        updateStatus(
+            "먼저 '폴더 찾아보기'를 통해 효과음 폴더를 선택해주세요.",
+            "warning"
+        );
+        document.getElementById("refreshSounds").disabled = true;
     }
+}
+
+// 경로 짧게 표시하는 헬퍼
+function 짧은경로(path) {
+    if (typeof path !== "string") return "알 수 없는 경로";
+    var parts = path.split(/[\\/]/);
+    if (parts.length > 2) {
+        return ".../" + parts[parts.length - 2] + "/" + parts[parts.length - 1];
+    }
+    return path;
 }
 
 // 새로 추가된 함수: 개별 효과음 버튼 클릭 처리

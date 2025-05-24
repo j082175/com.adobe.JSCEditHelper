@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ExtensionManifest Version="6.0" ExtensionBundleId="com.adobe.SoundInserter" 
+    ExtensionBundleVersion="1.0.0" ExtensionBundleName="Sound Inserter" 
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <ExtensionList>
+        <Extension Id="com.adobe.SoundInserter" Version="1.0.0" />
+    </ExtensionList>
+    <ExecutionEnvironment>
+        <HostList>
+            <Host Name="PPRO" Version="[14.0,99.9]" />
+        </HostList>
+        <LocaleList>
+            <Locale Code="All" />
+        </LocaleList>
+        <RequiredRuntimeList>
+            <RequiredRuntime Name="CSXS" Version="11.0" />
+        </RequiredRuntimeList>
+    </ExecutionEnvironment>
+    <DispatchInfoList>
+        <Extension Id="com.adobe.SoundInserter">
+            <DispatchInfo>
+                <Resources>
+                    <MainPath>./index.html</MainPath>
+                    <ScriptPath>./jsx/host.jsx</ScriptPath>
+                    <CEFCommandLine>
+                        <Parameter>--allow-file-access-from-files</Parameter>
+                        <Parameter>--allow-file-access</Parameter>
+                        <Parameter>--enable-nodejs</Parameter>
+                    </CEFCommandLine>
+                </Resources>
+                <Lifecycle>
+                    <AutoVisible>true</AutoVisible>
+                </Lifecycle>
+                <UI>
+                    <Type>Panel</Type>
+                    <Menu>효과음 삽입 도구</Menu>
+                    <Geometry>
+                        <Size>
+                            <Width>350</Width>
+                            <Height>450</Height>
+                        </Size>
+                        <MinSize>
+                            <Width>300</Width>
+                            <Height>400</Height>
+                        </MinSize>
+                        <MaxSize>
+                            <Width>800</Width>
+                            <Height>600</Height>
+                        </MaxSize>
+                    </Geometry>
+                    <!--
+                    <Icons>
+                        <Icon Type="Normal">./icons/icon_normal.png</Icon>
+                        <Icon Type="RollOver">./icons/icon_rollover.png</Icon>
+                        <Icon Type="DarkNormal">./icons/icon_normal_dark.png</Icon>
+                        <Icon Type="DarkRollOver">./icons/icon_rollover_dark.png</Icon>
+                    </Icons>
+                    -->
+                </UI>
+            </DispatchInfo>
+        </Extension>
+    </DispatchInfoList>
+</ExtensionManifest> 

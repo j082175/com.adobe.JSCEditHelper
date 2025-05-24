@@ -1,0 +1,12 @@
+    # OS generated files
+    .DS_Store
+    Thumbs.db
+
+    # IDE - VSCode
+    .vscode/
+
+    # Log files (if any specific ones are generated and not needed in repo)
+    *.log
+
+    # Temp files
+    *.tmp

@@ -955,9 +955,11 @@ function getFilesForPathCS(folderPathFromJS) {
         });
         event.scope = "APPLICATION";
         // Ensure csInterface is accessible here
-        event.appId = csInterface.getApplicationID();
-        event.extensionId = csInterface.getExtensionID();
-        csInterface.dispatchEvent(event);
+        // event.appId = csInterface.getApplicationID(); // 주석 처리
+        // event.extensionId = csInterface.getExtensionID(); // 주석 처리
+        // csInterface.dispatchEvent(event); // 주석 처리
+        event.dispatch(); // CSXSEvent 객체의 dispatch 메소드 사용으로 변경
+
         $.writeln(logPrefix + "Dispatched FileListEvent for path: " + soundFilesResult.path);
         return "success_getFilesForPathCS";
 

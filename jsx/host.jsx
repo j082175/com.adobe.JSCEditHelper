@@ -684,11 +684,10 @@ function replaceSelectedAudioClips(soundFilePathToImport) {
     }
 }
 
-
 // Helper function to process a single timeline clip
 function processSingleTimelineClip(timelineClip, soundFilePathToImport, importedSoundItemsCache, seq, clipIndex, parentDebugInfo) {
-    var functionName = "processSingleTimelineClip";
-    var debugInfo = parentDebugInfo; // Continue with parent's debug info
+    var functionName = "processSingleTimelineClip (NewLogic)"; // 새로운 로직임을 명시
+    var debugInfo = parentDebugInfo;
     var errorMessages = [];
     var clipSuccessfullyProcessed = false;
 
@@ -705,131 +704,230 @@ function processSingleTimelineClip(timelineClip, soundFilePathToImport, imported
     }
 
     try {
-        logClipMsg("Processing started. Type: " + (timelineClip ? timelineClip.mediaType : "N/A"));
+        logClipMsg("Processing started for 'Insert Below & Match Length' logic.");
 
-        if (!timelineClip || typeof timelineClip.name === 'undefined') {
-            logClipMsg("Timeline clip is invalid or has no name. Skipping.", true);
-            return {
-                success: false,
-                error: "선택된 항목 처리 불가 (인덱스: " + clipIndex + ", 유효하지 않은 클립 객체)",
-                debugInfo: debugInfo
-            };
-        }
-
-        // Step 1: Determine targetAudioTrackItem
-        var targetAudioTrackItem = null;
-        if (timelineClip.mediaType === "Video" && timelineClip.components && timelineClip.components.numItems > 0) {
-            logClipMsg("Selected clip is Video. Searching for linked audio...");
-            var foundLinkedAudio = findLinkedAudioTrackItem(seq, timelineClip, null); // Assuming findLinkedAudioTrackItem is defined elsewhere
-            if (foundLinkedAudio) {
-                targetAudioTrackItem = foundLinkedAudio;
-                logClipMsg("Found linked audio clip: '" + (targetAudioTrackItem.name ? File.decode(targetAudioTrackItem.name) : "Unnamed") + "'. Setting as target.");
-            } else {
-                logClipMsg("No linked audio clip found for video clip. Skipping.", true);
-                return {
-                    success: false,
-                    error: "클립 '" + File.decode(timelineClip.name) + "'(비디오): 연결된 오디오 없음.",
-                    debugInfo: debugInfo
-                };
+        // timelineClip 객체 상세 로깅 추가
+        if (timelineClip) {
+            logClipMsg("timelineClip.name: " + (timelineClip.name ? File.decode(timelineClip.name) : "N/A"));
+            logClipMsg("timelineClip.mediaType: " + (timelineClip.mediaType || "N/A"));
+            logClipMsg("timelineClip.start: " + (timelineClip.start ? JSON.stringify(timelineClip.start) : "undefined"));
+            if (timelineClip.start) {
+                logClipMsg("timelineClip.start.seconds: " + (timelineClip.start.seconds !== undefined ? timelineClip.start.seconds : "undefined"));
             }
-        } else if (timelineClip.mediaType === "Audio") {
-            targetAudioTrackItem = timelineClip;
-            logClipMsg("Selected clip is Audio. Setting as target.");
+            logClipMsg("timelineClip.duration: " + (timelineClip.duration ? JSON.stringify(timelineClip.duration) : "undefined"));
+            if (timelineClip.duration) {
+                logClipMsg("timelineClip.duration.seconds: " + (timelineClip.duration.seconds !== undefined ? timelineClip.duration.seconds : "undefined"));
+            }
+            logClipMsg("timelineClip.track: " + (timelineClip.track ? JSON.stringify(timelineClip.track) : "undefined"));
+            if (timelineClip.track) {
+                logClipMsg("timelineClip.track.index: " + (timelineClip.track.index !== undefined ? timelineClip.track.index : "undefined"));
+                logClipMsg("timelineClip.track.mediaType: " + (timelineClip.track.mediaType || "undefined"));
+            }
+            logClipMsg("typeof timelineClip.start: " + typeof timelineClip.start);
+            logClipMsg("typeof timelineClip.duration: " + typeof timelineClip.duration);
+            logClipMsg("typeof timelineClip.track: " + typeof timelineClip.track);
         } else {
-            logClipMsg("Clip is not Audio or Video (Type: " + timelineClip.mediaType + "). Skipping.", true);
+            logClipMsg("timelineClip is null or undefined at the beginning.", true);
             return {
                 success: false,
-                error: "클립 '" + File.decode(timelineClip.name) + "': 지원되지 않는 타입 (" + timelineClip.mediaType + ").",
+                error: "선택된 클립 객체가 유효하지 않습니다.",
                 debugInfo: debugInfo
             };
         }
 
-        if (!targetAudioTrackItem || typeof targetAudioTrackItem.name === 'undefined' ||
-            !targetAudioTrackItem.duration || typeof targetAudioTrackItem.duration.seconds !== 'number' ||
-            !targetAudioTrackItem.start || typeof targetAudioTrackItem.start.seconds !== 'number') {
-            logClipMsg("Target audio track item is invalid or missing essential properties (name, duration, start). Skipping.", true);
-            var problemClipName = timelineClip.name ? File.decode(timelineClip.name) : "(타임라인에서 선택된 초기 클립)";
+        // 1. timelineClip 유효성 검사 (오디오 클립이어야 함)
+        if (!timelineClip || typeof timelineClip.name === 'undefined' || timelineClip.mediaType !== "Audio") {
+            logClipMsg("Timeline clip is invalid, not an audio clip, or has no name. Skipping. Type: " + (timelineClip ? timelineClip.mediaType : "N/A"), true);
             return {
                 success: false,
-                error: "클립 '" + problemClipName + "': 유효한 오디오 대상 설정 실패 또는 필수 속성 누락.",
+                error: "선택된 항목(인덱스: " + clipIndex + ")이 오디오 클립이 아니거나 유효하지 않습니다.",
                 debugInfo: debugInfo
             };
         }
 
-        var originalDuration = targetAudioTrackItem.duration.seconds;
-        var originalStartTime = targetAudioTrackItem.start.seconds;
-        logClipMsg("Target clip details: Original Name='" + File.decode(targetAudioTrackItem.name) + "', Start=" + originalStartTime.toFixed(2) + "s, Duration=" + originalDuration.toFixed(2) + "s.");
+        // 2. 원본 클립 정보 추출
+        var originalClipStartTime = null;
+        var originalClipDuration = null;
+        var originalClipTrackIndex = null; // 찾은 트랙 인덱스를 저장할 변수
+        var originalClipTrack = null; // 찾은 트랙 객체를 저장할 변수
 
-        // Step 2: Find the track for the targetAudioTrackItem
-        var targetAudioTrackForInsertion = null;
-        // Simplified track finding logic - assuming targetAudioTrackItem.track exists and is valid
-        // The complex iteration can be a separate helper if needed again
-        if (targetAudioTrackItem.track && targetAudioTrackItem.track.index >= 0) { // Basic check
-            targetAudioTrackForInsertion = targetAudioTrackItem.track;
-            logClipMsg("Track found for target audio item: Track Index=" + (targetAudioTrackForInsertion.index + 1) + ", ID=" + targetAudioTrackForInsertion.id);
+        if (timelineClip.start && typeof timelineClip.start.seconds === 'number') {
+            originalClipStartTime = timelineClip.start.seconds;
         } else {
-            // Fallback to iterative search if .track is not reliable
-            logClipMsg("targetAudioTrackItem.track is not reliable. Falling back to iterative search...");
+            logClipMsg("Original audio clip is missing 'start.seconds'. Skipping.", true);
+            return {
+                success: false,
+                error: "클립 '" + File.decode(timelineClip.name) + "': 시작 시간 정보 누락.",
+                debugInfo: debugInfo
+            };
+        }
+
+        if (timelineClip.duration && typeof timelineClip.duration.seconds === 'number') {
+            originalClipDuration = timelineClip.duration.seconds;
+        } else {
+            logClipMsg("Original audio clip is missing 'duration.seconds'. Skipping.", true);
+            return {
+                success: false,
+                error: "클립 '" + File.decode(timelineClip.name) + "': 길이 정보 누락.",
+                debugInfo: debugInfo
+            };
+        }
+
+        // 원본 클립의 트랙 정보 가져오기 (더 견고한 방법으로 수정)
+        if (timelineClip.track && typeof timelineClip.track.index === 'number') {
+            originalClipTrack = timelineClip.track;
+            originalClipTrackIndex = originalClipTrack.index;
+            logClipMsg("Track info obtained directly from timelineClip.track. Index: " + originalClipTrackIndex);
+        } else {
+            logClipMsg("timelineClip.track is undefined or invalid. Attempting to find track by iterating sequence audio tracks.");
+            var foundTrack = false;
             if (seq && seq.audioTracks) {
                 for (var tk_idx = 0; tk_idx < seq.audioTracks.numTracks; tk_idx++) {
                     var currentSeqTrack = seq.audioTracks[tk_idx];
                     if (currentSeqTrack && currentSeqTrack.clips) {
                         for (var cl_idx = 0; cl_idx < currentSeqTrack.clips.numItems; cl_idx++) {
                             var clipOnTrack = currentSeqTrack.clips[cl_idx];
-                            if (clipOnTrack && clipOnTrack.projectItem && targetAudioTrackItem.projectItem &&
-                                typeof clipOnTrack.projectItem.nodeId === 'string' &&
-                                typeof targetAudioTrackItem.projectItem.nodeId === 'string' &&
-                                clipOnTrack.projectItem.nodeId === targetAudioTrackItem.projectItem.nodeId &&
-                                Math.abs(clipOnTrack.start.seconds - originalStartTime) < 0.01 &&
-                                Math.abs(clipOnTrack.duration.seconds - originalDuration) < 0.01) {
-                                targetAudioTrackForInsertion = currentSeqTrack;
-                                logClipMsg("Track found via iteration: Track Index=" + (targetAudioTrackForInsertion.index + 1) + ", ID=" + targetAudioTrackForInsertion.id);
+                            // timelineClip과 clipOnTrack을 비교하여 동일한 클립인지 확인합니다.
+                            // projectItem.nodeId가 있다면 가장 확실하지만, 없다면 이름과 시작 시간 등으로 비교할 수 있습니다.
+                            // 여기서는 timelineClip에 projectItem이 있다는 보장이 없으므로, 더 일반적인 비교가 필요할 수 있습니다.
+                            // 가장 간단한 비교는 객체 참조 비교 (만약 동일 객체를 가리킨다면)
+                            // 또는 더 확실하게는 클립의 고유 ID (예: Premiere Pro 내부 ID)가 있다면 그것으로 비교해야 합니다.
+                            // 현재로서는 시작시간과 이름, 길이를 비교하는 방법으로 시도합니다.
+                            var clipOnTrackName = clipOnTrack.name ? File.decode(clipOnTrack.name) : "";
+                            var timelineClipName = timelineClip.name ? File.decode(timelineClip.name) : "";
+
+                            // nodeId를 우선적으로 사용하고, 없다면 이름과 시간으로 비교
+                            var isSameClip = false;
+                            if (timelineClip.projectItem && timelineClip.projectItem.nodeId && clipOnTrack.projectItem && clipOnTrack.projectItem.nodeId) {
+                                if (timelineClip.projectItem.nodeId === clipOnTrack.projectItem.nodeId &&
+                                    Math.abs(clipOnTrack.start.seconds - originalClipStartTime) < 0.01) {
+                                    isSameClip = true;
+                                }
+                            } else if (clipOnTrackName === timelineClipName &&
+                                Math.abs(clipOnTrack.start.seconds - originalClipStartTime) < 0.01 &&
+                                Math.abs(clipOnTrack.duration.seconds - originalClipDuration) < 0.01) {
+                                // 이름, 시작시간, 길이가 모두 일치하는 경우 (nodeId 없을 때의 차선책)
+                                isSameClip = true;
+                            }
+
+                            if (isSameClip) {
+                                // currentSeqTrack.index 대신 루프 인덱스 tk_idx를 사용
+                                if (currentSeqTrack && typeof tk_idx === 'number') {
+                                    originalClipTrack = currentSeqTrack;
+                                    originalClipTrackIndex = tk_idx; // currentSeqTrack.index 대신 tk_idx 사용
+                                    foundTrack = true;
+                                    logClipMsg("Track info found by iteration. Assigned Track Index: " + originalClipTrackIndex + " (from loop variable tk_idx). Track Name: '" + (originalClipTrack.name ? File.decode(originalClipTrack.name) : "N/A") + "', Track ID: " + (originalClipTrack.id || "N/A"));
+                                } else {
+                                    var trackDetails = "currentSeqTrack: " + (currentSeqTrack ? "exists" : "null/undefined");
+                                    if (currentSeqTrack) {
+                                        trackDetails += ", tk_idx: " + (tk_idx !== undefined ? tk_idx : "undefined"); // tk_idx 로깅 추가
+                                        trackDetails += ", currentSeqTrack.id: " + (currentSeqTrack.id || "undefined");
+                                        trackDetails += ", currentSeqTrack.name: " + (currentSeqTrack.name ? File.decode(currentSeqTrack.name) : "undefined");
+                                    }
+                                    logClipMsg("Found matching clip, but failed to assign track index using tk_idx. " + trackDetails, true);
+                                }
                                 break;
                             }
                         }
                     }
-                    if (targetAudioTrackForInsertion) break;
+                    if (foundTrack) break; // 트랙을 찾았으므로 외부 트랙 루프 종료
                 }
+            }
+            if (!foundTrack) {
+                logClipMsg("Failed to find the track for the original audio clip by iteration. Skipping.", true);
+                return {
+                    success: false,
+                    error: "클립 '" + File.decode(timelineClip.name) + "': 속한 트랙을 찾을 수 없습니다.",
+                    debugInfo: debugInfo
+                };
             }
         }
 
-        if (!targetAudioTrackForInsertion) {
-            logClipMsg("Could not find the audio track for the target clip. Skipping.", true);
+        // 이제 originalClipTrackIndex 와 originalClipTrack 이 설정되었거나 오류 처리됨.
+        // originalClipTrackIndex가 유효한 숫자인지 다시 한번 확인
+        if (typeof originalClipTrackIndex !== 'number' || originalClipTrack === null) {
+            logClipMsg("Original clip track index (Type: " + typeof originalClipTrackIndex + ", Value: " + originalClipTrackIndex + ") is not a valid number or track object is null after attempts. Skipping.", true);
             return {
                 success: false,
-                error: "클립 '" + File.decode(targetAudioTrackItem.name) + "': 속한 트랙 찾기 실패.",
+                error: "클립 '" + File.decode(timelineClip.name) + "': 트랙 정보 최종 확인 실패 (인덱스 또는 객체 무효).",
                 debugInfo: debugInfo
             };
         }
 
-        // Step 3: Get or import the sound project item
+        logClipMsg("Original clip: '" + File.decode(timelineClip.name) + "', Start: " + originalClipStartTime.toFixed(2) + "s, Duration: " + originalClipDuration.toFixed(2) + "s, Track: " + (originalClipTrackIndex + 1));
+
+        // 3. 대상 삽입 트랙 결정 (원본 클립 바로 아래 트랙)
+        var targetInsertionTrackIndex = originalClipTrackIndex + 1; // 이제 originalClipTrackIndex는 숫자일 것으로 기대
+        // targetInsertionTrackIndex가 여전히 숫자가 아닐 경우를 대비한 추가 검사 (매우 방어적)
+        if (typeof targetInsertionTrackIndex !== 'number' || isNaN(targetInsertionTrackIndex)) {
+            logClipMsg("targetInsertionTrackIndex is NaN or not a number even after originalClipTrackIndex was deemed valid. OriginalIndex: " + originalClipTrackIndex + ". Aborting.", true);
+            return {
+                success: false,
+                error: "클립 '" + File.decode(timelineClip.name) + "': 대상 트랙 인덱스 계산 오류.",
+                debugInfo: debugInfo
+            };
+        }
+
+        logClipMsg("Calculated target insertion track index: " + targetInsertionTrackIndex);
+
+        if (targetInsertionTrackIndex >= seq.audioTracks.numTracks) {
+            logClipMsg("No track exists below the original clip's track (Original track index: " + originalClipTrackIndex + ", Target would be: " + targetInsertionTrackIndex + "). Skipping.", true);
+            return {
+                success: false,
+                error: "클립 '" + File.decode(timelineClip.name) + "': 바로 아래 오디오 트랙이 없습니다.",
+                debugInfo: debugInfo
+            };
+        }
+        var targetInsertionTrack = seq.audioTracks[targetInsertionTrackIndex];
+        if (!targetInsertionTrack) {
+            logClipMsg("Failed to get the target insertion track object at index " + targetInsertionTrackIndex + ". Skipping.", true);
+            return {
+                success: false,
+                error: "클립 '" + File.decode(timelineClip.name) + "': 대상 트랙(인덱스 " + targetInsertionTrackIndex + ")을 가져올 수 없습니다.",
+                debugInfo: debugInfo
+            };
+        }
+        logClipMsg("Target insertion track: " + (targetInsertionTrack.name ? File.decode(targetInsertionTrack.name) : "Track " + (targetInsertionTrack.index + 1)) + " (Index: " + targetInsertionTrack.index + ")");
+
+        if (targetInsertionTrack.isLocked()) {
+            logClipMsg("Target insertion track " + (targetInsertionTrack.index + 1) + " is locked. Skipping.", true);
+            return {
+                success: false,
+                error: "클립 '" + File.decode(timelineClip.name) + "': 대상 트랙 " + (targetInsertionTrack.index + 1) + "이(가) 잠겨있어 삽입할 수 없습니다.",
+                debugInfo: debugInfo
+            };
+        }
+
+
+        // 4. 새 효과음 ProjectItem 가져오기 (기존 로직과 유사하게 재활용)
         var projectSoundItem = null;
         var importedFileNameForLog = "";
         try {
             importedFileNameForLog = File.decode(new File(soundFilePathToImport).name);
         } catch (fne) {
-            /* ignore if file name cannot be decoded */
+            /* ignore */
         }
 
         if (importedSoundItemsCache[soundFilePathToImport] && typeof importedSoundItemsCache[soundFilePathToImport].nodeId !== 'undefined') {
             projectSoundItem = importedSoundItemsCache[soundFilePathToImport];
             logClipMsg("Using cached ProjectItem: '" + (projectSoundItem.name ? File.decode(projectSoundItem.name) : importedFileNameForLog) + "'");
         } else {
-            logClipMsg("Attempting to import ProjectItem: '" + importedFileNameForLog + "'");
+            logClipMsg("Attempting to import ProjectItem: '" + importedFileNameForLog + "' from path: " + soundFilePathToImport);
             var importResultArray = app.project.importFiles([soundFilePathToImport]);
             if (importResultArray && importResultArray.length > 0 && importResultArray[0] && typeof importResultArray[0].nodeId !== 'undefined') {
                 projectSoundItem = importResultArray[0];
-                importedSoundItemsCache[soundFilePathToImport] = projectSoundItem; // Cache it
+                importedSoundItemsCache[soundFilePathToImport] = projectSoundItem;
                 logClipMsg("Import successful and cached: '" + (projectSoundItem.name ? File.decode(projectSoundItem.name) : importedFileNameForLog) + "' (nodeId: " + projectSoundItem.nodeId + ")");
             } else {
-                logClipMsg("importFiles API failed or returned invalid item. Searching in root by name: '" + importedFileNameForLog + "'");
+                logClipMsg("importFiles API failed. Searching in root by name: '" + importedFileNameForLog + "'");
+                // 루트에서 검색하는 로직 (기존 코드에서 가져옴)
                 var foundInRoot = false;
                 if (app.project.rootItem && app.project.rootItem.children) {
                     for (var pi_idx = 0; pi_idx < app.project.rootItem.children.numItems; pi_idx++) {
                         var pi_child = app.project.rootItem.children[pi_idx];
                         if (pi_child && pi_child.name === importedFileNameForLog && typeof pi_child.nodeId !== 'undefined') {
                             projectSoundItem = pi_child;
-                            importedSoundItemsCache[soundFilePathToImport] = projectSoundItem; // Cache it
+                            importedSoundItemsCache[soundFilePathToImport] = projectSoundItem;
                             logClipMsg("Found in root by name and cached: '" + File.decode(projectSoundItem.name) + "'");
                             foundInRoot = true;
                             break;
@@ -840,7 +938,7 @@ function processSingleTimelineClip(timelineClip, soundFilePathToImport, imported
                     logClipMsg("Import and root search failed for: '" + importedFileNameForLog + "'. Skipping.", true);
                     return {
                         success: false,
-                        error: "클립 '" + File.decode(targetAudioTrackItem.name) + "': 새 사운드 임포트/검색 실패 (" + importedFileNameForLog + ")",
+                        error: "새 사운드 임포트/검색 실패 (" + importedFileNameForLog + ")",
                         debugInfo: debugInfo
                     };
                 }
@@ -851,190 +949,134 @@ function processSingleTimelineClip(timelineClip, soundFilePathToImport, imported
             logClipMsg("Failed to obtain a valid ProjectItem for the sound file. Skipping.", true);
             return {
                 success: false,
-                error: "클립 '" + File.decode(targetAudioTrackItem.name) + "': 새 사운드 아이템 유효성 문제.",
+                error: "새 사운드 아이템 유효성 문제.",
                 debugInfo: debugInfo
             };
         }
         if (typeof projectSoundItem.isSequence === 'function' && projectSoundItem.isSequence() === true) {
-            logClipMsg("ProjectItem to insert is a sequence, which is not allowed for overwrite. Skipping.", true);
+            logClipMsg("ProjectItem to insert is a sequence. Skipping.", true);
             return {
                 success: false,
-                error: "클립 '" + File.decode(targetAudioTrackItem.name) + "': 가져온 항목이 시퀀스임.",
+                error: "가져온 항목이 시퀀스임 (오디오 파일 필요).",
                 debugInfo: debugInfo
             };
         }
 
+        // 5. 새 효과음 삽입
+        var insertionTimeObject = new Time();
+        insertionTimeObject.seconds = originalClipStartTime;
+        var justInsertedClip = null;
 
-        // Step 4: Get new sound's actual media duration
-        var newSoundActualMediaDuration = Infinity; // Default to Infinity if not obtainable
-        if (projectSoundItem && typeof projectSoundItem.getDuration === 'function') {
-            try {
-                var durationObj = projectSoundItem.getDuration();
-                if (durationObj && typeof durationObj.seconds === 'number') {
-                    newSoundActualMediaDuration = durationObj.seconds;
-                    logClipMsg("Original media duration of new sound ('" + (projectSoundItem.name ? File.decode(projectSoundItem.name) : importedFileNameForLog) + "'): " + newSoundActualMediaDuration.toFixed(4) + "s");
-                } else {
-                    logClipMsg("Warning: getDuration() for new sound did not return valid seconds. Media length limit might not apply.", false); // Not an error, but a warning
-                }
-            } catch (e_getDuration) {
-                logClipMsg("Warning: Error calling getDuration() on new sound: " + e_getDuration.toString() + ". Media length limit might not apply.", false);
-            }
-        } else if (projectSoundItem) {
-            logClipMsg("Warning: New sound ProjectItem does not have a getDuration method. Media length limit might not apply.", false);
-        }
-
-        // Step 5: Perform overwrite and adjust clip (This will be a call to another sub-helper function later)
-        var time = new Time();
-        time.seconds = originalStartTime;
-
-        var clipToModify = null;
-        var skipOverwriteDueToSameSource = (targetAudioTrackItem.projectItem && typeof targetAudioTrackItem.projectItem.nodeId === 'string' &&
-            projectSoundItem.nodeId === targetAudioTrackItem.projectItem.nodeId);
-
-        if (skipOverwriteDueToSameSource) {
-            logClipMsg("New sound's ProjectItem ID is same as current clip's. Skipping 'overwriteClip', will modify existing timeline clip.");
-            clipToModify = targetAudioTrackItem;
-        } else {
-            logClipMsg("Preparing to call overwriteClip: Track ID='" + targetAudioTrackForInsertion.id + "', ProjectItem='" + (projectSoundItem.name ? File.decode(projectSoundItem.name) : importedFileNameForLog) + "', Time=" + time.seconds.toFixed(2) + "s");
-            var returnedClipFromAPI = null;
-            if (targetAudioTrackForInsertion && typeof targetAudioTrackForInsertion.overwriteClip === 'function') {
-                try {
-                    returnedClipFromAPI = targetAudioTrackForInsertion.overwriteClip(projectSoundItem, time);
-                } catch (owError) {
-                    logClipMsg("Error during overwriteClip: " + owError.toString(), true);
-                    return {
-                        success: false,
-                        error: "클립 '" + File.decode(targetAudioTrackItem.name) + "': overwriteClip 실패(" + owError.toString() + ")",
-                        debugInfo: debugInfo
-                    };
-                }
-            } else {
-                logClipMsg("targetAudioTrackForInsertion or overwriteClip method is invalid. Skipping overwrite.", true);
-                return {
-                    success: false,
-                    error: "클립 '" + File.decode(targetAudioTrackItem.name) + "': overwriteClip 메서드 접근 불가",
-                    debugInfo: debugInfo
-                };
-            }
-
-            if (returnedClipFromAPI && typeof returnedClipFromAPI.name !== 'undefined') {
-                clipToModify = returnedClipFromAPI;
-                logClipMsg("overwriteClip API returned a clip: '" + (clipToModify.name ? File.decode(clipToModify.name) : "Unnamed") + "'");
-            } else {
-                logClipMsg("Warning: overwriteClip API did not return a valid clip. Attempting to find it on timeline...");
-                // Fallback search on timeline
-                if (targetAudioTrackForInsertion && targetAudioTrackForInsertion.clips) {
-                    for (var c_idx = 0; c_idx < targetAudioTrackForInsertion.clips.numItems; c_idx++) {
-                        var clipOnTrack = targetAudioTrackForInsertion.clips[c_idx];
-                        if (clipOnTrack && clipOnTrack.start && typeof clipOnTrack.start.seconds === 'number' &&
-                            clipOnTrack.projectItem && typeof clipOnTrack.projectItem.nodeId === 'string' &&
-                            projectSoundItem && typeof projectSoundItem.nodeId === 'string' &&
-                            Math.abs(clipOnTrack.start.seconds - originalStartTime) < 0.01 &&
-                            clipOnTrack.projectItem.nodeId === projectSoundItem.nodeId) {
-                            clipToModify = clipOnTrack;
-                            logClipMsg("Found overwritten clip on timeline by searching: '" + (clipToModify.name ? File.decode(clipToModify.name) : "Unnamed") + "'");
-                            break;
-                        }
-                    }
-                }
-                if (!clipToModify) {
-                    logClipMsg("Failed to find the overwritten clip on the timeline after API call. Skipping further processing for this clip.", true);
-                    return {
-                        success: false,
-                        error: "클립 '" + File.decode(targetAudioTrackItem.name) + "': 덮어쓴 클립 찾기 실패",
-                        debugInfo: debugInfo
-                    };
-                }
-            }
-        }
-
-        if (!clipToModify || typeof clipToModify.name === 'undefined' ||
-            !clipToModify.start || typeof clipToModify.start.seconds !== 'number' ||
-            !clipToModify.end || typeof clipToModify.end.seconds !== 'number' ||
-            !clipToModify.duration || typeof clipToModify.duration.seconds !== 'number') {
-            logClipMsg("Clip to modify is invalid or missing essential properties after overwrite/selection. Skipping length adjustment.", true);
-            return {
-                success: false,
-                error: "클립 '" + File.decode(targetAudioTrackItem.name) + "': 수정 대상 클립 유효성 문제",
-                debugInfo: debugInfo
-            };
-        }
-
-        logClipMsg("Adjusting length for clip: '" + File.decode(clipToModify.name) + "'. Current Start: " + clipToModify.start.seconds.toFixed(2) + "s");
-        var clipStartSec = clipToModify.start.seconds;
-
-        // Find nextClipOnTrackStartTime
-        var nextClipOnTrackStartTime = Infinity;
-        if (targetAudioTrackForInsertion && targetAudioTrackForInsertion.clips) {
-            for (var nc_idx = 0; nc_idx < targetAudioTrackForInsertion.clips.numItems; nc_idx++) {
-                var nextClipCandidate = targetAudioTrackForInsertion.clips[nc_idx];
-                var isSelf = (nextClipCandidate && nextClipCandidate.projectItem && clipToModify.projectItem &&
-                    nextClipCandidate.projectItem.nodeId === clipToModify.projectItem.nodeId &&
-                    Math.abs(nextClipCandidate.start.seconds - clipStartSec) < 0.001);
-                if (isSelf) continue;
-
-                if (nextClipCandidate && nextClipCandidate.start.seconds > clipStartSec + 0.001) {
-                    if (nextClipCandidate.start.seconds < nextClipOnTrackStartTime) {
-                        nextClipOnTrackStartTime = nextClipCandidate.start.seconds;
-                    }
-                }
-            }
-        }
-        if (isFinite(nextClipOnTrackStartTime)) {
-            logClipMsg("Next clip on same track starts at: " + nextClipOnTrackStartTime.toFixed(4) + "s");
-        } else {
-            logClipMsg("No subsequent clip found on the same track.");
-        }
-
-        // Calculate finalEffectiveDuration
-        var finalEffectiveDuration = originalDuration; // Target original duration first
-        logClipMsg("Calculating final effective duration. Base (originalDuration): " + finalEffectiveDuration.toFixed(4) + "s");
-
-        finalEffectiveDuration = Math.min(finalEffectiveDuration, newSoundActualMediaDuration);
-        logClipMsg("After new sound media length (" + newSoundActualMediaDuration.toFixed(4) + "s) limit: " + finalEffectiveDuration.toFixed(4) + "s");
-
-        var durationToNextClip = Infinity;
-        if (isFinite(nextClipOnTrackStartTime)) {
-            durationToNextClip = nextClipOnTrackStartTime - clipStartSec;
-            if (durationToNextClip < 0) durationToNextClip = 0;
-            finalEffectiveDuration = Math.min(finalEffectiveDuration, durationToNextClip);
-            logClipMsg("After next clip (" + durationToNextClip.toFixed(4) + "s away) limit: " + finalEffectiveDuration.toFixed(4) + "s");
-        }
-        finalEffectiveDuration = Math.max(0.001, finalEffectiveDuration); // Ensure a very small positive duration
-        logClipMsg("Final determined effective duration: " + finalEffectiveDuration.toFixed(4) + "s");
-
-        // Set clipToModify.end
-        var newEndSec = clipStartSec + finalEffectiveDuration;
-        var newEndTime = new Time();
-        newEndTime.seconds = newEndSec;
-        logClipMsg("Calculated new end time (seconds): " + newEndSec.toFixed(4) + "s. Attempting to set clip.end.");
-
+        logClipMsg("Attempting to insert clip '" + File.decode(projectSoundItem.name) + "' onto track " + (targetInsertionTrack.index + 1) + " at " + insertionTimeObject.seconds.toFixed(2) + "s.");
         try {
-            clipToModify.end = newEndTime;
-            logClipMsg("clip.end set. Actual new End: " + clipToModify.end.seconds.toFixed(4) + "s, Actual new Duration: " + clipToModify.duration.seconds.toFixed(4) + "s");
+            // insertClip은 아무것도 반환하지 않음.
+            targetInsertionTrack.insertClip(projectSoundItem, insertionTimeObject);
+            logClipMsg("insertClip API call successful.");
+
+            // 삽입된 클립 찾기 (더 견고한 방법 필요)
+            // 가장 간단한 방법: 트랙의 마지막 클립이고 시작 시간이 일치하는지 확인
+            // 더 견고한 방법: 모든 클립을 순회하며 projectItem과 시작 시간으로 확인
+            if (targetInsertionTrack.clips.numItems > 0) {
+                for (var c_idx = targetInsertionTrack.clips.numItems - 1; c_idx >= 0; c_idx--) {
+                    var candidateClip = targetInsertionTrack.clips[c_idx];
+                    if (candidateClip && candidateClip.projectItem && candidateClip.projectItem.nodeId === projectSoundItem.nodeId &&
+                        Math.abs(candidateClip.start.seconds - originalClipStartTime) < 0.01) {
+                        justInsertedClip = candidateClip;
+                        logClipMsg("Successfully found inserted clip: '" + File.decode(justInsertedClip.name) + "' by searching track.");
+                        break;
+                    }
+                }
+            }
+            if (!justInsertedClip) {
+                // 백업: 만약 위에서 못찾았다면, 혹시 마지막 클립이 맞는지 한번 더 확인 (덜 정확함)
+                var lastClip = targetInsertionTrack.clips[targetInsertionTrack.clips.numItems - 1];
+                if (lastClip && lastClip.projectItem && lastClip.projectItem.nodeId === projectSoundItem.nodeId && Math.abs(lastClip.start.seconds - originalClipStartTime) < 0.01) {
+                    justInsertedClip = lastClip;
+                    logClipMsg("Found inserted clip (using last clip as fallback): '" + File.decode(justInsertedClip.name) + "'");
+                } else {
+                    logClipMsg("Failed to find the newly inserted clip on track " + (targetInsertionTrack.index + 1) + " after insertClip call. This might indicate an issue or a very short clip being immediately overwritten or removed.", true);
+                    // 이 경우에도 오류로 처리하여 길이 조정을 시도하지 않도록 함
+                    return {
+                        success: false,
+                        error: "클립 '" + File.decode(timelineClip.name) + "': 효과음 삽입 후 타임라인에서 해당 클립을 찾지 못했습니다.",
+                        debugInfo: debugInfo
+                    };
+                }
+            }
+
+        } catch (e_insert) {
+            logClipMsg("Error during insertClip: " + e_insert.toString(), true);
+            return {
+                success: false,
+                error: "insertClip 실패: " + e_insert.toString(),
+                debugInfo: debugInfo
+            };
+        }
+
+        if (!justInsertedClip || typeof justInsertedClip.name === 'undefined') {
+            logClipMsg("Could not reliably find the inserted clip on the timeline. Skipping length adjustment.", true);
+            // 위에서 이미 반환 로직이 있지만, 안전장치로 추가.
+            return {
+                success: false,
+                error: "삽입된 클립을 타임라인에서 찾을 수 없습니다.",
+                debugInfo: debugInfo
+            };
+        }
+
+        logClipMsg("Inserted clip '" + File.decode(justInsertedClip.name) + "' initial duration: " + justInsertedClip.duration.seconds.toFixed(2) + "s, start: " + justInsertedClip.start.seconds.toFixed(2) + "s.");
+
+        // 6. 삽입된 클립 길이 조정
+        var newSoundActualMediaDuration = Infinity;
+        if (projectSoundItem.getDuration && typeof projectSoundItem.getDuration === 'function') {
+            try {
+                var durObj = projectSoundItem.getDuration();
+                if (durObj && typeof durObj.seconds === 'number') {
+                    newSoundActualMediaDuration = durObj.seconds;
+                    logClipMsg("New sound's original media duration: " + newSoundActualMediaDuration.toFixed(2) + "s.");
+                } else {
+                    logClipMsg("Could not get valid seconds from new sound's getDuration().");
+                }
+            } catch (e_getDur) {
+                logClipMsg("Error calling getDuration on new sound: " + e_getDur.toString());
+            }
+        } else {
+            logClipMsg("New sound project item does not have getDuration method.");
+        }
+
+
+        var targetDurationForNewClip = originalClipDuration;
+        logClipMsg("Target duration for new clip (from original selected clip): " + targetDurationForNewClip.toFixed(2) + "s.");
+
+        // 새 효과음의 실제 미디어 길이로 제한
+        var finalEffectiveDuration = Math.min(targetDurationForNewClip, newSoundActualMediaDuration);
+        if (finalEffectiveDuration < targetDurationForNewClip) {
+            logClipMsg("Duration capped by new sound's actual media length. Original target: " + targetDurationForNewClip.toFixed(2) + "s, Capped: " + finalEffectiveDuration.toFixed(2) + "s", false); // 경고성 정보
+            errorMessages.push("클립 '" + File.decode(justInsertedClip.name) + "': 길이가 새 효과음 원본 미디어(" + newSoundActualMediaDuration.toFixed(2) + "s)보다 짧게 제한됨");
+        }
+
+        // 길이가 0 또는 음수가 되지 않도록 최소값 보장
+        finalEffectiveDuration = Math.max(0.001, finalEffectiveDuration);
+
+
+        var newEndTimeObject = new Time();
+        newEndTimeObject.seconds = justInsertedClip.start.seconds + finalEffectiveDuration;
+
+        logClipMsg("Attempting to set end for '" + File.decode(justInsertedClip.name) + "' to achieve duration " + finalEffectiveDuration.toFixed(2) + "s. New end time: " + newEndTimeObject.seconds.toFixed(2) + "s.");
+        try {
+            justInsertedClip.end = newEndTimeObject;
+            var actualNewDuration = justInsertedClip.duration.seconds;
+            logClipMsg("Clip end set. Actual new duration: " + actualNewDuration.toFixed(2) + "s.");
+
+            if (Math.abs(actualNewDuration - finalEffectiveDuration) > 0.01) {
+                logClipMsg("Warning: Actual duration " + actualNewDuration.toFixed(2) + "s differs from targeted " + finalEffectiveDuration.toFixed(2) + "s. API or media limitation?", false);
+                errorMessages.push("클립 '" + File.decode(justInsertedClip.name) + "': 최종 길이가 목표(" + finalEffectiveDuration.toFixed(2) + "s)와 다름 (실제: " + actualNewDuration.toFixed(2) + "s)");
+            }
             clipSuccessfullyProcessed = true;
-
-            var finalActualDurationOnTimeline = clipToModify.duration.seconds;
-            if (Math.abs(finalActualDurationOnTimeline - finalEffectiveDuration) > 0.01) {
-                logClipMsg("Warning: Final timeline duration (" + finalActualDurationOnTimeline.toFixed(2) + "s) differs from target effective duration (" + finalEffectiveDuration.toFixed(2) + "s). API limitation?", false);
-                errorMessages.push("클립 '" + File.decode(clipToModify.name) + "': 길이 부분 조정됨 (실제: " + finalActualDurationOnTimeline.toFixed(2) + "s, 목표: " + finalEffectiveDuration.toFixed(2) + "s)");
-            } else {
-                logClipMsg("Clip length adjustment successful.");
-            }
-            // Add specific warnings if capped
-            if (isFinite(newSoundActualMediaDuration) && finalEffectiveDuration < originalDuration && Math.abs(finalEffectiveDuration - newSoundActualMediaDuration) < 0.01) {
-                errorMessages.push("클립 '" + File.decode(clipToModify.name) + "': 길이가 새 효과음의 원본 미디어 최대 길이(" + newSoundActualMediaDuration.toFixed(2) + "s)로 제한됨");
-            } else if (isFinite(durationToNextClip) && finalEffectiveDuration < originalDuration && Math.abs(finalEffectiveDuration - durationToNextClip) < 0.01) {
-                errorMessages.push("클립 '" + File.decode(clipToModify.name) + "': 다음 클립과의 간섭을 피하기 위해 길이가 " + durationToNextClip.toFixed(2) + "s로 제한됨");
-            }
-
-
         } catch (e_setEnd) {
             logClipMsg("Error setting clip.end: " + e_setEnd.toString(), true);
-            // errorMessages.push already handled by logClipMsg
             return {
                 success: false,
-                error: "클립 '" + File.decode(clipToModify.name) + "': 새 끝점 설정 실패 (" + e_setEnd.toString() + ")",
+                error: "새 끝점 설정 실패: " + e_setEnd.toString(),
                 debugInfo: debugInfo
             };
         }
@@ -1048,7 +1090,6 @@ function processSingleTimelineClip(timelineClip, soundFilePathToImport, imported
 
     } catch (e) {
         logClipMsg("CRITICAL ERROR in " + functionName + ": " + e.toString() + (e.line ? " (Line: " + e.line + ")" : ""), true);
-        // errorMessages.push already handled by logClipMsg
         return {
             success: false,
             error: "클립 처리 중 예외: " + e.toString(),
@@ -1056,7 +1097,6 @@ function processSingleTimelineClip(timelineClip, soundFilePathToImport, imported
         };
     }
 }
-
 
 // Helper function to find linked audio
 // 기존 findLinkedAudioTrackItem 함수는 유지 (필요시 수정)

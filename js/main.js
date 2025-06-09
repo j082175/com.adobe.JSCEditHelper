@@ -280,6 +280,17 @@ function browseSoundFolder() {
         if (result && result !== "undefined" && result !== "") {
             document.getElementById("sound-folder").value = result;
             localStorage.setItem(SOUND_FOLDER_KEY, result);
+            currentFolderPath = result; // currentFolderPath도 업데이트
+            document.getElementById("refreshSounds").disabled = false; // 경로가 설정되면 새로고침 버튼 활성화
+        } else {
+            console.warn(
+                "[JS] browseSoundFolder: Received invalid result from ExtendScript: ",
+                result
+            ); // 로그 추가
+            updateStatus(
+                "폴더를 찾을 수 없거나 선택되지 않았습니다. Premiere Pro에서 로그를 확인하세요.",
+                "warning"
+            );
         }
     });
 }

@@ -280,17 +280,6 @@ function browseSoundFolder() {
         if (result && result !== "undefined" && result !== "") {
             document.getElementById("sound-folder").value = result;
             localStorage.setItem(SOUND_FOLDER_KEY, result);
-            currentFolderPath = result; // currentFolderPath도 업데이트
-            document.getElementById("refreshSounds").disabled = false; // 경로가 설정되면 새로고침 버튼 활성화
-        } else {
-            console.warn(
-                "[JS] browseSoundFolder: Received invalid result from ExtendScript: ",
-                result
-            ); // 로그 추가
-            updateStatus(
-                "폴더를 찾을 수 없거나 선택되지 않았습니다. Premiere Pro에서 로그를 확인하세요.",
-                "warning"
-            );
         }
     });
 }
@@ -631,7 +620,6 @@ function refreshSoundButtons() {
                     "[JS] refreshSoundButtons: evalScript callback result for getFilesForPathCS:",
                     result
                 ); // 로그 추가
-
                 if (
                     typeof result === "string" &&
                     result.indexOf("error:") === 0
@@ -640,50 +628,6 @@ function refreshSoundButtons() {
                         "새로고침 중 ExtendScript 오류: " + result,
                         "error"
                     );
-                } else if (
-                    typeof result === "string" &&
-                    result.indexOf("fallback_data:") === 0
-                ) {
-                    // CSXSEvent 사용 불가능 시 대안 처리
-                    console.log(
-                        "[JS] refreshSoundButtons: Processing fallback data due to CEP limitations."
-                    );
-                    var fallbackDataJson = result.substring(
-                        "fallback_data:".length
-                    );
-                    try {
-                        var fallbackData = JSON.parse(fallbackDataJson);
-                        console.log(
-                            "[JS] refreshSoundButtons: Parsed fallback data:",
-                            fallbackData
-                        );
-
-                        // FileListEvent 핸들러와 동일한 방식으로 직접 처리
-                        var fakeEvent = {
-                            data: JSON.stringify({
-                                soundFiles: fallbackData.soundFiles,
-                                folderPath: fallbackData.folderPath,
-                            }),
-                        };
-                        handleFileListEvent(fakeEvent);
-
-                        var statusMsg = "새로고침 완료";
-                        if (fallbackData.reason) {
-                            statusMsg +=
-                                " (CEP 제한: " + fallbackData.reason + ")";
-                        }
-                        updateStatus(statusMsg, "success");
-                    } catch (fallbackParseError) {
-                        console.error(
-                            "[JS] refreshSoundButtons: Fallback data parsing error:",
-                            fallbackParseError
-                        );
-                        updateStatus(
-                            "새로고침 데이터 처리 오류: " +
-                                fallbackParseError.message,
-                            "error"
-                        );
-                    }
                 }
                 // 성공 시 별도 처리는 FileListEvent 핸들러에서 담당
             }

@@ -22,12 +22,30 @@ function init() {
 
     // 이전에 저장된 폴더 경로 불러오기 및 currentFolderPath, 새로고침 버튼 상태 설정
     var savedFolder = localStorage.getItem(SOUND_FOLDER_KEY);
-    if (savedFolder) {
+    console.log("[init] Loaded savedFolder from localStorage:", savedFolder);
+
+    // 경로 유효성 검사 추가
+    if (savedFolder && isValidPath(savedFolder)) {
         document.getElementById("sound-folder").value = savedFolder;
         currentFolderPath = savedFolder; // currentFolderPath에 저장된 경로 반영
         document.getElementById("refreshSounds").disabled = false; // 저장된 경로 있으면 새로고침 버튼 활성화
+        console.log(
+            "[init] Valid savedFolder set as currentFolderPath:",
+            currentFolderPath
+        );
     } else {
+        if (savedFolder) {
+            console.warn(
+                "[init] Invalid savedFolder detected, clearing:",
+                savedFolder
+            );
+            localStorage.removeItem(SOUND_FOLDER_KEY); // 손상된 경로 제거
+        }
         document.getElementById("refreshSounds").disabled = true; // 저장된 경로 없으면 비활성화
+        currentFolderPath = ""; // 명시적으로 빈 문자열로 초기화
+        console.log(
+            "[init] No valid savedFolder, currentFolderPath set to empty string"
+        );
     }
 
     // 이벤트 리스너 등록
@@ -261,9 +279,36 @@ function setupEventListeners() {
     var folderInput = document.getElementById("sound-folder");
     if (folderInput) {
         folderInput.addEventListener("change", function () {
-            localStorage.setItem(SOUND_FOLDER_KEY, this.value);
-            currentFolderPath = this.value; // currentFolderPath도 업데이트
-            document.getElementById("refreshSounds").disabled = !this.value; // 경로 유무에 따라 새로고침 버튼 활성화/비활성화
+            var inputPath = this.value.trim();
+            console.log("[folderInput change] Input path:", inputPath);
+
+            if (inputPath && isValidPath(inputPath)) {
+                localStorage.setItem(SOUND_FOLDER_KEY, inputPath);
+                currentFolderPath = inputPath; // currentFolderPath도 업데이트
+                document.getElementById("refreshSounds").disabled = false; // 유효한 경로면 새로고침 버튼 활성화
+                console.log(
+                    "[folderInput change] Valid path stored:",
+                    inputPath
+                );
+            } else {
+                if (inputPath) {
+                    console.warn(
+                        "[folderInput change] Invalid path entered:",
+                        inputPath
+                    );
+                    updateStatus(
+                        "입력된 폴더 경로가 유효하지 않습니다.",
+                        "error"
+                    );
+                    this.value = currentFolderPath; // 이전 유효한 경로로 복원
+                } else {
+                    // 빈 값인 경우
+                    localStorage.removeItem(SOUND_FOLDER_KEY);
+                    currentFolderPath = "";
+                    document.getElementById("refreshSounds").disabled = true; // 경로 없으면 새로고침 버튼 비활성화
+                    console.log("[folderInput change] Path cleared");
+                }
+            }
         });
         // console.log("Event listener added to sound-folder input:", folderInput); // 로그 주석 처리
         // alert("Event listener added to sound-folder input"); // alert 주석 처리
@@ -277,9 +322,31 @@ function setupEventListeners() {
 function browseSoundFolder() {
     // alert("browseSoundFolder() called - alert"); // alert 주석 처리
     csInterface.evalScript("browseSoundFolder()", function (result) {
-        if (result && result !== "undefined" && result !== "") {
+        console.log("[browseSoundFolder] ExtendScript result:", result);
+
+        if (
+            result &&
+            result !== "undefined" &&
+            result !== "" &&
+            isValidPath(result)
+        ) {
             document.getElementById("sound-folder").value = result;
             localStorage.setItem(SOUND_FOLDER_KEY, result);
+            currentFolderPath = result; // currentFolderPath도 업데이트
+            document.getElementById("refreshSounds").disabled = false; // 유효한 경로면 새로고침 버튼 활성화
+            console.log("[browseSoundFolder] Valid path set:", result);
+        } else {
+            if (result && result !== "undefined" && result !== "") {
+                console.warn(
+                    "[browseSoundFolder] Invalid path received from ExtendScript:",
+                    result
+                );
+                updateStatus("선택된 폴더 경로가 유효하지 않습니다.", "error");
+            } else {
+                console.log(
+                    "[browseSoundFolder] No folder selected or empty result"
+                );
+            }
         }
     });
 }
@@ -504,26 +571,36 @@ function handleFileListEvent(event) {
         ); // 로그 추가
 
         if (folderPathFromEvent) {
-            currentFolderPath = folderPathFromEvent; // 경로 저장
-            localStorage.setItem(SOUND_FOLDER_KEY, currentFolderPath); // localStorage에도 저장
-            console.log(
-                "[JS] handleFileListEvent: Updated currentFolderPath to:",
-                currentFolderPath
-            ); // 로그 추가
+            // 경로 유효성 검사 추가
+            if (isValidPath(folderPathFromEvent)) {
+                currentFolderPath = folderPathFromEvent; // 경로 저장
+                localStorage.setItem(SOUND_FOLDER_KEY, currentFolderPath); // localStorage에도 저장
+                console.log(
+                    "[JS] handleFileListEvent: Updated currentFolderPath to:",
+                    currentFolderPath
+                ); // 로그 추가
 
-            var folderPathSpanEl = document.getElementById("folderPathSpan");
-            if (folderPathSpanEl) {
-                // console.log("Path for 짧은경로 in handleFileListEvent:", currentFolderPath); // 이 로그는 이미 있음
-                folderPathSpanEl.textContent = 짧은경로(currentFolderPath);
+                var folderPathSpanEl =
+                    document.getElementById("folderPathSpan");
+                if (folderPathSpanEl) {
+                    // console.log("Path for 짧은경로 in handleFileListEvent:", currentFolderPath); // 이 로그는 이미 있음
+                    folderPathSpanEl.textContent = 짧은경로(currentFolderPath);
+                } else {
+                    console.warn(
+                        "[JS] handleFileListEvent: Element with ID 'folderPathSpan' not found. Cannot display folder path."
+                    );
+                }
+
+                var refreshButton = document.getElementById("refreshSounds");
+                if (refreshButton) {
+                    refreshButton.disabled = false; // 새로고침 버튼 활성화
+                }
             } else {
                 console.warn(
-                    "[JS] handleFileListEvent: Element with ID 'folderPathSpan' not found. Cannot display folder path."
+                    "[JS] handleFileListEvent: Invalid folderPathFromEvent received, not updating currentFolderPath:",
+                    folderPathFromEvent
                 );
-            }
-
-            var refreshButton = document.getElementById("refreshSounds");
-            if (refreshButton) {
-                refreshButton.disabled = false; // 새로고침 버튼 활성화
+                updateStatus("수신된 폴더 경로가 유효하지 않습니다.", "error");
             }
         } else if (currentFolderPath === "") {
             // This case might be redundant if folderPathFromEvent is always expected
@@ -594,7 +671,12 @@ function refreshSoundButtons() {
         currentFolderPath
     ); // 로그 추가
 
-    if (currentFolderPath && currentFolderPath !== "") {
+    // 경로 유효성 검사 추가
+    if (
+        currentFolderPath &&
+        currentFolderPath !== "" &&
+        isValidPath(currentFolderPath)
+    ) {
         var container = document.getElementById(
             "individualSoundButtonsContainer"
         );
@@ -633,13 +715,29 @@ function refreshSoundButtons() {
             }
         );
     } else {
-        console.warn(
-            "[JS] refreshSoundButtons: currentFolderPath is empty or invalid. Aborting refresh."
-        ); // 로그 추가
-        updateStatus(
-            "먼저 '폴더 찾아보기'를 통해 효과음 폴더를 선택해주세요.",
-            "warning"
-        );
+        // 유효하지 않은 경로 처리
+        if (currentFolderPath && !isValidPath(currentFolderPath)) {
+            console.warn(
+                "[JS] refreshSoundButtons: currentFolderPath is invalid, clearing it:",
+                currentFolderPath
+            );
+            // 손상된 경로 정리
+            currentFolderPath = "";
+            localStorage.removeItem(SOUND_FOLDER_KEY);
+            document.getElementById("sound-folder").value = "";
+            updateStatus(
+                "저장된 폴더 경로가 손상되어 초기화되었습니다. 다시 폴더를 선택해주세요.",
+                "error"
+            );
+        } else {
+            console.warn(
+                "[JS] refreshSoundButtons: currentFolderPath is empty or invalid. Aborting refresh."
+            ); // 로그 추가
+            updateStatus(
+                "먼저 '폴더 찾아보기'를 통해 효과음 폴더를 선택해주세요.",
+                "warning"
+            );
+        }
         document.getElementById("refreshSounds").disabled = true;
     }
 }
@@ -652,6 +750,54 @@ function 짧은경로(path) {
         return ".../" + parts[parts.length - 2] + "/" + parts[parts.length - 1];
     }
     return path;
+}
+
+// 경로 유효성 검사 함수 추가
+function isValidPath(path) {
+    if (!path || typeof path !== "string") {
+        console.log("[isValidPath] Path is not a string or is empty:", path);
+        return false;
+    }
+
+    // 최소 길이 검사
+    if (path.trim().length < 3) {
+        console.log("[isValidPath] Path too short:", path);
+        return false;
+    }
+
+    // 오류 문자열 포함 검사
+    var errorPatterns = [
+        "EvalScript error",
+        "undefined",
+        "null",
+        "[object Object]",
+        "error:",
+        "JSX exception",
+    ];
+
+    for (var i = 0; i < errorPatterns.length; i++) {
+        if (path.indexOf(errorPatterns[i]) !== -1) {
+            console.log(
+                "[isValidPath] Path contains error pattern '" +
+                    errorPatterns[i] +
+                    "':",
+                path
+            );
+            return false;
+        }
+    }
+
+    // Windows 경로 형식 기본 검사 (드라이브 문자가 있는지)
+    if (!/^[A-Za-z]:\\/.test(path)) {
+        console.log(
+            "[isValidPath] Path doesn't match Windows drive pattern:",
+            path
+        );
+        return false;
+    }
+
+    console.log("[isValidPath] Path is valid:", path);
+    return true;
 }
 
 // 새로 추가된 함수: 개별 효과음 버튼 클릭 처리

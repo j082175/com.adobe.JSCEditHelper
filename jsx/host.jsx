@@ -3,6 +3,14 @@
  * Premiere Pro와 CEP 패널 간의 통신을 담당합니다.
  */
 
+// PlugPlugExternalObject 라이브러리 로드 (CSXSEvent 사용을 위해 필요)
+try {
+    var plugPlugLib = new ExternalObject("lib:PlugPlugExternalObject");
+    $.writeln("PlugPlugExternalObject 라이브러리 로드 성공");
+} catch (e) {
+    $.writeln("PlugPlugExternalObject 라이브러리 로드 실패: " + e.toString());
+}
+
 // 선택된 클립 사이에 랜덤 효과음 삽입 함수
 function insertSoundsBetweenClips(folderPath, audioTrack) {
     try {
@@ -1191,11 +1199,7 @@ function getFilesForPathCS(folderPathFromJS) {
             folderPath: soundFilesResult.path // soundFilesResult.path 사용
         });
         event.scope = "APPLICATION";
-        // Ensure csInterface is accessible here
-        // event.appId = csInterface.getApplicationID(); // 주석 처리
-        // event.extensionId = csInterface.getExtensionID(); // 주석 처리
-        // csInterface.dispatchEvent(event); // 주석 처리
-        event.dispatch(); // CSXSEvent 객체의 dispatch 메소드 사용으로 변경
+        event.dispatch();
 
         $.writeln(logPrefix + "Dispatched FileListEvent for path: " + soundFilesResult.path);
         return "success_getFilesForPathCS";

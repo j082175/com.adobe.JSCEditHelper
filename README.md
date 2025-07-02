@@ -74,4 +74,128 @@
 *   효과음 미리 듣기 기능.
 
 ---
-이 README는 프로젝트의 현재 상태를 반영하며, 기능이 추가되거나 문제가 해결됨에 따라 업데이트될 예정입니다. 
+이 README는 프로젝트의 현재 상태를 반영하며, 기능이 추가되거나 문제가 해결됨에 따라 업데이트될 예정입니다.
+
+# 효과음 삽입 도구 (Sound Inserter)
+
+Adobe Premiere Pro용 효과음 삽입 확장프로그램입니다.
+
+## 설치 방법
+
+### 1. 자동 설치 (권장)
+1. **관리자 권한으로** `install.bat` 실행
+   - 확장프로그램 폴더 복사
+   - PlugPlugExternalObject 라이브러리 자동 다운로드
+   - 레지스트리 설정 자동 적용
+
+### 2. 수동 설치
+1. 이 프로젝트 폴더 전체를 다음 경로에 복사:
+   ```
+   Windows: C:\Program Files (x86)\Common Files\Adobe\CEP\extensions\com.adobe.SoundInserter
+   macOS: /Library/Application Support/Adobe/CEP/extensions/com.adobe.SoundInserter
+   ```
+
+2. **PlugPlugExternalObject 라이브러리 설치** (중요!)
+   - `download_plugplug.bat` 실행 (Windows)
+   - 또는 수동으로 다음 파일들을 `lib` 폴더에 복사:
+     - Windows: `PlugPlugExternalObject.dll`
+     - macOS: `PlugPlugExternalObject.bundle`
+
+3. 디버그 모드 활성화 (필수)
+
+## PlugPlugExternalObject 라이브러리 문제 해결
+
+### 문제 증상
+- 다른 컴퓨터에서 확장프로그램이 작동하지 않음
+- "PlugPlugExternalObject 라이브러리 로드 실패" 메시지
+- CSXSEvent 관련 오류
+
+### 해결 방법
+
+#### 방법 1: 자동 다운로드 스크립트 사용
+```batch
+# Windows에서 실행
+download_plugplug.bat
+```
+
+#### 방법 2: 수동 다운로드
+1. 다음 URL에서 파일 다운로드:
+   - Windows: https://github.com/Adobe-CEP/CEP-Resources/raw/master/CEP_8.x/ExtendScript/PlugPlugExternalObject.dll
+   - macOS: https://github.com/Adobe-CEP/CEP-Resources/raw/master/CEP_8.x/ExtendScript/PlugPlugExternalObject.bundle
+
+2. 다운로드한 파일을 확장프로그램의 `lib` 폴더에 복사
+
+#### 방법 3: 시스템 라이브러리 확인
+일부 Adobe 제품 설치 시 자동으로 설치되는 경우가 있습니다:
+- Windows: `C:\Program Files\Common Files\Adobe\CEP\extensions\`
+- macOS: `/Library/Application Support/Adobe/CEP/extensions/`
+
+### 라이브러리 없이도 작동하는 기능
+PlugPlugExternalObject가 없어도 다음 기능들은 정상 작동합니다:
+- 효과음 파일 임포트 및 삽입
+- 폴더 탐색 및 파일 목록 표시
+- 클립 대체 기능
+- 기본적인 타임라인 조작
+
+단, 일부 이벤트 통신 기능이 제한될 수 있습니다.
+
+## 디버그 모드 활성화
+
+### Windows에서:
+1. 레지스트리 편집기를 관리자 권한으로 실행
+2. 다음 경로로 이동: `HKEY_CURRENT_USER\SOFTWARE\Adobe\CSXS.9` (또는 CSXS.10, CSXS.11)
+3. 새 DWORD 값 생성: `PlayerDebugMode`
+4. 값을 `1`로 설정
+
+### macOS에서:
+터미널에서 다음 명령어 실행:
+```bash
+defaults write com.adobe.CSXS.9 PlayerDebugMode 1
+```
+
+## 문제 해결
+
+### 확장프로그램이 메뉴에 나타나지 않는 경우
+
+1. **폴더 경로 확인**
+   - 확장프로그램이 정확한 CEP 폴더에 있는지 확인
+   - 폴더명이 `com.adobe.SoundInserter`인지 확인
+
+2. **디버그 모드 확인**
+   - 레지스트리(Windows) 또는 defaults(macOS) 설정 확인
+   - Premiere Pro 재시작 필수
+
+3. **Premiere Pro 버전 호환성**
+   - 지원 버전: Premiere Pro 2019 (13.0) 이상
+   - 매니페스트 파일에서 버전 범위 확인
+
+### CSXSEvent 오류가 발생하는 경우
+
+1. **PlugPlugExternalObject 라이브러리 확인**
+   ```
+   lib/PlugPlugExternalObject.dll (Windows)
+   lib/PlugPlugExternalObject.bundle (macOS)
+   ```
+
+2. **라이브러리 권한 확인**
+   - 파일이 차단되지 않았는지 확인
+   - 보안 소프트웨어에서 제외 처리
+
+3. **대체 통신 방법**
+   - 라이브러리가 없어도 기본 기능은 작동
+   - 일부 실시간 피드백 기능만 제한됨
+
+### 성능 문제
+
+1. **대용량 폴더 처리**
+   - 효과음 폴더의 파일 수를 적절히 관리
+   - "Default" 접두사 파일 사용 권장
+
+2. **메모리 사용량**
+   - 장시간 사용 시 Premiere Pro 재시작 권장
+
+## 지원되는 오디오 형식
+- WAV, MP3, AIF, AIFF, M4A
+
+## 라이선스
+이 프로젝트는 MIT 라이선스 하에 배포됩니다. 

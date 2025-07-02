@@ -3,12 +3,63 @@
  * Premiere Pro와 CEP 패널 간의 통신을 담당합니다.
  */
 
-// PlugPlugExternalObject 라이브러리 로드 (CSXSEvent 사용을 위해 필요)
-try {
-    var plugPlugLib = new ExternalObject("lib:PlugPlugExternalObject");
-    $.writeln("PlugPlugExternalObject 라이브러리 로드 성공");
-} catch (e) {
-    $.writeln("PlugPlugExternalObject 라이브러리 로드 실패: " + e.toString());
+// PlugPlugExternalObject 라이브러리 로드 시도 (선택사항)
+var plugPlugLib = null;
+var plugPlugLoaded = false;
+
+// 여러 경로에서 PlugPlugExternalObject 로드 시도
+var plugPlugPaths = [
+    "lib:PlugPlugExternalObject", // 기본 시스템 라이브러리
+    $.fileName.replace(/[^\/\\]*$/, "") + "lib/PlugPlugExternalObject.dll", // 확장프로그램 로컬 경로 (Windows)
+    $.fileName.replace(/[^\/\\]*$/, "") + "lib/PlugPlugExternalObject.bundle" // 확장프로그램 로컬 경로 (macOS)
+];
+
+for (var i = 0; i < plugPlugPaths.length; i++) {
+    try {
+        $.writeln("PlugPlugExternalObject 로드 시도: " + plugPlugPaths[i]);
+        plugPlugLib = new ExternalObject(plugPlugPaths[i]);
+        if (plugPlugLib) {
+            plugPlugLoaded = true;
+            $.writeln("PlugPlugExternalObject 라이브러리 로드 성공: " + plugPlugPaths[i]);
+            break;
+        }
+    } catch (e) {
+        $.writeln("PlugPlugExternalObject 로드 실패 (" + plugPlugPaths[i] + "): " + e.toString());
+        continue;
+    }
+}
+
+if (!plugPlugLoaded) {
+    $.writeln("PlugPlugExternalObject 로드 실패 - CEP 기본 CSXSEvent 사용 시도");
+}
+
+// CSXSEvent는 CEP 환경에서 기본적으로 사용 가능 (PlugPlugExternalObject 없이도)
+var csxsEventAvailable = true;
+$.writeln("CSXSEvent 초기화 완료 (PlugPlugExternalObject: " + (plugPlugLoaded ? "로드됨" : "없음") + ")");
+
+// CSXSEvent를 안전하게 사용하는 헬퍼 함수
+function safeCSXSEvent(eventType, eventData, scope) {
+    if (!csxsEventAvailable) {
+        $.writeln("CSXSEvent 비활성화 상태 - 이벤트 무시: " + eventType);
+        return false;
+    }
+
+    try {
+        var event = new CSXSEvent();
+        event.type = eventType;
+        event.data = eventData;
+        if (scope) {
+            event.scope = scope;
+        }
+        event.dispatch();
+        return true;
+    } catch (e) {
+        $.writeln("CSXSEvent 발송 실패 (" + eventType + "): " + e.toString());
+        // 첫 번째 실패 시 csxsEventAvailable을 false로 설정하여 향후 시도 방지
+        csxsEventAvailable = false;
+        $.writeln("CSXSEvent 비활성화됨 - 향후 이벤트 무시됨");
+        return false;
+    }
 }
 
 // 선택된 클립 사이에 랜덤 효과음 삽입 함수
@@ -536,11 +587,17 @@ function browseSoundFolder() {
                 soundFiles: filesForEvent // 실제 파일 배열을 전달
             };
 
-            var eventObj = new CSXSEvent();
-            eventObj.type = "com.adobe.soundInserter.events.FileListEvent";
-            eventObj.data = JSON.stringify(eventData);
-            eventObj.dispatch();
-            $.writeln("FileListEvent 발송 (모든 오디오 파일): " + JSON.stringify(eventData));
+            // 안전한 CSXSEvent 사용
+            var eventSuccess = safeCSXSEvent(
+                "com.adobe.soundInserter.events.FileListEvent",
+                JSON.stringify(eventData)
+            );
+
+            if (eventSuccess) {
+                $.writeln("FileListEvent 발송 성공 (모든 오디오 파일): " + JSON.stringify(eventData));
+            } else {
+                $.writeln("FileListEvent 발송 실패 - 데이터: " + JSON.stringify(eventData));
+            }
 
             return path;
         }
@@ -553,8 +610,8 @@ function browseSoundFolder() {
 // 이벤트 전송 함수
 function sendEvent(message, success) {
     try {
-        var eventObj = new CSXSEvent();
-        eventObj.type = "com.adobe.soundInserter.events.SoundEvent";
+        var eventType = "com.adobe.soundInserter.events.SoundEvent";
+        var eventData;
 
         if (typeof message === "object") {
             try {
@@ -570,13 +627,13 @@ function sendEvent(message, success) {
                             }
                         }
                     }
-                    eventObj.data = JSON.stringify(safeObj);
+                    eventData = JSON.stringify(safeObj);
                 } else {
-                    eventObj.data = jsonString;
+                    eventData = jsonString;
                 }
             } catch (jsonErr) {
                 $.writeln("객체 JSON 변환 오류: " + jsonErr.toString());
-                eventObj.data = JSON.stringify({
+                eventData = JSON.stringify({
                     message: "객체 처리 오류: " + (message.message || "알 수 없는 오류"),
                     success: false
                 });
@@ -584,20 +641,25 @@ function sendEvent(message, success) {
         } else {
             if (success !== undefined) {
                 try {
-                    eventObj.data = JSON.stringify({
+                    eventData = JSON.stringify({
                         message: String(message),
                         success: !!success
                     });
                 } catch (jsonErr) {
                     $.writeln("JSON 변환 오류: " + jsonErr.toString());
-                    eventObj.data = String(message) + " (success: " + (!!success) + ")";
+                    eventData = String(message) + " (success: " + (!!success) + ")";
                 }
             } else {
-                eventObj.data = String(message);
+                eventData = String(message);
             }
         }
 
-        eventObj.dispatch();
+        // 안전한 CSXSEvent 사용
+        var eventSuccess = safeCSXSEvent(eventType, eventData);
+        if (!eventSuccess) {
+            $.writeln("SoundEvent 발송 실패 - 데이터: " + eventData);
+        }
+
     } catch (e) {
         $.writeln("이벤트 전송 오류: " + e.toString());
     }
@@ -1192,16 +1254,24 @@ function getFilesForPathCS(folderPathFromJS) {
 
         $.writeln(logPrefix + "Found " + soundFilesResult.files.length + " files from getSoundFilesFromFolder for path: " + soundFilesResult.path);
 
-        var event = new CSXSEvent();
-        event.type = "com.adobe.soundInserter.events.FileListEvent";
-        event.data = JSON.stringify({
+        // 안전한 CSXSEvent 사용
+        var eventData = JSON.stringify({
             soundFiles: soundFilesResult.files, // soundFilesResult.files 사용
             folderPath: soundFilesResult.path // soundFilesResult.path 사용
         });
-        event.scope = "APPLICATION";
-        event.dispatch();
 
-        $.writeln(logPrefix + "Dispatched FileListEvent for path: " + soundFilesResult.path);
+        var eventSuccess = safeCSXSEvent(
+            "com.adobe.soundInserter.events.FileListEvent",
+            eventData,
+            "APPLICATION"
+        );
+
+        if (eventSuccess) {
+            $.writeln(logPrefix + "FileListEvent 발송 성공 for path: " + soundFilesResult.path);
+        } else {
+            $.writeln(logPrefix + "FileListEvent 발송 실패 - 데이터: " + eventData);
+        }
+
         return "success_getFilesForPathCS";
 
     } catch (e) {

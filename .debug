@@ -2,7 +2,9 @@
 <ExtensionList>
     <Extension Id="com.adobe.SoundInserter">
         <HostList>
+            <Host Name="PPRO" Port="8001"/>
             <Host Name="PPRO" Port="8002"/>
+            <Host Name="AEFT" Port="8001"/>
             <Host Name="AEFT" Port="8002"/>
         </HostList>
     </Extension>

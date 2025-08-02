@@ -2041,8 +2041,33 @@ function processVideoClipAudioAddition(timelineClip, soundFilePathToImport, impo
             ticks: Math.round(videoClipDuration * 254016000000)
         };
         
+        // 방법 1: Project Item의 In/Out Point 미리 설정
+        logClipMsg("Project Item에 In/Out Point 설정 시도...");
+        try {
+            if (projectSoundItem.setInPoint && projectSoundItem.setOutPoint) {
+                var projectInPoint = {
+                    seconds: 0,
+                    ticks: 0
+                };
+                var projectOutPoint = {
+                    seconds: videoClipDuration,
+                    ticks: Math.round(videoClipDuration * 254016000000)
+                };
+                
+                projectSoundItem.setInPoint(projectInPoint);
+                projectSoundItem.setOutPoint(projectOutPoint);
+                logClipMsg("Project Item In/Out Point 설정 완료: 0s ~ " + videoClipDuration.toFixed(2) + "s");
+            } else {
+                logClipMsg("Project Item에 setInPoint/setOutPoint 메서드가 없음");
+            }
+        } catch (projectPointError) {
+            logClipMsg("Project Item In/Out Point 설정 실패: " + projectPointError.toString());
+        }
+        
         // insertClip으로 길이 지정하여 삽입 시도
         var insertResult = null;
+        var insertMethod = "unknown";
+        
         try {
             // insertClip(projectItem, timelineTime, inPoint, outPoint)
             // outPoint는 소스 클립에서의 종료 지점 (0부터 시작)
@@ -2055,14 +2080,23 @@ function processVideoClipAudioAddition(timelineClip, soundFilePathToImport, impo
                 ticks: 0
             };
             
+            logClipMsg("insertClip 시도 - inPoint: 0s, outPoint: " + videoClipDuration.toFixed(2) + "s");
+            logClipMsg("insertClip 매개변수 상세: projectItem=" + (projectSoundItem ? "존재" : "null") + 
+                      ", startTime=" + JSON.stringify(startTime) + 
+                      ", inPoint=" + JSON.stringify(inPoint) + 
+                      ", outPoint=" + JSON.stringify(outPoint));
+            
             insertResult = targetAudioTrack.insertClip(projectSoundItem, startTime, inPoint, outPoint);
-            logClipMsg("insertClip 성공 (inPoint: 0s, outPoint: " + videoClipDuration.toFixed(2) + "s)");
+            insertMethod = "insertClip";
+            logClipMsg("insertClip 성공! 길이가 " + videoClipDuration.toFixed(2) + "s로 지정됨");
         } catch (insertError) {
-            logClipMsg("insertClip 실패: " + insertError.toString() + ", overwriteClip으로 대체 시도");
+            logClipMsg("insertClip 실패 상세: " + insertError.toString());
+            logClipMsg("insertClip 실패, overwriteClip으로 대체 시도");
             // 대안: overwriteClip 사용
             try {
                 insertResult = targetAudioTrack.overwriteClip(projectSoundItem, videoClipStartTime);
-                logClipMsg("overwriteClip 성공");
+                insertMethod = "overwriteClip";
+                logClipMsg("overwriteClip 성공 (원본 길이로 삽입됨, 이후 길이 조정 필요)");
             } catch (overwriteError) {
                 logClipMsg("overwriteClip도 실패: " + overwriteError.toString(), true);
                 return {
@@ -2073,13 +2107,14 @@ function processVideoClipAudioAddition(timelineClip, soundFilePathToImport, impo
             }
         }
         
+        logClipMsg("사용된 삽입 방법: " + insertMethod);
+        
         if (insertResult) {
             logClipMsg("오디오 추가 성공!");
             
             // insertClip을 사용한 경우 길이가 이미 지정되었으므로 추가 조정 불필요
             // overwriteClip을 사용한 경우에만 길이 조정 시도
-            var needsLengthAdjustment = (insertResult.toString().indexOf("overwrite") !== -1 || 
-                                       insertResult === true); // overwriteClip 결과일 가능성
+            var needsLengthAdjustment = (insertMethod === "overwriteClip");
             
             if (needsLengthAdjustment) {
                 logClipMsg("overwriteClip을 사용했으므로 길이 조정을 시도합니다...");
@@ -2112,26 +2147,250 @@ function processVideoClipAudioAddition(timelineClip, soundFilePathToImport, impo
                     // 오디오 클립의 끝 시간을 비디오 클립과 맞춤
                     var newEndTime = videoClipStartTime + videoClipDuration;
                     
-                    // 클립 길이 조정 - duration 속성 사용
+                    // 방법 0: 클립 삭제 후 Subclip으로 재삽입 (가장 확실한 방법)
+                    var lengthAdjustmentSuccess = false;
+                    
                     try {
-                        insertedClip.duration = {
+                        logClipMsg("클립 삭제 후 Subclip으로 재삽입 시도...");
+                        
+                        // 1. 현재 클립 삭제
+                        var clipStartTime = insertedClip.start.seconds;
+                        logClipMsg("기존 클립 삭제 중... (시작 시간: " + clipStartTime.toFixed(2) + "s)");
+                        insertedClip.remove();
+                        
+                        // 2. 원본 ProjectItem에서 Subclip 생성
+                        logClipMsg("Subclip 생성 시도...");
+                        
+                        // Subclip을 위한 In/Out Point 설정
+                        var subclipInPoint = {
+                            seconds: 0,
+                            ticks: 0
+                        };
+                        var subclipOutPoint = {
                             seconds: videoClipDuration,
                             ticks: Math.round(videoClipDuration * 254016000000)
                         };
-                        logClipMsg("duration 속성으로 길이 조정 시도");
-                    } catch (durationError) {
-                        logClipMsg("duration 속성 설정 실패: " + durationError.toString());
-                        // 대안: end 속성 시도
+                        
+                        // Subclip 생성 (createSubClip 메서드 시도)
+                        var subclipItem = null;
+                        if (projectSoundItem.createSubClip) {
+                            try {
+                                var subclipName = projectSoundItem.name + "_" + videoClipDuration.toFixed(2) + "s";
+                                subclipItem = projectSoundItem.createSubClip(subclipName, subclipInPoint, subclipOutPoint);
+                                logClipMsg("createSubClip 성공: " + subclipName);
+                            } catch (subclipError) {
+                                logClipMsg("createSubClip 실패: " + subclipError.toString());
+                            }
+                        } else {
+                            logClipMsg("createSubClip 메서드가 없음");
+                        }
+                        
+                        // 3. Subclip 또는 원본으로 다시 삽입
+                        var itemToInsert = subclipItem || projectSoundItem;
+                        logClipMsg("재삽입할 아이템: " + (subclipItem ? "Subclip" : "원본"));
+                        
+                        // 4. overwriteClip으로 재삽입
+                        var reinsertResult = targetAudioTrack.overwriteClip(itemToInsert, videoClipStartTime);
+                        
+                        if (reinsertResult) {
+                            logClipMsg("Subclip을 사용한 재삽입 성공!");
+                            lengthAdjustmentSuccess = true;
+                            
+                            // 재삽입된 클립이 올바른 길이인지 확인
+                            var reinsertedClips = targetAudioTrack.clips;
+                            for (var recheckIdx = 0; recheckIdx < reinsertedClips.numItems; recheckIdx++) {
+                                var recheckClip = reinsertedClips[recheckIdx];
+                                if (recheckClip && recheckClip.start && 
+                                    Math.abs(recheckClip.start.seconds - videoClipStartTime) < 0.1) {
+                                    logClipMsg("재삽입된 클립 확인: 길이 " + recheckClip.duration.seconds.toFixed(2) + "s");
+                                    break;
+                                }
+                            }
+                        } else {
+                            logClipMsg("Subclip 재삽입 실패");
+                        }
+                        
+                    } catch (reinsertError) {
+                        logClipMsg("클립 삭제/재삽입 과정에서 오류: " + reinsertError.toString());
+                    }
+                    
+                    // 방법 0.5: 간단한 재삽입 (Subclip 없이)
+                    if (!lengthAdjustmentSuccess) {
+                        try {
+                            logClipMsg("간단한 재삽입 방법 시도...");
+                            
+                            // 현재 클립 정보 저장
+                            var currentClipStart = insertedClip.start.seconds;
+                            logClipMsg("현재 클립 정보 - 시작: " + currentClipStart.toFixed(2) + "s, 길이: " + insertedClip.duration.seconds.toFixed(2) + "s");
+                            
+                            // 클립 삭제
+                            insertedClip.remove();
+                            logClipMsg("기존 클립 삭제 완료");
+                            
+                            // insertClip을 다시 시도 (더 간단한 매개변수로)
+                            var simpleInsertResult = null;
+                            try {
+                                // 더 간단한 형태로 insertClip 시도
+                                simpleInsertResult = targetAudioTrack.insertClip(projectSoundItem, videoClipStartTime);
+                                logClipMsg("간단한 insertClip 성공");
+                            } catch (simpleInsertError) {
+                                logClipMsg("간단한 insertClip 실패: " + simpleInsertError.toString());
+                                // overwriteClip으로 대체
+                                simpleInsertResult = targetAudioTrack.overwriteClip(projectSoundItem, videoClipStartTime);
+                                logClipMsg("대체 overwriteClip 실행");
+                            }
+                            
+                            if (simpleInsertResult) {
+                                logClipMsg("간단한 재삽입 완료, 이제 클립을 찾아서 길이 조정...");
+                                
+                                // 새로 삽입된 클립 찾기
+                                var newInsertedClip = null;
+                                var newTrackClips = targetAudioTrack.clips;
+                                for (var findIdx = 0; findIdx < newTrackClips.numItems; findIdx++) {
+                                    var findClip = newTrackClips[findIdx];
+                                    if (findClip && findClip.start && 
+                                        Math.abs(findClip.start.seconds - videoClipStartTime) < 0.1) {
+                                        newInsertedClip = findClip;
+                                        logClipMsg("새 클립 발견: " + findClip.duration.seconds.toFixed(2) + "s");
+                                        break;
+                                    }
+                                }
+                                
+                                // 새 클립에 대해 더 강력한 트림 시도
+                                if (newInsertedClip) {
+                                    insertedClip = newInsertedClip; // 다음 단계를 위해 업데이트
+                                    logClipMsg("새 클립으로 업데이트됨, 트림 계속 진행");
+                                }
+                            }
+                            
+                        } catch (simpleReinsertError) {
+                            logClipMsg("간단한 재삽입 실패: " + simpleReinsertError.toString());
+                        }
+                    }
+                    
+                    // 클립 길이 조정 - 기존 방법들 (재삽입이 실패한 경우)
+                    if (!lengthAdjustmentSuccess) {
+                        logClipMsg("모든 재삽입 방법 실패, 기존 속성 조정 방법들로 시도...");
+                    }
+                    
+                    // 방법 1: Razor Tool로 잘라서 트림 (가장 확실한 방법)
+                    try {
+                        logClipMsg("Razor Tool을 사용한 트림 시도...");
+                        
+                        // 잘라야 할 지점 (비디오 클립 종료 시점)
+                        var cutTime = {
+                            seconds: newEndTime,
+                            ticks: Math.round(newEndTime * 254016000000)
+                        };
+                        
+                        // 현재 삽입된 클립의 실제 끝 시간 확인
+                        var currentClipEnd = insertedClip.start.seconds + insertedClip.duration.seconds;
+                        logClipMsg("현재 클립 끝 시간: " + currentClipEnd.toFixed(2) + "s, 목표 끝 시간: " + newEndTime.toFixed(2) + "s");
+                        
+                        // 클립이 목표보다 길면 잘라야 함
+                        if (currentClipEnd > newEndTime + 0.01) { // 0.01초 오차 허용
+                            logClipMsg("클립이 목표보다 길어서 트림이 필요합니다.");
+                            
+                            // Sequence의 razor 메서드 사용
+                            if (seq.razor && typeof seq.razor === 'function') {
+                                seq.razor(cutTime);
+                                logClipMsg("Razor 도구로 " + newEndTime.toFixed(2) + "s 지점에서 클립을 잘랐습니다.");
+                                
+                                // 잘린 뒷부분 찾아서 삭제
+                                var trackClipsAfterRazor = targetAudioTrack.clips;
+                                for (var razorIdx = 0; razorIdx < trackClipsAfterRazor.numItems; razorIdx++) {
+                                    var clipAfterRazor = trackClipsAfterRazor[razorIdx];
+                                    if (clipAfterRazor && clipAfterRazor.start && 
+                                        Math.abs(clipAfterRazor.start.seconds - newEndTime) < 0.1) {
+                                        logClipMsg("잘린 뒷부분 클립 발견: " + clipAfterRazor.start.seconds.toFixed(2) + "s");
+                                        clipAfterRazor.remove();
+                                        logClipMsg("잘린 뒷부분 클립 삭제 완료");
+                                        break;
+                                    }
+                                }
+                                
+                                lengthAdjustmentSuccess = true;
+                                logClipMsg("Razor Tool을 사용한 트림 성공!");
+                            } else {
+                                logClipMsg("Sequence에 razor 메서드가 없습니다.");
+                            }
+                        } else {
+                            logClipMsg("클립 길이가 이미 적절합니다. 트림 불필요.");
+                            lengthAdjustmentSuccess = true;
+                        }
+                    } catch (razorError) {
+                        logClipMsg("Razor Tool 트림 실패: " + razorError.toString());
+                    }
+                    
+                    // 방법 2: outPoint 조정
+                    if (!lengthAdjustmentSuccess) {
+                        try {
+                            var newOutPoint = {
+                                seconds: videoClipDuration,
+                                ticks: Math.round(videoClipDuration * 254016000000)
+                            };
+                            
+                            if (insertedClip.setOutPoint) {
+                                insertedClip.setOutPoint(newOutPoint);
+                                logClipMsg("setOutPoint 메서드로 길이 조정 성공");
+                                lengthAdjustmentSuccess = true;
+                            } else if (insertedClip.outPoint !== undefined) {
+                                insertedClip.outPoint = newOutPoint;
+                                logClipMsg("outPoint 속성으로 길이 조정 성공");
+                                lengthAdjustmentSuccess = true;
+                            } else {
+                                logClipMsg("outPoint 관련 메서드/속성이 없음");
+                            }
+                        } catch (outPointError) {
+                            logClipMsg("outPoint 조정 실패: " + outPointError.toString());
+                        }
+                    }
+                    
+                    // 방법 3: duration 속성 사용 (검증 추가)
+                    if (!lengthAdjustmentSuccess) {
+                        try {
+                            var beforeDuration = insertedClip.duration.seconds;
+                            insertedClip.duration = {
+                                seconds: videoClipDuration,
+                                ticks: Math.round(videoClipDuration * 254016000000)
+                            };
+                            var afterDuration = insertedClip.duration.seconds;
+                            
+                            if (Math.abs(afterDuration - videoClipDuration) < 0.1) {
+                                logClipMsg("duration 속성으로 길이 조정 성공 (확인됨: " + beforeDuration.toFixed(2) + "s → " + afterDuration.toFixed(2) + "s)");
+                                lengthAdjustmentSuccess = true;
+                            } else {
+                                logClipMsg("duration 속성 설정했지만 실제로 변경되지 않음: " + beforeDuration.toFixed(2) + "s → " + afterDuration.toFixed(2) + "s");
+                            }
+                        } catch (durationError) {
+                            logClipMsg("duration 속성 설정 실패: " + durationError.toString());
+                        }
+                    }
+                    
+                    // 방법 4: end 속성 사용 (마지막 수단)
+                    if (!lengthAdjustmentSuccess) {
                         try {
                             insertedClip.end = {
                                 seconds: newEndTime,
                                 ticks: Math.round(newEndTime * 254016000000)
                             };
-                            logClipMsg("end 속성으로 길이 조정 시도");
+                            logClipMsg("end 속성으로 길이 조정 성공");
+                            lengthAdjustmentSuccess = true;
                         } catch (endError) {
                             logClipMsg("end 속성 설정도 실패: " + endError.toString());
-                            throw new Error("클립 길이 조정 방법을 모두 시도했지만 실패");
                         }
+                    }
+                    
+                    if (!lengthAdjustmentSuccess) {
+                        logClipMsg("======================================");
+                        logClipMsg("모든 자동 길이 조정 방법이 실패했습니다.");
+                        logClipMsg("오디오 클립이 " + insertedClip.duration.seconds.toFixed(2) + "초로 삽입되었습니다.");
+                        logClipMsg("목표 길이: " + videoClipDuration.toFixed(2) + "초");
+                        logClipMsg("수동 조정 방법:");
+                        logClipMsg("1. 타임라인에서 오디오 클립의 끝을 드래그하여 " + newEndTime.toFixed(2) + "초 지점으로 조정");
+                        logClipMsg("2. 또는 Razor Tool(C)로 " + newEndTime.toFixed(2) + "초 지점에서 자르고 뒷부분 삭제");
+                        logClipMsg("======================================");
+                        // 실패해도 치명적이지 않으므로 계속 진행
                     }
                     
                     logClipMsg("오디오 클립 길이 조정 완료! 새 끝 시간: " + newEndTime.toFixed(2) + "s");

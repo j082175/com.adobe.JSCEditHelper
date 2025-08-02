@@ -3,6 +3,16 @@
  * Premiere Pro와 CEP 패널 간의 통신을 담당합니다.
  */
 
+// 디버그 모드 설정 (개발 중에는 true, 배포 시에는 false)
+var DEBUG_MODE = true; // 임시로 활성화하여 문제 해결
+
+// 조건부 로깅 함수
+function debugWriteln(message) {
+    if (DEBUG_MODE && $) {
+        $.writeln("[SoundInserter Debug] " + message);
+    }
+}
+
 // PlugPlugExternalObject 라이브러리 로드 시도 (선택사항)
 var plugPlugLib = null;
 var plugPlugLoaded = false;
@@ -16,15 +26,15 @@ var plugPlugPaths = [
 
 for (var i = 0; i < plugPlugPaths.length; i++) {
     try {
-        $.writeln("PlugPlugExternalObject 로드 시도: " + plugPlugPaths[i]);
+        debugWriteln("PlugPlugExternalObject 로드 시도: " + plugPlugPaths[i]);
         plugPlugLib = new ExternalObject(plugPlugPaths[i]);
         if (plugPlugLib) {
             plugPlugLoaded = true;
-            $.writeln("PlugPlugExternalObject 라이브러리 로드 성공: " + plugPlugPaths[i]);
+            debugWriteln("PlugPlugExternalObject 라이브러리 로드 성공: " + plugPlugPaths[i]);
             break;
         }
     } catch (e) {
-        $.writeln("PlugPlugExternalObject 로드 실패 (" + plugPlugPaths[i] + "): " + e.toString());
+        debugWriteln("PlugPlugExternalObject 로드 실패 (" + plugPlugPaths[i] + "): " + e.toString());
         continue;
     }
 }
@@ -65,6 +75,7 @@ function safeCSXSEvent(eventType, eventData, scope) {
 // 선택된 클립 사이에 랜덤 효과음 삽입 함수
 function insertSoundsBetweenClips(folderPath, audioTrack) {
     try {
+        $.writeln("🔥🔥🔥 CODE SUCCESSFULLY UPDATED 2025-01-02 🔥🔥🔥");
         var debugInfo = "작업 시작 - 폴더 경로: " + folderPath + "\n";
         $.writeln("효과음 삽입 시작 - 폴더: " + folderPath);
 
@@ -191,6 +202,7 @@ function insertSoundsBetweenClips(folderPath, audioTrack) {
         var importedSoundItemsCache = {};
 
         var targetAudioTrack = null;
+        var finalTrackIndex = -1; // 최종 선택된 트랙 인덱스 저장용
         debugInfo += "오디오 트랙 결정 시작. 요청 트랙: " + audioTrack + "\n";
         $.writeln("오디오 트랙 결정 시작. 요청 트랙: " + audioTrack);
 
@@ -216,7 +228,8 @@ function insertSoundsBetweenClips(folderPath, audioTrack) {
 
                 if (numClips === 0 && !isLocked && !isMuted) { // 잠기지 않고, 음소거되지 않고, 클립이 없는 트랙
                     targetAudioTrack = currentTrack;
-                    var selectionReason = "    => 자동 오디오 트랙 선택: 빈 (잠기지 않고, 음소거되지 않은) 트랙 " + trackName + " (인덱스: " + targetAudioTrack.index + ") 발견됨.";
+                    finalTrackIndex = tk; // 루프 인덱스를 최종 트랙 인덱스로 저장
+                    var selectionReason = "    => 자동 오디오 트랙 선택: 빈 (잠기지 않고, 음소거되지 않은) 트랙 " + trackName + " (인덱스: " + finalTrackIndex + ") 발견됨.";
                     if (tk === 1) {
                         selectionReason += " [A2 트랙이 이 조건으로 선택됨]";
                     }
@@ -245,8 +258,9 @@ function insertSoundsBetweenClips(folderPath, audioTrack) {
             var trackIndex = parseInt(audioTrack) - 1;
             if (trackIndex >= 0 && trackIndex < seq.audioTracks.numTracks) {
                 targetAudioTrack = seq.audioTracks[trackIndex];
-                debugInfo += "선택된 오디오 트랙: 트랙 " + (targetAudioTrack.index + 1) + "\n";
-                $.writeln("선택된 오디오 트랙: 트랙 " + (targetAudioTrack.index + 1));
+                finalTrackIndex = trackIndex; // 수동 선택된 트랙 인덱스 저장
+                debugInfo += "선택된 오디오 트랙: 트랙 " + (finalTrackIndex + 1) + "\n";
+                $.writeln("선택된 오디오 트랙: 트랙 " + (finalTrackIndex + 1));
             } else {
                 sendEvent("지정한 오디오 트랙(" + audioTrack + ")이 유효하지 않습니다. 가용 트랙: " + seq.audioTracks.numTracks + "개", false);
                 return "false";
@@ -257,36 +271,63 @@ function insertSoundsBetweenClips(folderPath, audioTrack) {
             sendEvent("효과음을 삽입할 대상 오디오 트랙을 결정할 수 없습니다.", false);
             return "false";
         }
-        debugInfo += "최종 선택된 대상 오디오 트랙: " + (targetAudioTrack.index + 1) + " (ID: " + targetAudioTrack.id + ")\n";
-        $.writeln("최종 선택된 대상 오디오 트랙: " + (targetAudioTrack.index + 1) + " (ID: " + targetAudioTrack.id + ")");
+        debugInfo += "최종 선택된 대상 오디오 트랙: " + (finalTrackIndex + 1) + " (ID: " + targetAudioTrack.id + ")\n";
+        $.writeln("최종 선택된 대상 오디오 트랙: " + (finalTrackIndex + 1) + " (ID: " + targetAudioTrack.id + ")");
 
         var insertedSounds = [];
         var insertionCount = 0;
 
         debugInfo += "삽입 로직: 각 선택 클립의 시작 지점 (첫 클립은 제외)\n";
-
-        // Use primarySortedClips instead of sortedClips for length check
+        debugInfo += "*** 코드 업데이트 확인: 2025-01-02 ***\n";
+        debugInfo += "길이 검사: primarySortedClips.length = " + primarySortedClips.length + "\n";
+        debugInfo += "최소 필요 길이: 2\n";
+        debugInfo += "길이 조건: " + (primarySortedClips.length < 2 ? "실패 (부족)" : "통과") + "\n";
+        
         if (primarySortedClips.length < 2) {
+            debugInfo += "길이 부족으로 함수 종료\n";
             sendEvent("효과음을 삽입하려면 필터링 후 최소 2개 이상의 주요 클립을 선택해주세요. (현재 로직은 두 번째 클립부터 적용, 필터링된 클립 수: " + primarySortedClips.length + ")", false);
             return "false";
         }
+        
+        debugInfo += "길이 검사 통과. 루프 시작 준비...\n";
 
         // Use primarySortedClips instead of sortedClips for the loop
+        debugInfo += "===== 주요 삽입 루프 시작 =====\n";
+        debugInfo += "primarySortedClips.length: " + primarySortedClips.length + "\n";
+        
         for (var i = 0; i < primarySortedClips.length; i++) {
-            var clip = primarySortedClips[i]; // Get clip from primarySortedClips
-            var insertionTime = clip.start.seconds;
+            debugInfo += ">> 루프 반복 " + i + " 시작\n";
+            
+            try {
+                var clip = primarySortedClips[i]; // Get clip from primarySortedClips
+                debugInfo += "클립 객체 상태: " + (clip ? "존재" : "null") + "\n";
+                
+                if (!clip) {
+                    debugInfo += "오류: 클립 객체가 null임. 건너뜀.\n";
+                    continue;
+                }
+                
+                var insertionTime = clip.start.seconds;
+                debugInfo += "삽입 시간: " + insertionTime + "\n";
 
-            if (i === 0) {
-                debugInfo += "첫 번째 클립 '" + File.decode(clip.name) + "' 건너뜀.\n";
-                $.writeln("첫 번째 클립 '" + File.decode(clip.name) + "' 건너뜀.");
+                if (i === 0) {
+                    debugInfo += "첫 번째 클립 '" + File.decode(clip.name) + "' 건너뜀.\n";
+                    $.writeln("첫 번째 클립 '" + File.decode(clip.name) + "' 건너뜀.");
+                    continue;
+                }
+
+                debugInfo += "처리 중인 클립: '" + File.decode(clip.name) + "' 시작 시간: " + insertionTime.toFixed(2) + "초\n";
+            } catch (loopError) {
+                debugInfo += "루프 초기화 중 오류: " + loopError.toString() + "\n";
                 continue;
             }
 
-            $.writeln("처리 중인 클립: '" + File.decode(clip.name) + "' 시작 시간: " + insertionTime.toFixed(2) + "초");
-
             // 매 삽입마다 새로운 랜덤 효과음 선택
+            debugInfo += "효과음 파일 배열 상태 확인:\n";
+            debugInfo += "  soundFiles 존재: " + (soundFiles ? "예" : "아니오") + "\n";
+            debugInfo += "  soundFiles.length: " + (soundFiles ? soundFiles.length : "N/A") + "\n";
+            
             if (!soundFiles || soundFiles.length === 0) {
-                $.writeln("오류: 루프 내에서 효과음 파일을 찾을 수 없습니다. 삽입 건너뜀.");
                 debugInfo += "오류: 루프 내에서 효과음 파일을 찾을 수 없어 현재 클립 삽입 건너뜀.\n";
                 continue;
             }
@@ -295,38 +336,513 @@ function insertSoundsBetweenClips(folderPath, audioTrack) {
             var soundFilePath = soundFile.fsName;
             var decodedSoundFileName = File.decode(soundFile.name);
 
-            $.writeln("삽입 시도할 효과음 파일 (매번 랜덤 선택): " + decodedSoundFileName + " (경로: " + soundFilePath + ")");
+            debugInfo += "랜덤 선택된 효과음: " + decodedSoundFileName + "\n";
+            debugInfo += "파일 경로: " + soundFilePath + "\n";
+            
             var projectSoundItem = importedSoundItemsCache[soundFilePath];
-
-            if (!projectSoundItem || projectSoundItem.treePath === undefined) {
-                $.writeln("캐시에 없거나 유효하지 않음. '" + decodedSoundFileName + "' 임포트 시도...");
-                var importResultArray = app.project.importFiles([soundFilePath]);
-                if (importResultArray && importResultArray.length > 0 && importResultArray[0]) {
-                    projectSoundItem = importResultArray[0];
-                    importedSoundItemsCache[soundFilePath] = projectSoundItem;
-                    $.writeln("임포트 성공 및 캐시 저장: " + projectSoundItem.name + " (ID: " + (projectSoundItem.nodeId ? projectSoundItem.nodeId : "N/A") + ")");
-                } else {
-                    $.writeln("importFiles 실패. 루트에서 이름으로 재검색 시도: " + decodedSoundFileName);
-                    var foundInRoot = false;
-                    for (var j = 0; j < app.project.rootItem.children.numItems; j++) {
-                        var pi = app.project.rootItem.children[j];
-                        if (pi.name === decodedSoundFileName) {
-                            projectSoundItem = pi;
+            debugInfo += "캐시에서 검색 결과: " + (projectSoundItem ? "발견됨" : "없음") + "\n";
+            
+            $.writeln("=== 캐시 및 프로젝트 검색 시작 ===");
+            $.writeln("캐시에서 찾은 아이템: " + (projectSoundItem ? projectSoundItem.name || "이름없음" : "없음"));
+            
+            // 캐시에 없으면 프로젝트에서 먼저 검색 (임포트 시도 전에)
+            if (!projectSoundItem || typeof projectSoundItem.name === 'undefined') {
+                debugInfo += "임포트 전 프로젝트에서 기존 파일 검색 중...\n";
+                
+                // 프로젝트의 모든 아이템 검색
+                for (var preIdx = 0; preIdx < app.project.rootItem.children.numItems; preIdx++) {
+                    var preItem = app.project.rootItem.children[preIdx];
+                    if (preItem && preItem.name) {
+                        var preItemName = File.decode(preItem.name);
+                        var preItemBaseName = preItemName.replace(/\.[^.]*$/, '');
+                        var targetBaseName = decodedSoundFileName.replace(/\.[^.]*$/, '');
+                        
+                        debugInfo += "  검사[" + preIdx + "]: '" + preItemName + "'\n";
+                        
+                        // 다양한 매칭 시도
+                        var found = false;
+                        
+                        // 1. 정확한 이름 매칭
+                        if (preItemName === decodedSoundFileName) {
+                            found = true;
+                            debugInfo += "    → 정확한 이름 매칭!\n";
+                        }
+                        // 2. 기본 이름 매칭 (확장자 제외)
+                        else if (preItemBaseName === targetBaseName && preItemBaseName.length > 3) {
+                            found = true;
+                            debugInfo += "    → 기본 이름 매칭!\n";
+                        }
+                        // 3. 오디오 파일 + 부분 매칭
+                        else if ((preItemName.toLowerCase().indexOf('.wav') !== -1 || 
+                                  preItemName.toLowerCase().indexOf('.mp3') !== -1 ||
+                                  preItemName.toLowerCase().indexOf('.aiff') !== -1) &&
+                                 targetBaseName.length > 5 &&
+                                 (preItemName.indexOf(targetBaseName.substring(0, Math.min(10, targetBaseName.length))) !== -1 ||
+                                  targetBaseName.indexOf(preItemBaseName.substring(0, Math.min(10, preItemBaseName.length))) !== -1)) {
+                            found = true;
+                            debugInfo += "    → 오디오 파일 부분 매칭!\n";
+                        }
+                        
+                        if (found) {
+                            projectSoundItem = preItem;
                             importedSoundItemsCache[soundFilePath] = projectSoundItem;
-                            $.writeln("이름으로 재검색 성공 및 캐시 저장: " + projectSoundItem.name);
-                            foundInRoot = true;
+                            debugInfo += "임포트 전 검색에서 기존 파일 발견: " + preItemName + "\n";
+                            debugInfo += "기존 파일 사용으로 임포트 과정 생략\n";
                             break;
                         }
                     }
-                    if (!foundInRoot) {
-                        $.writeln("임포트 및 재검색 모두 실패: " + decodedSoundFileName);
-                        projectSoundItem = null;
+                }
+                
+                if (!projectSoundItem) {
+                    debugInfo += "임포트 전 검색에서 파일을 찾지 못함. 모든 오디오 파일 목록 출력...\n";
+                    debugInfo += "=== 프로젝트의 모든 오디오 파일 ===\n";
+                    
+                    var audioFiles = [];
+                    var audioItems = [];
+                    for (var audioIdx = 0; audioIdx < app.project.rootItem.children.numItems; audioIdx++) {
+                        var audioItem = app.project.rootItem.children[audioIdx];
+                        if (audioItem && audioItem.name) {
+                            var audioItemName = File.decode(audioItem.name);
+                            // 오디오 파일인지 확인
+                            if (audioItemName.toLowerCase().indexOf('.wav') !== -1 || 
+                                audioItemName.toLowerCase().indexOf('.mp3') !== -1 ||
+                                audioItemName.toLowerCase().indexOf('.aiff') !== -1 ||
+                                audioItemName.toLowerCase().indexOf('.flac') !== -1) {
+                                audioFiles.push(audioItemName);
+                                audioItems.push(audioItem);
+                                debugInfo += "  오디오[" + audioIdx + "]: '" + audioItemName + "'\n";
+                            }
+                        }
+                    }
+                    
+                    // 랜덤하게 오디오 파일 선택
+                    if (audioItems.length > 0) {
+                        var randomIndex = Math.floor(Math.random() * audioItems.length);
+                        projectSoundItem = audioItems[randomIndex];
+                        // 캐시에 저장하지 않음 (매번 랜덤 선택하기 위해)
+                        debugInfo += "*** 랜덤 선택된 오디오 파일: " + File.decode(projectSoundItem.name) + " (인덱스: " + randomIndex + ") ***\n";
+                    }
+                    debugInfo += "총 " + audioFiles.length + "개의 오디오 파일 발견\n";
+                    debugInfo += "===================================\n";
+                    
+                    if (!projectSoundItem) {
+                        debugInfo += "프로젝트에 오디오 파일이 없음. 임포트 시도...\n";
+                    }
+                }
+                debugInfo += "프로젝트에서 기존 아이템 검색 중... (총 " + app.project.rootItem.children.numItems + "개 아이템)\n";
+                var foundInProject = false;
+                for (var searchIdx = 0; searchIdx < app.project.rootItem.children.numItems; searchIdx++) {
+                    var existingItem = app.project.rootItem.children[searchIdx];
+                    if (existingItem && existingItem.name === decodedSoundFileName) {
+                        projectSoundItem = existingItem;
+                        importedSoundItemsCache[soundFilePath] = projectSoundItem;
+                        debugInfo += "프로젝트에서 기존 아이템 발견: " + projectSoundItem.name + "\n";
+                        foundInProject = true;
+                        break;
+                    }
+                }
+                if (!foundInProject) {
+                    debugInfo += "프로젝트에서 기존 아이템 찾지 못함\n";
+                }
+            }
+
+            if (!projectSoundItem || typeof projectSoundItem.name === 'undefined') {
+                debugInfo += "임포트 시도: " + decodedSoundFileName + "\n";
+                debugInfo += "임포트할 파일 전체 경로: " + soundFilePath + "\n";
+                
+                // 파일 존재 여부 확인
+                var fileToImport = new File(soundFilePath);
+                if (!fileToImport.exists) {
+                    debugInfo += "파일 존재하지 않음: " + soundFilePath + "\n";
+                    continue;
+                }
+                debugInfo += "파일 존재 확인됨\n";
+                
+                // 임포트 전 프로젝트 아이템 수 저장
+                var beforeImportCount = app.project.rootItem.children.numItems;
+                debugInfo += "임포트 전 프로젝트 아이템 수: " + beforeImportCount + "\n";
+                
+                var importResultArray = app.project.importFiles([soundFilePath]);
+                debugInfo += "importFiles 호출 결과:\n";
+                debugInfo += "  - 반환 객체: " + (importResultArray ? "존재" : "null") + "\n";
+                debugInfo += "  - typeof: " + typeof importResultArray + "\n";
+                debugInfo += "  - 값: " + importResultArray + "\n";
+                
+                // 임포트 후 프로젝트 아이템 수 확인
+                var afterImportCount = app.project.rootItem.children.numItems;
+                debugInfo += "임포트 후 프로젝트 아이템 수: " + afterImportCount + "\n";
+                
+                // 새로 추가된 아이템이 있는지 확인
+                if (afterImportCount > beforeImportCount) {
+                    debugInfo += "새 아이템이 추가됨! 최신 아이템을 찾는 중...\n";
+                    // 가장 최근에 추가된 아이템을 찾기
+                    for (var newIdx = afterImportCount - 1; newIdx >= beforeImportCount; newIdx--) {
+                        var newItem = app.project.rootItem.children[newIdx];
+                        if (newItem && newItem.name) {
+                            var newItemName = File.decode(newItem.name);
+                            debugInfo += "  - 새 아이템 [" + newIdx + "]: '" + newItemName + "'\n";
+                            
+                            // 오디오 파일인지 확인
+                            if (newItemName.toLowerCase().indexOf('.wav') !== -1 || 
+                                newItemName.toLowerCase().indexOf('.mp3') !== -1 ||
+                                newItemName.toLowerCase().indexOf('.aiff') !== -1) {
+                                projectSoundItem = newItem;
+                                importedSoundItemsCache[soundFilePath] = projectSoundItem;
+                                debugInfo += "  - 최신 오디오 파일을 ProjectItem으로 사용: " + newItemName + "\n";
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    debugInfo += "새 아이템이 추가되지 않음\n";
+                }
+                
+                // 임포트 후 즉시 프로젝트에서 검색 (임포트가 성공했지만 객체가 반환되지 않은 경우)
+                if (!projectSoundItem && (typeof importResultArray === 'boolean' || !importResultArray)) {
+                    debugInfo += "  - 임포트 후 즉시 프로젝트 검색 시작...\n";
+                    debugInfo += "  - 검색 대상: '" + decodedSoundFileName + "'\n";
+                    
+                    // 최신 프로젝트 아이템 수 확인
+                    var newItemCount = app.project.rootItem.children.numItems;
+                    debugInfo += "  - 현재 프로젝트 아이템 수: " + newItemCount + "\n";
+                    
+                    for (var searchIdx = 0; searchIdx < newItemCount; searchIdx++) {
+                        var searchItem = app.project.rootItem.children[searchIdx];
+                        if (searchItem && searchItem.name) {
+                            var searchItemName = File.decode(searchItem.name);
+                            var rawItemName = searchItem.name; // 인코딩 전 원본 이름
+                            
+                            debugInfo += "    검색[" + searchIdx + "]: '" + searchItemName + "' (원본: '" + rawItemName + "')\n";
+                            
+                            // 여러 방식으로 매칭 시도
+                            var targetBaseName = decodedSoundFileName.replace(/\.[^.]*$/, ''); // 확장자 제거
+                            var itemBaseName = searchItemName.replace(/\.[^.]*$/, ''); // 확장자 제거
+                            
+                            var isMatch = false;
+                            var matchType = "";
+                            
+                            // 1. 정확한 매칭
+                            if (searchItemName === decodedSoundFileName) {
+                                isMatch = true;
+                                matchType = "정확한 이름";
+                            }
+                            // 2. 원본 이름 매칭
+                            else if (rawItemName === decodedSoundFileName) {
+                                isMatch = true;
+                                matchType = "원본 이름";
+                            }
+                            // 3. 기본 이름 매칭 (확장자 제외)
+                            else if (itemBaseName === targetBaseName) {
+                                isMatch = true;
+                                matchType = "기본 이름";
+                            }
+                            // 4. 부분 매칭 (파일명 포함)
+                            else if (searchItemName.indexOf(targetBaseName) !== -1 || targetBaseName.indexOf(itemBaseName) !== -1) {
+                                isMatch = true;
+                                matchType = "부분 매칭";
+                            }
+                            // 5. 오디오 파일 타입 매칭 (최후의 수단)
+                            else if (searchItem.type === ProjectItemType.FILE && 
+                                     searchItem.getMediaPath && 
+                                     (searchItemName.toLowerCase().indexOf('.wav') !== -1 || 
+                                      searchItemName.toLowerCase().indexOf('.mp3') !== -1) &&
+                                     targetBaseName.length > 3 &&
+                                     (searchItemName.toLowerCase().indexOf(targetBaseName.toLowerCase().substring(0, 5)) !== -1)) {
+                                isMatch = true;
+                                matchType = "오디오 타입 + 부분";
+                            }
+                            
+                            if (isMatch) {
+                                projectSoundItem = searchItem;
+                                importedSoundItemsCache[soundFilePath] = projectSoundItem;
+                                debugInfo += "  - 임포트 후 검색으로 파일 발견 (" + matchType + "): " + searchItemName + "\n";
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (!projectSoundItem) {
+                        debugInfo += "  - 임포트 후 검색에서도 파일을 찾지 못함\n";
+                    }
+                }
+                
+                // boolean 반환 분석: true=이미 존재, false=실패
+                if (typeof importResultArray === 'boolean') {
+                    if (importResultArray === true) {
+                        debugInfo += "  - importFiles가 true 반환 = 파일이 이미 프로젝트에 존재\n";
+                        debugInfo += "  - 기존 파일을 프로젝트에서 찾는 중...\n";
+                        
+                        // 기존 파일을 프로젝트에서 검색
+                        debugInfo += "  - 찾는 파일명: '" + decodedSoundFileName + "'\n";
+                        debugInfo += "  - 프로젝트 아이템 목록:\n";
+                        
+                        for (var j = 0; j < app.project.rootItem.children.numItems; j++) {
+                            var pi = app.project.rootItem.children[j];
+                            if (pi && pi.name) {
+                                var itemDecodedName = File.decode(pi.name);
+                                debugInfo += "    [" + j + "] '" + itemDecodedName + "'\n";
+                                
+                                if (itemDecodedName === decodedSoundFileName) {
+                                    projectSoundItem = pi;
+                                    importedSoundItemsCache[soundFilePath] = projectSoundItem;
+                                    debugInfo += "  - 정확한 이름 매칭으로 기존 파일 찾음: " + itemDecodedName + "\n";
+                                    break;
+                                }
+                                
+                                // 부분 매칭도 시도 (파일명이 포함되어 있는지)
+                                if (itemDecodedName.indexOf(decodedSoundFileName) !== -1 || 
+                                    decodedSoundFileName.indexOf(itemDecodedName) !== -1) {
+                                    if (!projectSoundItem) { // 정확한 매칭이 없을 때만
+                                        projectSoundItem = pi;
+                                        importedSoundItemsCache[soundFilePath] = projectSoundItem;
+                                        debugInfo += "  - 부분 매칭으로 기존 파일 찾음: " + itemDecodedName + "\n";
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (!projectSoundItem) {
+                            debugInfo += "  - 기존 파일을 찾지 못함 (실제로 프로젝트에 없음)\n";
+                            debugInfo += "  - 강제 임포트 시도 중...\n";
+                            
+                            // importFiles가 true를 잘못 반환한 경우, 강제로 새 파일로 임포트
+                            try {
+                                var tempPath = soundFilePath + "?time=" + new Date().getTime(); // 캐시 우회
+                                var forceImportResult = app.project.importFiles([soundFilePath], true); // 두 번째 인자로 강제 임포트
+                                
+                                if (forceImportResult && typeof forceImportResult === 'object' && forceImportResult.numItems > 0) {
+                                    projectSoundItem = forceImportResult[0];
+                                    importedSoundItemsCache[soundFilePath] = projectSoundItem;
+                                    debugInfo += "  - 강제 임포트 성공: " + File.decode(projectSoundItem.name) + "\n";
+                                } else {
+                                    debugInfo += "  - 강제 임포트도 실패\n";
+                                }
+                            } catch (forceError) {
+                                debugInfo += "  - 강제 임포트 오류: " + forceError.toString() + "\n";
+                            }
+                            
+                            // 최후의 수단: File 객체를 직접 사용한 임포트
+                            if (!projectSoundItem) {
+                                debugInfo += "  - File 객체 직접 임포트 시도...\n";
+                                try {
+                                    var fileObj = new File(soundFilePath);
+                                    if (fileObj.exists) {
+                                        var directImportResult = app.project.importFiles([fileObj]);
+                                        if (directImportResult && typeof directImportResult === 'object' && directImportResult.numItems > 0) {
+                                            projectSoundItem = directImportResult[0];
+                                            importedSoundItemsCache[soundFilePath] = projectSoundItem;
+                                            debugInfo += "  - File 객체 직접 임포트 성공: " + File.decode(projectSoundItem.name) + "\n";
+                                        } else {
+                                            debugInfo += "  - File 객체 직접 임포트도 실패 (결과: " + typeof directImportResult + ")\n";
+                                        }
+                                    } else {
+                                        debugInfo += "  - File 객체 생성 실패: 파일이 존재하지 않음\n";
+                                    }
+                                } catch (fileError) {
+                                    debugInfo += "  - File 객체 임포트 오류: " + fileError.toString() + "\n";
+                                }
+                                
+                                // 마지막 시도: 경로를 URI 형식으로 변환
+                                if (!projectSoundItem) {
+                                    debugInfo += "  - URI 경로 변환 임포트 시도...\n";
+                                    try {
+                                        var fileUri = new File(soundFilePath);
+                                        var uriPath = fileUri.fsName; // 시스템 경로 형식으로 변환
+                                        debugInfo += "    - 변환된 URI 경로: " + uriPath + "\n";
+                                        
+                                        var uriImportResult = app.project.importFiles([uriPath]);
+                                        debugInfo += "    - URI 임포트 결과 타입: " + typeof uriImportResult + "\n";
+                                        
+                                        if (uriImportResult && typeof uriImportResult === 'object' && uriImportResult.numItems > 0) {
+                                            projectSoundItem = uriImportResult[0];
+                                            importedSoundItemsCache[soundFilePath] = projectSoundItem;
+                                            debugInfo += "  - URI 경로 임포트 성공: " + File.decode(projectSoundItem.name) + "\n";
+                                        } else if (typeof uriImportResult === 'boolean' && uriImportResult === false) {
+                                            debugInfo += "  - URI 경로 임포트 실패 (false 반환)\n";
+                                        } else {
+                                            debugInfo += "  - URI 경로 임포트 예상치 못한 결과\n";
+                                        }
+                                    } catch (uriError) {
+                                        debugInfo += "  - URI 변환 임포트 오류: " + uriError.toString() + "\n";
+                                    }
+                                }
+                                
+                                // 최후의 수단: 파일을 임시로 복사해서 영문 이름으로 임포트
+                                if (!projectSoundItem) {
+                                    debugInfo += "  - 임시 파일명 변경 임포트 시도...\n";
+                                    try {
+                                        // 임시 파일명 생성 (영문 + 타임스탬프)
+                                        var tempFileName = "temp_sound_" + new Date().getTime() + soundFilePath.substring(soundFilePath.lastIndexOf('.'));
+                                        var tempFilePath = soundFilePath.substring(0, soundFilePath.lastIndexOf('\\') + 1) + tempFileName;
+                                        
+                                        debugInfo += "    - 임시 파일명: " + tempFileName + "\n";
+                                        debugInfo += "    - 임시 경로: " + tempFilePath + "\n";
+                                        
+                                        // 파일 복사
+                                        var originalFile = new File(soundFilePath);
+                                        var tempFile = new File(tempFilePath);
+                                        
+                                        if (originalFile.exists && originalFile.copy(tempFile)) {
+                                            debugInfo += "    - 파일 복사 성공\n";
+                                            
+                                            // 임시 파일로 임포트 시도
+                                            var tempImportResult = app.project.importFiles([tempFilePath]);
+                                            debugInfo += "    - 임시 파일 임포트 결과 타입: " + typeof tempImportResult + "\n";
+                                            
+                                            if (tempImportResult && typeof tempImportResult === 'object' && tempImportResult.numItems > 0) {
+                                                projectSoundItem = tempImportResult[0];
+                                                importedSoundItemsCache[soundFilePath] = projectSoundItem;
+                                                debugInfo += "  - 임시 파일명 임포트 성공: " + File.decode(projectSoundItem.name) + "\n";
+                                                
+                                                // 임시 파일 삭제
+                                                try {
+                                                    tempFile.remove();
+                                                    debugInfo += "    - 임시 파일 정리 완료\n";
+                                                } catch (e) {
+                                                    debugInfo += "    - 임시 파일 정리 실패: " + e.toString() + "\n";
+                                                }
+                                            } else {
+                                                debugInfo += "  - 임시 파일명 임포트도 실패\n";
+                                                // 실패 시 임시 파일 정리
+                                                try { tempFile.remove(); } catch (e) {}
+                                            }
+                                        } else {
+                                            debugInfo += "    - 파일 복사 실패\n";
+                                        }
+                                    } catch (tempError) {
+                                        debugInfo += "  - 임시 파일명 변경 오류: " + tempError.toString() + "\n";
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        debugInfo += "  - importFiles가 false 반환 = 실제 임포트 실패\n";
+                        debugInfo += "  - 실패 원인 분석 중...\n";
+                        
+                        // 파일 확장자 확인
+                        var fileExtension = soundFilePath.substring(soundFilePath.lastIndexOf('.')).toLowerCase();
+                        debugInfo += "  - 파일 확장자: " + fileExtension + "\n";
+                        
+                        // 파일 크기 확인
+                        try {
+                            var fileSize = fileToImport.length;
+                            debugInfo += "  - 파일 크기: " + fileSize + " bytes\n";
+                            if (fileSize === 0) {
+                                debugInfo += "  - 오류: 파일 크기가 0 bytes (손상된 파일)\n";
+                            }
+                        } catch (e) {
+                            debugInfo += "  - 파일 크기 확인 실패: " + e.toString() + "\n";
+                        }
+                    }
+                    
+                } else if (importResultArray && typeof importResultArray === 'object') {
+                    // 정상적인 객체/Collection 반환
+                    var importedItem = null;
+                    
+                    // numItems 속성으로 개수 확인 (Premiere Pro Collection의 표준 방식)
+                    if (typeof importResultArray.numItems !== 'undefined') {
+                        debugInfo += "  - Collection.numItems: " + importResultArray.numItems + "\n";
+                        if (importResultArray.numItems > 0) {
+                            importedItem = importResultArray[0];
+                        }
+                    }
+                    // 배열 스타일 length 속성도 확인
+                    else if (typeof importResultArray.length !== 'undefined') {
+                        debugInfo += "  - Array.length: " + importResultArray.length + "\n";
+                        if (importResultArray.length > 0) {
+                            importedItem = importResultArray[0];
+                        }
+                    }
+                    // 직접 인덱스 접근 시도
+                    else {
+                        debugInfo += "  - 직접 인덱스 접근 시도\n";
+                        try {
+                            importedItem = importResultArray[0];
+                        } catch (e) {
+                            debugInfo += "  - 인덱스 접근 실패: " + e.toString() + "\n";
+                        }
+                    }
+                    
+                    if (importedItem && typeof importedItem.name !== 'undefined') {
+                        projectSoundItem = importedItem;
+                        importedSoundItemsCache[soundFilePath] = projectSoundItem;
+                        debugInfo += "임포트 성공: " + projectSoundItem.name + " (ID: " + (projectSoundItem.nodeId ? projectSoundItem.nodeId : "N/A") + ")\n";
+                    } else {
+                        debugInfo += "Collection은 유효하지만 아이템 없음\n";
+                    }
+                } else {
+                    debugInfo += "  - 예상치 못한 반환 타입\n";
+                }
+                
+                // 임포트가 실패했거나 유효한 아이템이 없는 경우 대안 시도
+                if (!projectSoundItem || typeof projectSoundItem.name === 'undefined') {
+                    debugInfo += "대안 방법들 시도 중...\n";
+                    
+                    // 1. 경로 정리 시도 (백슬래시를 슬래시로 변환)
+                    debugInfo += "1. 경로 정리 시도 (백슬래시 → 슬래시)\n";
+                    var cleanedPath = soundFilePath.replace(/\\/g, '/');
+                    $.writeln("정리된 경로로 재시도: " + cleanedPath);
+                    
+                    var retryImportResult = app.project.importFiles([cleanedPath]);
+                    debugInfo += "  - 결과 타입: " + typeof retryImportResult + "\n";
+                    
+                    if (typeof retryImportResult === 'object' && retryImportResult && 
+                        ((retryImportResult.numItems && retryImportResult.numItems > 0) || 
+                         (retryImportResult.length && retryImportResult.length > 0))) {
+                        projectSoundItem = retryImportResult[0];
+                        importedSoundItemsCache[soundFilePath] = projectSoundItem;
+                        debugInfo += "  - 경로 정리 후 임포트 성공: " + projectSoundItem.name + "\n";
+                    } else {
+                        debugInfo += "  - 경로 정리 후에도 실패\n";
+                        $.writeln("경로 정리 후에도 importFiles 실패. 루트에서 이름으로 재검색 시도: " + decodedSoundFileName);
+                        var foundInRoot = false;
+                        $.writeln("프로젝트 루트에서 이름으로 검색 중... 총 아이템 수: " + app.project.rootItem.children.numItems);
+                        for (var j = 0; j < app.project.rootItem.children.numItems; j++) {
+                            var pi = app.project.rootItem.children[j];
+                            $.writeln("  검색 중인 아이템 " + j + ": " + (pi.name || "이름없음"));
+                            
+                            // 정확한 이름 매칭 또는 파일 경로 매칭
+                            var nameMatch = pi.name === decodedSoundFileName;
+                            var pathMatch = false;
+                            
+                            // MediaPath가 있는 경우 경로도 비교
+                            if (pi.getMediaPath && typeof pi.getMediaPath === 'function') {
+                                try {
+                                    var piPath = pi.getMediaPath();
+                                    pathMatch = (piPath === soundFilePath);
+                                    $.writeln("    파일 경로 비교: " + piPath + " vs " + soundFilePath + " = " + pathMatch);
+                                } catch (e) {
+                                    // getMediaPath 실패 시 무시
+                                }
+                            }
+                            
+                            if (nameMatch || pathMatch) {
+                                projectSoundItem = pi;
+                                importedSoundItemsCache[soundFilePath] = projectSoundItem;
+                                $.writeln("이름" + (pathMatch ? "/경로" : "") + "로 재검색 성공 및 캐시 저장: " + projectSoundItem.name);
+                                foundInRoot = true;
+                                break;
+                            }
+                        }
+                        if (!foundInRoot) {
+                            $.writeln("임포트 및 재검색 모두 실패: " + decodedSoundFileName);
+                            projectSoundItem = null;
+                        }
                     }
                 }
             } else {
                 $.writeln("캐시에서 '" + projectSoundItem.name + "' 사용.");
             }
 
+            debugInfo += "==== ProjectItem 최종 검증 ====\n";
+            debugInfo += "projectSoundItem 존재 여부: " + (projectSoundItem ? "존재" : "null") + "\n";
+            if (projectSoundItem) {
+                debugInfo += "projectSoundItem.name: " + (projectSoundItem.name || "undefined") + "\n";
+                debugInfo += "typeof projectSoundItem.name: " + typeof projectSoundItem.name + "\n";
+                debugInfo += "projectSoundItem.name !== undefined: " + (projectSoundItem.name !== undefined) + "\n";
+            }
+            debugInfo += "검증 결과: " + (projectSoundItem && projectSoundItem.name !== undefined ? "통과" : "실패") + "\n";
+            
             if (projectSoundItem && projectSoundItem.name !== undefined) {
                 $.writeln("삽입할 ProjectItem: " + projectSoundItem.name + ", 삽입 시간: " + insertionTime.toFixed(2) + "초, 대상 트랙 ID: " + (targetAudioTrack ? targetAudioTrack.id : "N/A") + ", 트랙 이름: " + (targetAudioTrack ? targetAudioTrack.name : "N/A"));
                 var successfullyInserted = false;
@@ -396,7 +912,13 @@ function insertSoundsBetweenClips(folderPath, audioTrack) {
                 }
             } else {
                 $.writeln("'" + decodedSoundFileName + "'에 대한 유효한 ProjectItem을 얻지 못해 삽입 건너뜀.");
-                debugInfo += "효과음 파일 준비 실패: " + decodedSoundFileName + "\\n";
+                $.writeln("  - 원본 파일 경로: " + soundFilePath);
+                $.writeln("  - projectSoundItem 상태: " + (projectSoundItem ? "존재하지만 유효하지 않음" : "null"));
+                if (projectSoundItem) {
+                    $.writeln("  - projectSoundItem.name: " + (projectSoundItem.name || "undefined"));
+                    $.writeln("  - typeof projectSoundItem.name: " + typeof projectSoundItem.name);
+                }
+                debugInfo += "효과음 파일 준비 실패: " + decodedSoundFileName + " (경로: " + soundFilePath + ")\\n";
             }
         }
 
@@ -545,6 +1067,7 @@ function getSoundFilesFromFolder(folderPath, filterByDefaultPrefix) {
         return null;
     }
 }
+
 
 // 파일 이름만 추출하는 함수
 function getFileName(item) {
@@ -744,13 +1267,13 @@ function replaceSelectedAudioClips(soundFilePathToImport) {
         return errors.length === 0 && replacementCount > 0 ? "true" : "false";
 
     } catch (e) {
-        logClipMsg("CRITICAL ERROR in " + functionName + ": " + e.toString() + (e.line ? " (Line: " + e.line + ")" : ""), true);
-        // errorMessages.push already handled by logClipMsg
-        return {
+        logToBoth("CRITICAL ERROR in " + mainFunctionName + ": " + e.toString() + (e.line ? " (Line: " + e.line + ")" : ""), true);
+        sendEvent(JSON.stringify({
+            message: "클립 처리 중 예외: " + e.toString(),
             success: false,
-            error: "클립 처리 중 예외: " + e.toString(),
-            debugInfo: debugInfo
-        };
+            debug: overallDebugInfo
+        }));
+        return "false";
     }
 }
 
@@ -805,15 +1328,39 @@ function processSingleTimelineClip(timelineClip, soundFilePathToImport, imported
             };
         }
 
-        // 1. timelineClip 유효성 검사 (오디오 클립이어야 함)
-        if (!timelineClip || typeof timelineClip.name === 'undefined' || timelineClip.mediaType !== "Audio") {
-            logClipMsg("Timeline clip is invalid, not an audio clip, or has no name. Skipping. Type: " + (timelineClip ? timelineClip.mediaType : "N/A"), true);
+        // 1. timelineClip 유효성 검사
+        if (!timelineClip || typeof timelineClip.name === 'undefined') {
+            logClipMsg("Timeline clip is invalid or has no name. Skipping.", true);
             return {
                 success: false,
-                error: "선택된 항목(인덱스: " + clipIndex + ")이 오디오 클립이 아니거나 유효하지 않습니다.",
+                error: "선택된 항목(인덱스: " + clipIndex + ")이 유효하지 않습니다.",
                 debugInfo: debugInfo
             };
         }
+        
+        // 클립 타입에 따른 처리 방법 결정
+        var isAudioClip = (timelineClip.mediaType === "Audio");
+        var isVideoClip = (timelineClip.mediaType === "Video");
+        
+        logClipMsg("클립 타입: " + timelineClip.mediaType + ", 오디오 클립: " + isAudioClip + ", 비디오 클립: " + isVideoClip);
+        
+        if (!isAudioClip && !isVideoClip) {
+            logClipMsg("지원되지 않는 클립 타입입니다: " + timelineClip.mediaType, true);
+            return {
+                success: false,
+                error: "선택된 항목(인덱스: " + clipIndex + ")이 오디오 또는 비디오 클립이 아닙니다.",
+                debugInfo: debugInfo
+            };
+        }
+        
+        // 비디오/이미지 클립인 경우: 오디오 추가 로직
+        if (isVideoClip) {
+            logClipMsg("비디오 클립 감지됨. 오디오 추가 모드로 전환합니다.");
+            return processVideoClipAudioAddition(timelineClip, soundFilePathToImport, importedSoundItemsCache, seq, clipIndex, debugInfo);
+        }
+        
+        // 오디오 클립인 경우: 기존 대체 로직 계속 진행
+        logClipMsg("오디오 클립 감지됨. 대체 모드로 진행합니다.");
 
         // 2. 원본 클립 정보 추출
         var originalClipStartTime = null;
@@ -1281,5 +1828,187 @@ function getFilesForPathCS(folderPathFromJS) {
             $.writeln(logPrefix + "Stack: " + e.stack);
         }
         return "error: JSX exception - " + e.name + ": " + e.message;
+    }
+}
+
+// 비디오 클립에 오디오 추가하는 함수
+function processVideoClipAudioAddition(timelineClip, soundFilePathToImport, importedSoundItemsCache, seq, clipIndex, parentDebugInfo) {
+    var functionName = "processVideoClipAudioAddition";
+    var debugInfo = parentDebugInfo;
+    
+    function logClipMsg(message, isError) {
+        var clipName = (timelineClip && timelineClip.name) ? File.decode(timelineClip.name) : "N/A";
+        var logEntry = "[" + functionName + "][Clip " + clipIndex + ": '" + clipName + "'] " + message;
+        if (typeof $ !== 'undefined' && $.writeln) {
+            $.writeln((isError ? "ERROR: " : "") + logEntry);
+        }
+        debugInfo += logEntry + "\n";
+    }
+    
+    try {
+        logClipMsg("비디오 클립에 오디오 추가 시작");
+        
+        // 1. 비디오 클립 정보 추출
+        var videoClipStartTime = timelineClip.start.seconds;
+        var videoClipDuration = timelineClip.duration.seconds;
+        
+        logClipMsg("비디오 클립 정보 - 시작: " + videoClipStartTime.toFixed(2) + "s, 길이: " + videoClipDuration.toFixed(2) + "s");
+        
+        // 2. 오디오 파일 임포트 (기존 로직 재사용)
+        var projectSoundItem = null;
+        
+        // 프로젝트에서 오디오 파일 찾기
+        var audioItems = [];
+        for (var audioIdx = 0; audioIdx < app.project.rootItem.children.numItems; audioIdx++) {
+            var audioItem = app.project.rootItem.children[audioIdx];
+            if (audioItem && audioItem.name) {
+                var audioItemName = File.decode(audioItem.name);
+                if (audioItemName.toLowerCase().indexOf('.wav') !== -1 || 
+                    audioItemName.toLowerCase().indexOf('.mp3') !== -1 ||
+                    audioItemName.toLowerCase().indexOf('.aiff') !== -1 ||
+                    audioItemName.toLowerCase().indexOf('.flac') !== -1) {
+                    audioItems.push(audioItem);
+                }
+            }
+        }
+        
+        if (audioItems.length > 0) {
+            var randomIndex = Math.floor(Math.random() * audioItems.length);
+            projectSoundItem = audioItems[randomIndex];
+            logClipMsg("랜덤 선택된 오디오: " + File.decode(projectSoundItem.name));
+        } else {
+            logClipMsg("프로젝트에 오디오 파일이 없습니다.", true);
+            return {
+                success: false,
+                error: "프로젝트에 사용할 오디오 파일이 없습니다.",
+                debugInfo: debugInfo
+            };
+        }
+        
+        // 3. A2 트랙 (인덱스 1) 우선 사용, 잠겨있으면 다른 트랙 찾기
+        var targetAudioTrack = null;
+        var targetTrackIndex = 1; // A2 트랙 (0-based 인덱스)
+        
+        // A2 트랙 먼저 시도
+        if (seq.audioTracks.numTracks > targetTrackIndex) {
+            var a2Track = seq.audioTracks[targetTrackIndex];
+            logClipMsg("A2 트랙 확인 중 (인덱스: " + targetTrackIndex + ")");
+            logClipMsg("A2 트랙 상태 - isLocked: " + a2Track.isLocked + ", isMuted: " + a2Track.isMuted);
+            logClipMsg("A2 트랙 클립 수: " + (a2Track.clips ? a2Track.clips.numItems : "N/A"));
+            
+            if (a2Track.isMuted) {
+                logClipMsg("경고: A2 트랙이 음소거되어 있습니다.");
+            }
+            
+            // 강제로 A2 트랙 사용 (잠금 상태 무시)
+            targetAudioTrack = a2Track;
+            logClipMsg("A2 트랙 강제 선택 (잠금 상태 무시)");
+            
+            /*
+            if (!a2Track.isLocked) {
+                targetAudioTrack = a2Track;
+                logClipMsg("A2 트랙 사용 가능 - 선택됨");
+            } else {
+                logClipMsg("A2 트랙이 잠겨 있음 - 다른 트랙 찾는 중...");
+            }
+            */
+        } else {
+            logClipMsg("A2 트랙이 존재하지 않음. 총 트랙 수: " + seq.audioTracks.numTracks);
+        }
+        
+        // A2가 사용 불가능하면 다른 트랙 찾기
+        if (!targetAudioTrack) {
+            logClipMsg("사용 가능한 다른 오디오 트랙 검색 중...");
+            for (var trackIdx = 0; trackIdx < seq.audioTracks.numTracks; trackIdx++) {
+                var audioTrack = seq.audioTracks[trackIdx];
+                if (audioTrack && !audioTrack.isLocked) {
+                    targetAudioTrack = audioTrack;
+                    targetTrackIndex = trackIdx;
+                    logClipMsg("대체 트랙 선택: Audio " + (trackIdx + 1) + " (인덱스: " + trackIdx + ")");
+                    if (audioTrack.isMuted) {
+                        logClipMsg("경고: 선택된 트랙이 음소거되어 있습니다.");
+                    }
+                    break;
+                }
+            }
+        }
+        
+        if (!targetAudioTrack) {
+            logClipMsg("사용 가능한 오디오 트랙이 없습니다.", true);
+            return {
+                success: false,
+                error: "사용 가능한 오디오 트랙이 없습니다.",
+                debugInfo: debugInfo
+            };
+        }
+        
+        // 4. 오디오 클립을 트랙에 추가 (덮어쓰기 방식 - 기존 클립을 밀지 않음)
+        logClipMsg("오디오 클립을 트랙에 덮어쓰기 방식으로 추가 중...");
+        
+        var insertResult = targetAudioTrack.overwriteClip(projectSoundItem, videoClipStartTime);
+        
+        if (insertResult) {
+            logClipMsg("오디오 추가 성공! 이제 길이를 조정합니다...");
+            
+            // 5. 추가된 오디오 클립의 길이를 비디오 클립과 맞춤
+            try {
+                // 방금 추가된 클립을 찾기 (가장 최근에 추가된 클립)
+                var insertedClip = null;
+                var trackClips = targetAudioTrack.clips;
+                
+                if (trackClips && trackClips.numItems > 0) {
+                    // 시작 시간이 비슷한 클립 찾기
+                    for (var clipIdx = 0; clipIdx < trackClips.numItems; clipIdx++) {
+                        var clip = trackClips[clipIdx];
+                        if (clip && clip.start && Math.abs(clip.start.seconds - videoClipStartTime) < 0.1) {
+                            insertedClip = clip;
+                            logClipMsg("삽입된 오디오 클립 발견: " + File.decode(clip.name) + ", 시작: " + clip.start.seconds.toFixed(2) + "s");
+                            break;
+                        }
+                    }
+                }
+                
+                if (insertedClip) {
+                    logClipMsg("오디오 클립 길이 조정 중... 목표 길이: " + videoClipDuration.toFixed(2) + "s");
+                    
+                    // 오디오 클립의 끝 시간을 비디오 클립과 맞춤
+                    var newEndTime = videoClipStartTime + videoClipDuration;
+                    
+                    // 클립 길이 조정
+                    insertedClip.end = {
+                        seconds: newEndTime,
+                        ticks: Math.round(newEndTime * 254016000000)
+                    };
+                    
+                    logClipMsg("오디오 클립 길이 조정 완료! 새 끝 시간: " + newEndTime.toFixed(2) + "s");
+                } else {
+                    logClipMsg("경고: 삽입된 오디오 클립을 찾을 수 없어 길이 조정을 건너뜁니다.");
+                }
+                
+            } catch (lengthError) {
+                logClipMsg("길이 조정 중 오류 발생: " + lengthError.toString() + " (오디오는 추가되었지만 길이 조정 실패)");
+            }
+            
+            return {
+                success: true,
+                error: null,
+                debugInfo: debugInfo
+            };
+        } else {
+            logClipMsg("오디오 추가 실패", true);
+            return {
+                success: false,
+                error: "오디오 클립 추가에 실패했습니다.",
+                debugInfo: debugInfo
+            };
+        }
+        
+    } catch (e) {
+        logClipMsg("처리 중 오류 발생: " + e.toString(), true);
+        return {
+            success: false,
+            error: "비디오 클립 처리 중 오류: " + e.toString(),
+            debugInfo: debugInfo
+        };
     }
 }

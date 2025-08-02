@@ -1,8 +1,16 @@
-// console.log("main.js loaded"); // 로그 주석 처리
-// alert("main.js loaded - alert"); // alert 주석 처리
 /**
  * 효과음 삽입 도구 - 메인 JavaScript
  */
+
+// 디버그 모드 설정 (개발 중에는 true, 배포 시에는 false)
+var DEBUG_MODE = true;
+
+// 조건부 로깅 함수
+function debugLog(message) {
+    if (DEBUG_MODE && console && console.log) {
+        console.log("[SoundInserter Debug] " + message);
+    }
+}
 
 // CSInterface 인스턴스 생성
 var csInterface = new CSInterface();
@@ -22,30 +30,22 @@ function init() {
 
     // 이전에 저장된 폴더 경로 불러오기 및 currentFolderPath, 새로고침 버튼 상태 설정
     var savedFolder = localStorage.getItem(SOUND_FOLDER_KEY);
-    console.log("[init] Loaded savedFolder from localStorage:", savedFolder);
+    debugLog("Loaded savedFolder from localStorage: " + savedFolder);
 
     // 경로 유효성 검사 추가
     if (savedFolder && isValidPath(savedFolder)) {
         document.getElementById("sound-folder").value = savedFolder;
         currentFolderPath = savedFolder; // currentFolderPath에 저장된 경로 반영
         document.getElementById("refreshSounds").disabled = false; // 저장된 경로 있으면 새로고침 버튼 활성화
-        console.log(
-            "[init] Valid savedFolder set as currentFolderPath:",
-            currentFolderPath
-        );
+        debugLog("Valid savedFolder set as currentFolderPath: " + currentFolderPath);
     } else {
         if (savedFolder) {
-            console.warn(
-                "[init] Invalid savedFolder detected, clearing:",
-                savedFolder
-            );
+            debugLog("Invalid savedFolder detected, clearing: " + savedFolder);
             localStorage.removeItem(SOUND_FOLDER_KEY); // 손상된 경로 제거
         }
         document.getElementById("refreshSounds").disabled = true; // 저장된 경로 없으면 비활성화
         currentFolderPath = ""; // 명시적으로 빈 문자열로 초기화
-        console.log(
-            "[init] No valid savedFolder, currentFolderPath set to empty string"
-        );
+        debugLog("No valid savedFolder, currentFolderPath set to empty string");
     }
 
     // 이벤트 리스너 등록
@@ -58,8 +58,8 @@ function init() {
             try {
                 // Check if data is a string
                 var data = event.data;
-                console.log("Received event data:", data);
-                console.log("Type of event.data:", typeof data);
+                debugLog("Received event data: " + data);
+                debugLog("Type of event.data: " + typeof data);
 
                 // Handle non-string data
                 if (typeof data !== "string") {
@@ -67,10 +67,7 @@ function init() {
                     try {
                         // 객체일 가능성이 있으므로 JSON.stringify 시도
                         data = JSON.stringify(data);
-                        console.log(
-                            "Converted non-string data to JSON string:",
-                            data
-                        );
+                        debugLog("Converted non-string data to JSON string: " + data);
                     } catch (e) {
                         // stringify 실패 시, 원래 문제였던 [object Object] 문제를 표시하거나,
                         // 혹은 더 구체적인 오류 로깅
@@ -79,7 +76,7 @@ function init() {
                                 ? "[object Object] (raw object received)"
                                 : String(data);
                         updateStatus(
-                            "데이터 처리 오류 (비문자열): " + errorDisplay,
+                            "데이터 처리 오류: 서버에서 잘못된 형식의 데이터를 받았습니다.",
                             false
                         );
                         console.error(
@@ -92,9 +89,9 @@ function init() {
 
                 // [object Object] 오류 검사
                 if (data === "[object Object]") {
-                    console.log("[object Object] 오류 발생");
+                    debugLog("[object Object] 오류 발생");
                     updateStatus(
-                        "데이터 처리 오류: JSON 직렬화 문제가 발생했습니다.",
+                        "데이터 처리 오류: 서버 응답 형식에 문제가 있습니다.",
                         false
                     );
                     return;
@@ -106,8 +103,8 @@ function init() {
                     resultData = JSON.parse(data);
                 } catch (parseError) {
                     // If not JSON, handle as string
-                    console.log("Failed to parse data:", parseError.toString());
-                    console.log("Raw data:", data);
+                    debugLog("Failed to parse data: " + parseError.toString());
+                    debugLog("Raw data: " + data);
                     updateStatus(data, false);
                     return;
                 }
@@ -133,7 +130,7 @@ function init() {
                 // Handle overall process errors
                 console.error("Event processing error:", e.toString());
                 updateStatus(
-                    "Error occurred during processing: " + e.toString(),
+                    "처리 중 오류가 발생했습니다. 다시 시도해주세요.",
                     false
                 );
             }
@@ -341,7 +338,7 @@ function browseSoundFolder() {
                     "[browseSoundFolder] Invalid path received from ExtendScript:",
                     result
                 );
-                updateStatus("선택된 폴더 경로가 유효하지 않습니다.", "error");
+                updateStatus("올바른 폴더를 선택해주세요.", false);
             } else {
                 console.log(
                     "[browseSoundFolder] No folder selected or empty result"
@@ -497,8 +494,8 @@ function handleFileListEvent(event) {
                     "[JS] handleFileListEvent: Received empty string data."
                 ); // 로그 변경
                 updateStatus(
-                    "효과음 목록 이벤트 수신: 데이터 비어 있음.",
-                    "error"
+                    "폴더에서 데이터를 가져오는 데 실패했습니다.",
+                    false
                 );
                 return;
             }
@@ -518,11 +515,8 @@ function handleFileListEvent(event) {
                     eventDataString
                 );
                 updateStatus(
-                    "효과음 목록 JSON 파싱 오류: " +
-                        e.message +
-                        "<br>수신데이터: " +
-                        escapeHtml(eventDataString),
-                    "error"
+                    "폴더 데이터 처리 중 오류가 발생했습니다.",
+                    false
                 );
                 return;
             }
@@ -542,9 +536,8 @@ function handleFileListEvent(event) {
                 typeof eventDataString
             ); // 로그 변경
             updateStatus(
-                "효과음 목록 이벤트: 알 수 없는 데이터 타입 - " +
-                    typeof eventDataString,
-                "error"
+                "예상치 못한 데이터 형식을 받았습니다.",
+                false
             );
             return;
         }
@@ -555,8 +548,8 @@ function handleFileListEvent(event) {
                 parsedData
             ); // 로그 변경
             updateStatus(
-                "효과음 목록 데이터 형식이 잘못되었습니다 (soundFiles 누락).",
-                "error"
+                "폴더 데이터를 올바르게 읽을 수 없습니다.",
+                false
             );
             return;
         }
@@ -600,7 +593,7 @@ function handleFileListEvent(event) {
                     "[JS] handleFileListEvent: Invalid folderPathFromEvent received, not updating currentFolderPath:",
                     folderPathFromEvent
                 );
-                updateStatus("수신된 폴더 경로가 유효하지 않습니다.", "error");
+                updateStatus("올바르지 않은 폴더 경로입니다.", false);
             }
         } else if (currentFolderPath === "") {
             // This case might be redundant if folderPathFromEvent is always expected
@@ -652,14 +645,14 @@ function handleFileListEvent(event) {
                 "[JS] handleFileListEvent: No sound files to display. Folder path:",
                 folderPathFromEvent || currentFolderPath
             ); // 로그 추가
-            updateStatus("선택된 폴더에 오디오 파일이 없습니다.", "info");
+            updateStatus("선택된 폴더에 오디오 파일이 없습니다.", false);
         }
     } catch (e) {
         console.error(
             "[JS] handleFileListEvent: CRITICAL ERROR during event processing:",
             e
         ); // 로그 변경
-        updateStatus("효과음 목록 표시 중 오류 발생: " + e.toString(), "error");
+        updateStatus("폴더 정보를 처리하는 중 오류가 발생했습니다.", false);
     }
 }
 
@@ -707,8 +700,8 @@ function refreshSoundButtons() {
                     result.indexOf("error:") === 0
                 ) {
                     updateStatus(
-                        "새로고침 중 ExtendScript 오류: " + result,
-                        "error"
+                        "폴더 새로고침 중 오류가 발생했습니다.",
+                        false
                     );
                 }
                 // 성공 시 별도 처리는 FileListEvent 핸들러에서 담당
@@ -726,8 +719,8 @@ function refreshSoundButtons() {
             localStorage.removeItem(SOUND_FOLDER_KEY);
             document.getElementById("sound-folder").value = "";
             updateStatus(
-                "저장된 폴더 경로가 손상되어 초기화되었습니다. 다시 폴더를 선택해주세요.",
-                "error"
+                "폴더 경로가 올바르지 않습니다. 다시 선택해주세요.",
+                false
             );
         } else {
             console.warn(
@@ -735,7 +728,7 @@ function refreshSoundButtons() {
             ); // 로그 추가
             updateStatus(
                 "먼저 '폴더 찾아보기'를 통해 효과음 폴더를 선택해주세요.",
-                "warning"
+                false
             );
         }
         document.getElementById("refreshSounds").disabled = true;

@@ -1857,32 +1857,116 @@ function processVideoClipAudioAddition(timelineClip, soundFilePathToImport, impo
         // 2. 오디오 파일 임포트 (기존 로직 재사용)
         var projectSoundItem = null;
         
-        // 프로젝트에서 오디오 파일 찾기
-        var audioItems = [];
-        for (var audioIdx = 0; audioIdx < app.project.rootItem.children.numItems; audioIdx++) {
-            var audioItem = app.project.rootItem.children[audioIdx];
-            if (audioItem && audioItem.name) {
-                var audioItemName = File.decode(audioItem.name);
-                if (audioItemName.toLowerCase().indexOf('.wav') !== -1 || 
-                    audioItemName.toLowerCase().indexOf('.mp3') !== -1 ||
-                    audioItemName.toLowerCase().indexOf('.aiff') !== -1 ||
-                    audioItemName.toLowerCase().indexOf('.flac') !== -1) {
-                    audioItems.push(audioItem);
-                }
-            }
+        // 사용자가 선택한 특정 오디오 파일 사용 (랜덤 선택 제거)
+        logClipMsg("사용자 선택 파일: " + soundFilePathToImport);
+        
+        // 파일명 추출 (Windows와 macOS 모두 지원)
+        var soundFilePath = soundFilePathToImport;
+        var soundFileName = "";
+        
+        // 백슬래시와 슬래시 중 더 뒤에 있는 것을 기준으로 파일명 추출
+        var lastSlashIndex = soundFilePath.lastIndexOf('/');
+        var lastBackslashIndex = soundFilePath.lastIndexOf('\\');
+        var separatorIndex = Math.max(lastSlashIndex, lastBackslashIndex);
+        
+        if (separatorIndex >= 0) {
+            soundFileName = soundFilePath.substring(separatorIndex + 1);
+        } else {
+            soundFileName = soundFilePath; // 경로 구분자가 없으면 전체가 파일명
         }
         
-        if (audioItems.length > 0) {
-            var randomIndex = Math.floor(Math.random() * audioItems.length);
-            projectSoundItem = audioItems[randomIndex];
-            logClipMsg("랜덤 선택된 오디오: " + File.decode(projectSoundItem.name));
+        // File.decode 시도, 실패하면 원본 사용
+        var decodedSoundFileName = soundFileName;
+        try {
+            decodedSoundFileName = File.decode(soundFileName);
+        } catch (decodeError) {
+            logClipMsg("File.decode 실패, 원본 파일명 사용: " + decodeError.toString());
+        }
+        
+        logClipMsg("파일 경로 분석 - 전체: " + soundFilePath);
+        logClipMsg("파일 경로 분석 - 파일명: " + soundFileName);
+        logClipMsg("파일 경로 분석 - 디코딩된 파일명: " + decodedSoundFileName);
+        
+        // 캐시에서 먼저 찾기
+        if (importedSoundItemsCache[soundFilePath]) {
+            projectSoundItem = importedSoundItemsCache[soundFilePath];
+            logClipMsg("캐시에서 찾은 오디오: " + File.decode(projectSoundItem.name));
         } else {
-            logClipMsg("프로젝트에 오디오 파일이 없습니다.", true);
-            return {
-                success: false,
-                error: "프로젝트에 사용할 오디오 파일이 없습니다.",
-                debugInfo: debugInfo
-            };
+            // 프로젝트에서 해당 파일 찾기
+            for (var searchIdx = 0; searchIdx < app.project.rootItem.children.numItems; searchIdx++) {
+                var existingItem = app.project.rootItem.children[searchIdx];
+                if (existingItem && existingItem.name === decodedSoundFileName) {
+                    projectSoundItem = existingItem;
+                    importedSoundItemsCache[soundFilePath] = projectSoundItem;
+                    logClipMsg("프로젝트에서 기존 아이템 발견: " + projectSoundItem.name);
+                    break;
+                }
+            }
+            
+            // 프로젝트에 없으면 임포트
+            if (!projectSoundItem) {
+                logClipMsg("파일 임포트 시도: " + decodedSoundFileName);
+                logClipMsg("전체 파일 경로: " + soundFilePath);
+                
+                var fileToImport = new File(soundFilePath);
+                logClipMsg("File 객체 생성됨. exists: " + fileToImport.exists);
+                
+                if (!fileToImport.exists) {
+                    logClipMsg("파일이 존재하지 않음: " + soundFilePath, true);
+                    return {
+                        success: false,
+                        error: "선택한 오디오 파일을 찾을 수 없습니다: " + decodedSoundFileName,
+                        debugInfo: debugInfo
+                    };
+                }
+                
+                logClipMsg("파일 존재 확인됨. 임포트 시작...");
+                
+                // 임포트 전 프로젝트 아이템 수 확인
+                var beforeImportCount = app.project.rootItem.children.numItems;
+                logClipMsg("임포트 전 프로젝트 아이템 수: " + beforeImportCount);
+                
+                try {
+                    var importResultArray = app.project.importFiles([soundFilePath]);
+                    logClipMsg("importFiles 호출 완료. 결과: " + (importResultArray ? "성공" : "null"));
+                    if (importResultArray && importResultArray.length) {
+                        logClipMsg("importResultArray.length: " + importResultArray.length);
+                    }
+                } catch (importError) {
+                    logClipMsg("importFiles 호출 중 오류: " + importError.toString(), true);
+                    return {
+                        success: false,
+                        error: "파일 임포트 중 오류 발생: " + importError.toString(),
+                        debugInfo: debugInfo
+                    };
+                }
+                
+                // 임포트 후 프로젝트 아이템 수 확인
+                var afterImportCount = app.project.rootItem.children.numItems;
+                logClipMsg("임포트 후 프로젝트 아이템 수: " + afterImportCount);
+                
+                if (importResultArray && importResultArray.length > 0) {
+                    // 방금 임포트된 아이템 찾기
+                    for (var newIdx = app.project.rootItem.children.numItems - 1; newIdx >= 0; newIdx--) {
+                        var newItem = app.project.rootItem.children[newIdx];
+                        if (newItem && newItem.name === decodedSoundFileName) {
+                            projectSoundItem = newItem;
+                            importedSoundItemsCache[soundFilePath] = projectSoundItem;
+                            logClipMsg("임포트 완료: " + newItem.name);
+                            break;
+                        }
+                    }
+                }
+                
+                if (!projectSoundItem) {
+                    logClipMsg("파일 임포트 실패", true);
+                    return {
+                        success: false,
+                        error: "선택한 오디오 파일 임포트에 실패했습니다: " + decodedSoundFileName,
+                        debugInfo: debugInfo
+                    };
+                }
+            }
         }
         
         // 3. A2 트랙 (인덱스 1) 우선 사용, 잠겨있으면 다른 트랙 찾기
@@ -1942,16 +2026,70 @@ function processVideoClipAudioAddition(timelineClip, soundFilePathToImport, impo
             };
         }
         
-        // 4. 오디오 클립을 트랙에 추가 (덮어쓰기 방식 - 기존 클립을 밀지 않음)
-        logClipMsg("오디오 클립을 트랙에 덮어쓰기 방식으로 추가 중...");
+        // 4. 오디오 클립을 트랙에 추가 (길이 지정하여 삽입)
+        logClipMsg("오디오 클립을 트랙에 길이 맞춤으로 추가 중...");
         
-        var insertResult = targetAudioTrack.overwriteClip(projectSoundItem, videoClipStartTime);
+        // Time 객체 생성 (시작 시간)
+        var startTime = {
+            seconds: videoClipStartTime,
+            ticks: Math.round(videoClipStartTime * 254016000000)
+        };
+        
+        // Time 객체 생성 (길이)
+        var duration = {
+            seconds: videoClipDuration,
+            ticks: Math.round(videoClipDuration * 254016000000)
+        };
+        
+        // insertClip으로 길이 지정하여 삽입 시도
+        var insertResult = null;
+        try {
+            // insertClip(projectItem, timelineTime, inPoint, outPoint)
+            // outPoint는 소스 클립에서의 종료 지점 (0부터 시작)
+            var outPoint = {
+                seconds: videoClipDuration,
+                ticks: Math.round(videoClipDuration * 254016000000)
+            };
+            var inPoint = {
+                seconds: 0,
+                ticks: 0
+            };
+            
+            insertResult = targetAudioTrack.insertClip(projectSoundItem, startTime, inPoint, outPoint);
+            logClipMsg("insertClip 성공 (inPoint: 0s, outPoint: " + videoClipDuration.toFixed(2) + "s)");
+        } catch (insertError) {
+            logClipMsg("insertClip 실패: " + insertError.toString() + ", overwriteClip으로 대체 시도");
+            // 대안: overwriteClip 사용
+            try {
+                insertResult = targetAudioTrack.overwriteClip(projectSoundItem, videoClipStartTime);
+                logClipMsg("overwriteClip 성공");
+            } catch (overwriteError) {
+                logClipMsg("overwriteClip도 실패: " + overwriteError.toString(), true);
+                return {
+                    success: false,
+                    error: "오디오 클립 삽입에 실패했습니다.",
+                    debugInfo: debugInfo
+                };
+            }
+        }
         
         if (insertResult) {
-            logClipMsg("오디오 추가 성공! 이제 길이를 조정합니다...");
+            logClipMsg("오디오 추가 성공!");
             
-            // 5. 추가된 오디오 클립의 길이를 비디오 클립과 맞춤
-            try {
+            // insertClip을 사용한 경우 길이가 이미 지정되었으므로 추가 조정 불필요
+            // overwriteClip을 사용한 경우에만 길이 조정 시도
+            var needsLengthAdjustment = (insertResult.toString().indexOf("overwrite") !== -1 || 
+                                       insertResult === true); // overwriteClip 결과일 가능성
+            
+            if (needsLengthAdjustment) {
+                logClipMsg("overwriteClip을 사용했으므로 길이 조정을 시도합니다...");
+            } else {
+                logClipMsg("insertClip을 사용했으므로 길이가 이미 지정되어 추가 조정이 불필요합니다.");
+            }
+            
+            // 5. 추가된 오디오 클립의 길이를 비디오 클립과 맞춤 (필요한 경우에만)
+            if (needsLengthAdjustment) {
+                try {
                 // 방금 추가된 클립을 찾기 (가장 최근에 추가된 클립)
                 var insertedClip = null;
                 var trackClips = targetAudioTrack.clips;
@@ -1974,20 +2112,37 @@ function processVideoClipAudioAddition(timelineClip, soundFilePathToImport, impo
                     // 오디오 클립의 끝 시간을 비디오 클립과 맞춤
                     var newEndTime = videoClipStartTime + videoClipDuration;
                     
-                    // 클립 길이 조정
-                    insertedClip.end = {
-                        seconds: newEndTime,
-                        ticks: Math.round(newEndTime * 254016000000)
-                    };
+                    // 클립 길이 조정 - duration 속성 사용
+                    try {
+                        insertedClip.duration = {
+                            seconds: videoClipDuration,
+                            ticks: Math.round(videoClipDuration * 254016000000)
+                        };
+                        logClipMsg("duration 속성으로 길이 조정 시도");
+                    } catch (durationError) {
+                        logClipMsg("duration 속성 설정 실패: " + durationError.toString());
+                        // 대안: end 속성 시도
+                        try {
+                            insertedClip.end = {
+                                seconds: newEndTime,
+                                ticks: Math.round(newEndTime * 254016000000)
+                            };
+                            logClipMsg("end 속성으로 길이 조정 시도");
+                        } catch (endError) {
+                            logClipMsg("end 속성 설정도 실패: " + endError.toString());
+                            throw new Error("클립 길이 조정 방법을 모두 시도했지만 실패");
+                        }
+                    }
                     
                     logClipMsg("오디오 클립 길이 조정 완료! 새 끝 시간: " + newEndTime.toFixed(2) + "s");
                 } else {
                     logClipMsg("경고: 삽입된 오디오 클립을 찾을 수 없어 길이 조정을 건너뜁니다.");
                 }
                 
-            } catch (lengthError) {
-                logClipMsg("길이 조정 중 오류 발생: " + lengthError.toString() + " (오디오는 추가되었지만 길이 조정 실패)");
-            }
+                } catch (lengthError) {
+                    logClipMsg("길이 조정 중 오류 발생: " + lengthError.toString() + " (오디오는 추가되었지만 길이 조정 실패)");
+                }
+            } // needsLengthAdjustment 블록 종료
             
             return {
                 success: true,

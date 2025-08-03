@@ -82,7 +82,7 @@ var JSCCommunication = (function () {
         }
     }
     // FileListEvent 처리
-    function handleFileListEvent(event) {;
+    function handleFileListEvent(event) {
         window.JSCUtils.debugLog("handleFileListEvent received event. Type: " + event.type);
         try {
             var eventDataString = event.data;

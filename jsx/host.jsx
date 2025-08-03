@@ -1689,6 +1689,19 @@ function processSingleTimelineClip(timelineClip, soundFilePathToImport, imported
                 errorMessages.push("클립 '" + File.decode(justInsertedClip.name) + "': 최종 길이가 목표(" + finalEffectiveDuration.toFixed(2) + "s)와 다름 (실제: " + actualNewDuration.toFixed(2) + "s)");
             }
             clipSuccessfullyProcessed = true;
+            
+            // 7. 선택된 원본 효과음 제거
+            logClipMsg("Removing original selected clip.");
+            try {
+                var originalClipName = File.decode(timelineClip.name);
+                timelineClip.remove(false, false);
+                logClipMsg("Original clip '" + originalClipName + "' removed successfully.");
+                
+            } catch (removeError) {
+                logClipMsg("Failed to remove original clip: " + removeError.toString(), true);
+                errorMessages.push("원본 클립 제거 실패: " + removeError.toString());
+            }
+            
         } catch (e_setEnd) {
             logClipMsg("Error setting clip.end: " + e_setEnd.toString(), true);
             return {

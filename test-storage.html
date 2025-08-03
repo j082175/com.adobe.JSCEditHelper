@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Storage Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #2d2d2d; color: #fff; }
+        button { padding: 8px 16px; margin: 5px; background: #007acc; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        .result { background: #333; padding: 10px; margin: 10px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>폴더 경로 저장 테스트</h1>
+    
+    <div>
+        <input type="text" id="testPath" placeholder="테스트 경로 입력" style="width: 300px; padding: 5px;">
+        <button onclick="testSave()">저장 테스트</button>
+        <button onclick="testLoad()">불러오기 테스트</button>
+        <button onclick="testClear()">지우기 테스트</button>
+    </div>
+    
+    <div class="result">
+        <h3>기존 키로 저장된 값:</h3>
+        <div id="oldKey"></div>
+    </div>
+    
+    <div class="result">
+        <h3>새 키로 저장된 값:</h3>
+        <div id="newKey"></div>
+    </div>
+    
+    <div class="result">
+        <h3>테스트 결과:</h3>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        var OLD_KEY = "soundInserter_folder";
+        var NEW_KEY = "JSCEditHelper_soundFolder";
+        
+        function updateDisplay() {
+            document.getElementById('oldKey').textContent = localStorage.getItem(OLD_KEY) || "없음";
+            document.getElementById('newKey').textContent = localStorage.getItem(NEW_KEY) || "없음";
+        }
+        
+        function testSave() {
+            var path = document.getElementById('testPath').value;
+            if (path) {
+                localStorage.setItem(OLD_KEY, path);
+                document.getElementById('result').textContent = "저장 완료: " + path;
+                updateDisplay();
+            } else {
+                document.getElementById('result').textContent = "경로를 입력하세요";
+            }
+        }
+        
+        function testLoad() {
+            var oldValue = localStorage.getItem(OLD_KEY);
+            var newValue = localStorage.getItem(NEW_KEY);
+            
+            var result = "기존 키(" + OLD_KEY + "): " + (oldValue || "없음") + "\n";
+            result += "새 키(" + NEW_KEY + "): " + (newValue || "없음");
+            
+            document.getElementById('result').textContent = result;
+            updateDisplay();
+        }
+        
+        function testClear() {
+            localStorage.removeItem(OLD_KEY);
+            localStorage.removeItem(NEW_KEY);
+            document.getElementById('result').textContent = "모든 저장값 삭제 완료";
+            updateDisplay();
+        }
+        
+        // 페이지 로드 시 현재 상태 표시
+        updateDisplay();
+        
+        // 기존에 저장된 값이 있는지 확인
+        var existingOld = localStorage.getItem(OLD_KEY);
+        var existingNew = localStorage.getItem(NEW_KEY);
+        
+        if (existingOld || existingNew) {
+            document.getElementById('result').textContent = 
+                "기존 저장값 발견!\n" +
+                "기존 키: " + (existingOld || "없음") + "\n" +
+                "새 키: " + (existingNew || "없음");
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>JSCEditHelper Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #2d2d2d; color: #fff; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .success { background: #28a745; }
+        .error { background: #dc3545; }
+        .warn { background: #ffc107; color: #000; }
+        .debug-info { background: #333; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        button { padding: 8px 16px; margin: 5px; background: #007acc; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #005c99; }
+    </style>
+</head>
+<body>
+    <h1>JSCEditHelper Debug Console</h1>
+    
+    <div id="status" class="status">초기화 중...</div>
+    
+    <div class="debug-info">
+        <h3>모듈 로딩 상태:</h3>
+        <div id="module-status"></div>
+    </div>
+    
+    <div class="debug-info">
+        <h3>테스트 버튼:</h3>
+        <button onclick="testInitialization()">초기화 테스트</button>
+        <button onclick="testValidation()">검증 테스트</button>
+        <button onclick="testErrorHandler()">에러 핸들러 테스트</button>
+    </div>
+    
+    <div class="debug-info">
+        <h3>콘솔 로그:</h3>
+        <div id="console-log" style="height: 200px; overflow-y: auto; background: #000; padding: 10px; border-radius: 3px;"></div>
+    </div>
+
+    <!-- Mock CSInterface for testing -->
+    <script>
+        // CEP 환경이 아닐 때 CSInterface 목업
+        if (typeof CSInterface === 'undefined') {
+            window.CSInterface = function() {
+                return {
+                    hostEnvironment: {
+                        appSkinInfo: {
+                            panelBackgroundColor: {
+                                color: { red: 50, green: 50, blue: 50 }
+                            }
+                        }
+                    },
+                    addEventListener: function(event, callback) {
+                        console.log('Mock addEventListener:', event);
+                    },
+                    evalScript: function(script, callback) {
+                        console.log('Mock evalScript:', script);
+                        if (callback) callback('mock result');
+                    }
+                };
+            };
+        }
+        
+        // 콘솔 로그를 화면에 표시
+        var originalConsole = console.log;
+        var originalError = console.error;
+        var originalWarn = console.warn;
+        
+        function appendToConsole(message, type) {
+            var consoleDiv = document.getElementById('console-log');
+            var div = document.createElement('div');
+            div.style.color = type === 'error' ? '#ff6b6b' : type === 'warn' ? '#ffd93d' : '#6bcf7f';
+            div.textContent = new Date().toLocaleTimeString() + ' - ' + message;
+            consoleDiv.appendChild(div);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+        
+        console.log = function(message) {
+            originalConsole.apply(console, arguments);
+            appendToConsole(message, 'log');
+        };
+        
+        console.error = function(message) {
+            originalError.apply(console, arguments);
+            appendToConsole(message, 'error');
+        };
+        
+        console.warn = function(message) {
+            originalWarn.apply(console, arguments);
+            appendToConsole(message, 'warn');
+        };
+    </script>
+    
+    <!-- 모듈 로드 -->
+    <script src="js/utils.js"></script>
+    <script src="js/error-handler.js"></script>
+    <script src="js/validation.js"></script>
+    <script src="js/ui-manager.js"></script>
+    <script src="js/state-manager.js"></script>
+    <script src="js/communication.js"></script>
+    <script src="js/event-manager.js"></script>
+    <script src="js/app.js"></script>
+    
+    <script>
+        function updateStatus(message, type) {
+            var statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + (type || 'info');
+        }
+        
+        function checkModules() {
+            var modules = ['JSCUtils', 'JSCErrorHandler', 'JSCValidation', 'JSCUIManager', 'JSCStateManager', 'JSCCommunication', 'JSCEventManager', 'JSCApp'];
+            var moduleStatusDiv = document.getElementById('module-status');
+            moduleStatusDiv.innerHTML = '';
+            
+            modules.forEach(function(moduleName) {
+                var div = document.createElement('div');
+                var status = window[moduleName] ? '✅ 로드됨' : '❌ 실패';
+                div.innerHTML = moduleName + ': ' + status;
+                div.style.color = window[moduleName] ? '#6bcf7f' : '#ff6b6b';
+                moduleStatusDiv.appendChild(div);
+            });
+        }
+        
+        function testInitialization() {
+            console.log('=== 초기화 테스트 시작 ===');
+            if (window.JSCApp) {
+                var result = window.JSCApp.initialize();
+                updateStatus('초기화 ' + (result ? '성공' : '실패'), result ? 'success' : 'error');
+            } else {
+                updateStatus('JSCApp 모듈을 찾을 수 없습니다', 'error');
+            }
+        }
+        
+        function testValidation() {
+            console.log('=== 검증 테스트 시작 ===');
+            if (window.JSCValidation) {
+                var result = window.JSCValidation.validateFolderPath('C:\\Test');
+                console.log('검증 결과:', result);
+                updateStatus('검증 테스트 완료', 'success');
+            } else {
+                updateStatus('JSCValidation 모듈을 찾을 수 없습니다', 'error');
+            }
+        }
+        
+        function testErrorHandler() {
+            console.log('=== 에러 핸들러 테스트 시작 ===');
+            if (window.JSCErrorHandler) {
+                window.JSCErrorHandler.handleValidationError('INVALID_PATH', '테스트 에러 메시지');
+                updateStatus('에러 핸들러 테스트 완료', 'success');
+            } else {
+                updateStatus('JSCErrorHandler 모듈을 찾을 수 없습니다', 'error');
+            }
+        }
+        
+        // 페이지 로드 시 모듈 상태 확인
+        window.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                checkModules();
+                updateStatus('모듈 로딩 완료', 'success');
+                console.log('Debug page loaded successfully');
+            }, 100);
+        });
+    </script>
+</body>
+</html>

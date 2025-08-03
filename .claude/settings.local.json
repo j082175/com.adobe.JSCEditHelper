@@ -5,7 +5,16 @@
       "Bash(cmd /c:*)",
       "Bash(debug_extension.bat)",
       "Bash(reg query:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(ren:*)",
+      "Bash(mv:*)",
+      "Bash(node:*)",
+      "Bash(for file in js/*.js)",
+      "Bash(do echo \"Checking $file...\")",
+      "Bash(done)",
+      "Bash(start debug.html)",
+      "Bash(do echo \"Final check: $file\")",
+      "Bash(for file in js/utils.js js/state-manager.js js/event-manager.js js/app.js)"
     ],
     "deny": []
   }

@@ -1529,33 +1529,35 @@ function processSingleTimelineClip(timelineClip, soundFilePathToImport, imported
             projectSoundItem = importedSoundItemsCache[soundFilePathToImport];
             logClipMsg("Using cached ProjectItem: '" + (projectSoundItem.name ? File.decode(projectSoundItem.name) : importedFileNameForLog) + "'");
         } else {
-            logClipMsg("Attempting to import ProjectItem: '" + importedFileNameForLog + "' from path: " + soundFilePathToImport);
-            var importResultArray = app.project.importFiles([soundFilePathToImport]);
-            if (importResultArray && importResultArray.length > 0 && importResultArray[0] && typeof importResultArray[0].nodeId !== 'undefined') {
-                projectSoundItem = importResultArray[0];
-                importedSoundItemsCache[soundFilePathToImport] = projectSoundItem;
-                logClipMsg("Import successful and cached: '" + (projectSoundItem.name ? File.decode(projectSoundItem.name) : importedFileNameForLog) + "' (nodeId: " + projectSoundItem.nodeId + ")");
-            } else {
-                logClipMsg("importFiles API failed. Searching in root by name: '" + importedFileNameForLog + "'");
-                // 루트에서 검색하는 로직 (기존 코드에서 가져옴)
-                var foundInRoot = false;
-                if (app.project.rootItem && app.project.rootItem.children) {
-                    for (var pi_idx = 0; pi_idx < app.project.rootItem.children.numItems; pi_idx++) {
-                        var pi_child = app.project.rootItem.children[pi_idx];
-                        if (pi_child && pi_child.name === importedFileNameForLog && typeof pi_child.nodeId !== 'undefined') {
-                            projectSoundItem = pi_child;
-                            importedSoundItemsCache[soundFilePathToImport] = projectSoundItem;
-                            logClipMsg("Found in root by name and cached: '" + File.decode(projectSoundItem.name) + "'");
-                            foundInRoot = true;
-                            break;
-                        }
+            // 1. 먼저 기존 프로젝트에서 찾기
+            logClipMsg("Searching for existing ProjectItem in project: '" + importedFileNameForLog + "'");
+            var foundInProject = false;
+            if (app.project.rootItem && app.project.rootItem.children) {
+                for (var pi_idx = 0; pi_idx < app.project.rootItem.children.numItems; pi_idx++) {
+                    var pi_child = app.project.rootItem.children[pi_idx];
+                    if (pi_child && pi_child.name === importedFileNameForLog && typeof pi_child.nodeId !== 'undefined') {
+                        projectSoundItem = pi_child;
+                        importedSoundItemsCache[soundFilePathToImport] = projectSoundItem;
+                        logClipMsg("Found existing ProjectItem in project: '" + File.decode(projectSoundItem.name) + "' - using existing file instead of importing");
+                        foundInProject = true;
+                        break;
                     }
                 }
-                if (!foundInRoot) {
-                    logClipMsg("Import and root search failed for: '" + importedFileNameForLog + "'. Skipping.", true);
+            }
+            
+            // 2. 프로젝트에 없으면 새로 import
+            if (!foundInProject) {
+                logClipMsg("ProjectItem not found in project. Attempting to import: '" + importedFileNameForLog + "' from path: " + soundFilePathToImport);
+                var importResultArray = app.project.importFiles([soundFilePathToImport]);
+                if (importResultArray && importResultArray.length > 0 && importResultArray[0] && typeof importResultArray[0].nodeId !== 'undefined') {
+                    projectSoundItem = importResultArray[0];
+                    importedSoundItemsCache[soundFilePathToImport] = projectSoundItem;
+                    logClipMsg("Import successful and cached: '" + (projectSoundItem.name ? File.decode(projectSoundItem.name) : importedFileNameForLog) + "' (nodeId: " + projectSoundItem.nodeId + ")");
+                } else {
+                    logClipMsg("Import failed for: '" + importedFileNameForLog + "'. Skipping.", true);
                     return {
                         success: false,
-                        error: "새 사운드 임포트/검색 실패 (" + importedFileNameForLog + ")",
+                        error: "새 사운드 임포트 실패 (" + importedFileNameForLog + ")",
                         debugInfo: debugInfo
                     };
                 }

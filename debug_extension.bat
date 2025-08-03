@@ -1,8 +1,8 @@
 @echo off
 chcp 65001 >nul
-title Sound Inserter - 진단 도구
+title JSCEditHelper - 진단 도구
 echo ========================================
-echo Sound Inserter 확장프로그램 진단 도구
+echo JSCEditHelper 확장프로그램 진단 도구
 echo ========================================
 echo.
 
@@ -95,7 +95,7 @@ if %errorlevel% equ 0 (
     echo   1. Premiere Pro 완전 종료
     echo   2. 3-5초 대기 
     echo   3. Premiere Pro 다시 실행
-    echo   4. Window > Extensions > Sound Inserter 확인
+    echo   4. Window > Extensions > JSCEditHelper 확인
 ) else (
     echo ✓ Premiere Pro가 실행되지 않음
 )
@@ -148,7 +148,7 @@ echo.
 echo 📋 문제 해결 체크리스트:
 echo.
 echo □ 1. Premiere Pro를 완전히 종료하고 재시작했나요?
-echo □ 2. Window 메뉴 > Extensions에서 Sound Inserter가 보이나요?
+echo □ 2. Window 메뉴 > Extensions에서 JSCEditHelper가 보이나요?
 echo □ 3. 만약 보이지 않는다면:
 echo     - 다른 확장프로그램들은 보이나요?
 echo     - Extensions 메뉴 자체가 없나요?
@@ -177,7 +177,7 @@ if exist "%CHECK_PATH%" (
     echo   ✓ 폴더 존재
     set "SOUND_INSERTER=%CHECK_PATH%\com.adobe.SoundInserter"
     if exist "!SOUND_INSERTER!" (
-        echo   ✓ Sound Inserter 설치됨: !SOUND_INSERTER!
+        echo   ✓ JSCEditHelper 설치됨: !SOUND_INSERTER!
         if exist "!SOUND_INSERTER!\CSXS\manifest.xml" (
             echo     ✓ manifest.xml 존재
         ) else (
@@ -189,7 +189,7 @@ if exist "%CHECK_PATH%" (
             echo     ✗ index.html 없음
         )
     ) else (
-        echo   - Sound Inserter 미설치
+        echo   - JSCEditHelper 미설치
     )
 ) else (
     echo   ✗ 폴더 없음

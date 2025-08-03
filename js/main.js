@@ -1,5 +1,5 @@
 /**
- * 효과음 삽입 도구 - 메인 JavaScript
+ * JSCEditHelper - 메인 JavaScript
  */
 
 // 디버그 모드 설정 (개발 중에는 true, 배포 시에는 false)
@@ -8,7 +8,7 @@ var DEBUG_MODE = true;
 // 조건부 로깅 함수
 function debugLog(message) {
     if (DEBUG_MODE && console && console.log) {
-        console.log("[SoundInserter Debug] " + message);
+        console.log("[JSCEditHelper Debug] " + message);
     }
 }
 

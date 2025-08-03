@@ -1,5 +1,5 @@
 /**
- * Sound Inserter Extension - Host Script (JSX)
+ * JSCEditHelper Extension - Host Script (JSX)
  * Premiere Pro와 CEP 패널 간의 통신을 담당합니다.
  */
 

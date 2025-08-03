@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ExtensionManifest Version="6.0" ExtensionBundleId="com.adobe.SoundInserter" 
-    ExtensionBundleVersion="1.0.0" ExtensionBundleName="Sound Inserter" 
+    ExtensionBundleVersion="1.0.0" ExtensionBundleName="JSCEditHelper" 
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <ExtensionList>
         <Extension Id="com.adobe.SoundInserter" Version="1.0.0" />
@@ -37,7 +37,7 @@
                 </Lifecycle>
                 <UI>
                     <Type>Panel</Type>
-                    <Menu>효과음 삽입 도구</Menu>
+                    <Menu>JSCEditHelper</Menu>
                     <Geometry>
                         <Size>
                             <Width>350</Width>

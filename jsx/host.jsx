@@ -2441,3 +2441,248 @@ function processVideoClipAudioAddition(timelineClip, soundFilePathToImport, impo
         };
     }
 }
+
+// 클립 자동 정렬 기능 (마그넷 기능)
+function magnetClipsInSequence() {
+    var functionName = "magnetClipsInSequence";
+    var debugInfo = "";
+    
+    function logMsg(message, isError) {
+        var logEntry = "[" + functionName + "] " + message;
+        if (typeof $ !== 'undefined' && $.writeln) {
+            $.writeln((isError ? "ERROR: " : "") + logEntry);
+        }
+        debugInfo += logEntry + "\n";
+    }
+    
+    try {
+        logMsg("클립 자동 정렬 시작");
+        
+        if (!app.project.activeSequence) {
+            var errorMsg = "활성 시퀀스가 없습니다. 시퀀스를 열고 다시 시도해주세요.";
+            logMsg(errorMsg, true);
+            sendEvent(JSON.stringify({
+                message: errorMsg,
+                success: false,
+                debug: debugInfo
+            }));
+            return "false";
+        }
+        
+        var sequence = app.project.activeSequence;
+        var videoTracks = sequence.videoTracks;
+        var audioTracks = sequence.audioTracks;
+        var totalClipsMoved = 0;
+        var totalGapsRemoved = 0;
+        
+        logMsg("시퀀스: " + sequence.name);
+        logMsg("비디오 트랙 수: " + videoTracks.numTracks);
+        logMsg("오디오 트랙 수: " + audioTracks.numTracks);
+        
+        // 비디오 트랙 처리
+        for (var vt = 0; vt < videoTracks.numTracks; vt++) {
+            var videoTrack = videoTracks[vt];
+            if (!videoTrack || videoTrack.clips.numItems === 0) continue;
+            
+            logMsg("비디오 트랙 " + (vt + 1) + " 처리 중... (클립 수: " + videoTrack.clips.numItems + ")");
+            var result = magnetTrackClips(videoTrack, "비디오");
+            totalClipsMoved += result.clipsMoved;
+            totalGapsRemoved += result.gapsRemoved;
+        }
+        
+        // 오디오 트랙 처리
+        for (var at = 0; at < audioTracks.numTracks; at++) {
+            var audioTrack = audioTracks[at];
+            if (!audioTrack || audioTrack.clips.numItems === 0) continue;
+            
+            logMsg("오디오 트랙 " + (at + 1) + " 처리 중... (클립 수: " + audioTrack.clips.numItems + ")");
+            var result = magnetTrackClips(audioTrack, "오디오");
+            totalClipsMoved += result.clipsMoved;
+            totalGapsRemoved += result.gapsRemoved;
+        }
+        
+        var successMsg = "클립 자동 정렬 완료! " + totalClipsMoved + "개 클립 이동, " + totalGapsRemoved + "개 간격 제거";
+        logMsg(successMsg);
+        
+        sendEvent(JSON.stringify({
+            message: successMsg,
+            success: true,
+            clipsMoved: totalClipsMoved,
+            gapsRemoved: totalGapsRemoved,
+            debug: debugInfo
+        }));
+        
+        return "true";
+        
+    } catch (e) {
+        var errorMsg = "클립 정렬 중 오류 발생: " + e.toString();
+        logMsg(errorMsg, true);
+        sendEvent(JSON.stringify({
+            message: errorMsg,
+            success: false,
+            debug: debugInfo
+        }));
+        return "false";
+    }
+}
+
+// 개별 트랙의 클립들을 정렬하는 함수
+function magnetTrackClips(track, trackType) {
+    var clips = [];
+    var clipsMoved = 0;
+    var gapsRemoved = 0;
+    
+    // 클립 정보 수집
+    for (var i = 0; i < track.clips.numItems; i++) {
+        var clip = track.clips[i];
+        if (clip && clip.start !== undefined && clip.end !== undefined) {
+            clips.push({
+                clip: clip,
+                start: clip.start.seconds,
+                end: clip.end.seconds,
+                duration: clip.duration.seconds,
+                name: File.decode(clip.name),
+                originalIndex: i
+            });
+        }
+    }
+    
+    if (clips.length <= 1) {
+        return { clipsMoved: 0, gapsRemoved: 0 };
+    }
+    
+    // 시작 시간순으로 정렬
+    clips.sort(function(a, b) {
+        return a.start - b.start;
+    });
+    
+    $.writeln(trackType + " 트랙 처리: " + clips.length + "개 클립 발견");
+    
+    // 각 클립을 순서대로 처리하되, 겹치지 않도록 안전하게 이동
+    var targetTime = clips[0].end; // 첫 번째 클립 이후부터 시작
+    
+    for (var j = 1; j < clips.length; j++) {
+        var currentClip = clips[j];
+        var gap = currentClip.start - targetTime;
+        
+        $.writeln("클립 " + j + " '" + currentClip.name + "' 분석: 현재=" + currentClip.start.toFixed(2) + "s, 목표=" + targetTime.toFixed(2) + "s, 간격=" + gap.toFixed(2) + "s");
+        
+        // 간격이 0.1초 이상인 경우에만 이동 (작은 오차는 무시)
+        if (gap > 0.1) {
+            try {
+                // 안전성 검사: 다른 클립과 겹치지 않는지 확인
+                var newStart = targetTime;
+                var newEnd = targetTime + currentClip.duration;
+                var canMove = true;
+                
+                // 이동 후 위치가 다른 클립과 겹치는지 검사
+                for (var k = 0; k < clips.length; k++) {
+                    if (k === j) continue; // 자기 자신 제외
+                    
+                    var otherClip = clips[k];
+                    if (k < j) {
+                        // 이전 클립들과의 겹침 검사 (이미 처리된 클립들)
+                        if (newStart < otherClip.end && newEnd > otherClip.start) {
+                            $.writeln("경고: 클립 '" + currentClip.name + "'이 이전 클립 '" + otherClip.name + "'과 겹칠 수 있음");
+                            canMove = false;
+                            break;
+                        }
+                    }
+                }
+                
+                if (canMove) {
+                    // 방법 1: moveClip 메서드 사용 시도
+                    var moveDistance = newStart - currentClip.start;
+                    var moved = false;
+                    
+                    if (typeof currentClip.clip.move === 'function') {
+                        try {
+                            var moveTime = new Time();
+                            moveTime.seconds = moveDistance;
+                            currentClip.clip.move(moveTime);
+                            moved = true;
+                            $.writeln("move() 메서드로 클립 이동 성공");
+                        } catch (moveMethodError) {
+                            $.writeln("move() 메서드 실패: " + moveMethodError.toString());
+                        }
+                    }
+                    
+                    // 방법 2: move가 실패하거나 없으면 duration 기반 접근
+                    if (!moved) {
+                        try {
+                            // 방법 2a: duration 속성 백업하고 start만 변경 후 duration 복원
+                            var originalDuration = currentClip.clip.duration.seconds;
+                            $.writeln("원본 duration: " + originalDuration.toFixed(3) + "s");
+                            
+                            var newStartTime = new Time();
+                            newStartTime.seconds = newStart;
+                            
+                            // 시작 시간만 설정
+                            currentClip.clip.start = newStartTime;
+                            
+                            // duration이 변경되었는지 확인하고 복원
+                            var newDuration = currentClip.clip.duration.seconds;
+                            $.writeln("변경된 duration: " + newDuration.toFixed(3) + "s");
+                            
+                            if (Math.abs(newDuration - originalDuration) > 0.01) {
+                                $.writeln("Duration이 변경됨. end 시간을 조정하여 복원 시도...");
+                                var correctedEndTime = new Time();
+                                correctedEndTime.seconds = newStart + originalDuration;
+                                currentClip.clip.end = correctedEndTime;
+                                
+                                // 최종 확인
+                                var finalDuration = currentClip.clip.duration.seconds;
+                                $.writeln("최종 duration: " + finalDuration.toFixed(3) + "s");
+                            }
+                            
+                            moved = true;
+                            $.writeln("duration 보존 방식으로 클립 이동 성공");
+                        } catch (durationMoveError) {
+                            $.writeln("duration 보존 이동 실패: " + durationMoveError.toString());
+                            
+                            // 방법 2b: 마지막 수단 - 단순 start 설정
+                            try {
+                                var simpleStartTime = new Time();
+                                simpleStartTime.seconds = newStart;
+                                currentClip.clip.start = simpleStartTime;
+                                moved = true;
+                                $.writeln("단순 start 설정으로 이동 (duration 변경 가능성 있음)");
+                            } catch (simpleError) {
+                                $.writeln("모든 이동 방법 실패: " + simpleError.toString());
+                            }
+                        }
+                    }
+                    
+                    if (moved) {
+                        clipsMoved++;
+                        gapsRemoved++;
+                        
+                        $.writeln(trackType + " 트랙: '" + currentClip.name + "' 클립을 " + 
+                                 currentClip.start.toFixed(2) + "s → " + newStart.toFixed(2) + "s로 이동 (길이: " + currentClip.duration.toFixed(2) + "s, 간격 " + gap.toFixed(2) + "s 제거)");
+                        
+                        // 배열 업데이트 (다음 반복을 위해)
+                        currentClip.start = newStart;
+                        currentClip.end = newStart + currentClip.duration;
+                        
+                        // 다음 클립을 위한 목표 시간 업데이트
+                        targetTime = newStart + currentClip.duration;
+                    } else {
+                        $.writeln("클립 '" + currentClip.name + "' 이동 완전 실패");
+                        targetTime = currentClip.end;
+                    }
+                } else {
+                    $.writeln("클립 '" + currentClip.name + "' 이동 불가 (다른 클립과 겹침 위험)");
+                    targetTime = currentClip.end;
+                }
+            } catch (moveError) {
+                $.writeln("클립 이동 실패: " + currentClip.name + " - " + moveError.toString());
+                targetTime = currentClip.end;
+            }
+        } else {
+            // 간격이 작으면 그대로 두고 다음 위치 업데이트
+            targetTime = currentClip.end;
+        }
+    }
+    
+    return { clipsMoved: clipsMoved, gapsRemoved: gapsRemoved };
+}

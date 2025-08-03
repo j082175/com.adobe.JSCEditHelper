@@ -39,7 +39,7 @@ h3 {
     color: #aaa;
 }
 
-.form-section, .insert-section, .result-section, .section {
+.form-section, .insert-section, .result-section, .section, .magnet-section {
     background-color: #333;
     border-radius: 4px;
     padding: 15px;
@@ -247,4 +247,49 @@ button:hover {
     text-align: center;
     font-size: 11px;
     color: #666;
+}
+
+/* 마그넷 기능 스타일 */
+.magnet-controls {
+    text-align: center;
+}
+
+.magnet-controls p {
+    margin-bottom: 15px;
+    color: #bbb;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.magnet-btn {
+    background: linear-gradient(135deg, #007acc, #005599);
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 122, 204, 0.3);
+    margin-bottom: 10px;
+}
+
+.magnet-btn:hover {
+    background: linear-gradient(135deg, #0088dd, #0066aa);
+    box-shadow: 0 4px 8px rgba(0, 122, 204, 0.4);
+    transform: translateY(-1px);
+}
+
+.magnet-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 122, 204, 0.3);
+}
+
+.magnet-status {
+    font-size: 12px;
+    font-weight: 500;
+    min-height: 16px;
+    margin-top: 8px;
+    transition: color 0.3s ease;
 } 

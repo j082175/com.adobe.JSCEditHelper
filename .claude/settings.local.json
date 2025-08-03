@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell:*)",
+      "Bash(cmd /c:*)",
+      "Bash(debug_extension.bat)",
+      "Bash(reg query:*)",
+      "Bash(git checkout:*)"
+    ],
+    "deny": []
+  }
+}

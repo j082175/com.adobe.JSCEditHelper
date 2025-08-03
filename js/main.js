@@ -126,6 +126,25 @@ function init() {
                 if (resultData.message) {
                     updateStatus(resultData.message, resultData.success);
                 }
+
+                // 마그넷 기능 결과 처리
+                if (resultData.clipsMoved !== undefined || resultData.gapsRemoved !== undefined) {
+                    var magnetStatus = document.getElementById("magnetStatus");
+                    if (magnetStatus) {
+                        if (resultData.success) {
+                            magnetStatus.textContent = "완료: " + (resultData.clipsMoved || 0) + "개 클립 이동, " + (resultData.gapsRemoved || 0) + "개 간격 제거";
+                            magnetStatus.style.color = "#28a745";
+                        } else {
+                            magnetStatus.textContent = "오류 발생";
+                            magnetStatus.style.color = "#dc3545";
+                        }
+                        
+                        // 3초 후 상태 메시지 지우기
+                        setTimeout(function() {
+                            magnetStatus.textContent = "";
+                        }, 3000);
+                    }
+                }
             } catch (e) {
                 // Handle overall process errors
                 console.error("Event processing error:", e.toString());
@@ -270,6 +289,15 @@ function setupEventListeners() {
     } else {
         // console.error("Button with ID 'refreshSounds' not found.");
         // alert("Error: Button with ID 'refreshSounds' not found."); // alert 주석 처리
+    }
+
+    // 클립 자동 정렬 버튼 (마그넷 기능)
+    var magnetButton = document.getElementById("magnetClips");
+    if (magnetButton) {
+        magnetButton.addEventListener("click", magnetClips);
+        // console.log("Event listener added to magnetClips button:", magnetButton);
+    } else {
+        // console.error("Button with ID 'magnetClips' not found.");
     }
 
     // 폴더 경로 input 변경 시 저장 및 새로고침 버튼 상태 업데이트
@@ -823,6 +851,40 @@ function onSoundFileButtonClick(event) {
         console.error("Sound file path (fsName) not found on button.");
         updateStatus("효과음 파일 경로를 찾을 수 없습니다.", false);
     }
+}
+
+// 클립 자동 정렬 함수 (마그넷 기능)
+function magnetClips() {
+    console.log("magnetClips() called");
+    
+    // 상태 메시지 업데이트
+    updateStatus("클립 자동 정렬 중...", true);
+    
+    // 마그넷 상태 표시
+    var magnetStatus = document.getElementById("magnetStatus");
+    if (magnetStatus) {
+        magnetStatus.textContent = "처리 중...";
+        magnetStatus.style.color = "#007acc";
+    }
+    
+    // 디버그 정보 리셋
+    window.lastDebugInfo = null;
+    toggleDebugButton(false);
+    document.getElementById("debug-info").style.display = "none";
+    document.getElementById("close-debug-button").style.display = "none";
+    
+    // JSX 함수 호출
+    csInterface.evalScript("magnetClipsInSequence()", function (result) {
+        console.log("magnetClipsInSequence result:", result);
+        
+        if (result === "true") {
+            console.log("클립 자동 정렬 성공");
+        } else {
+            console.log("클립 자동 정렬 실패 또는 오류 발생");
+        }
+        
+        // 결과는 SoundEvent 리스너에서 처리됨
+    });
 }
 
 // 초기화 실행

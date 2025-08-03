@@ -14,7 +14,12 @@
       "Bash(done)",
       "Bash(start debug.html)",
       "Bash(do echo \"Final check: $file\")",
-      "Bash(for file in js/utils.js js/state-manager.js js/event-manager.js js/app.js)"
+      "Bash(for file in js/utils.js js/state-manager.js js/event-manager.js js/app.js)",
+      "Bash(mkdir:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npm install)",
+      "Bash(npm run build:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": []
   }

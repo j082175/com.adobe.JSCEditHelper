@@ -1,0 +1,42 @@
+{
+  "compilerOptions": {
+    "target": "es5",                          // CEP Chromium 호환
+    "module": "none",                         // IIFE 패턴 유지
+    "lib": ["es5", "dom"],                    // 기본 라이브러리
+    "outDir": "./js",                         // 컴파일 결과 폴더
+    "rootDir": "./src",                       // TypeScript 소스 폴더
+    "strict": true,                           // 엄격한 타입 체크
+    "noImplicitAny": true,                    // any 타입 금지
+    "strictNullChecks": true,                 // null/undefined 체크
+    "strictFunctionTypes": true,              // 함수 타입 엄격 체크
+    "noImplicitReturns": true,                // 리턴 누락 체크
+    "noUnusedLocals": true,                   // 사용되지 않는 변수 체크
+    "noUnusedParameters": true,               // 사용되지 않는 매개변수 체크
+    "exactOptionalPropertyTypes": true,       // 선택적 속성 엄격 체크
+    "noImplicitOverride": true,               // 오버라이드 명시
+    "removeComments": false,                  // 주석 유지 (디버깅용)
+    "sourceMap": true,                        // 소스맵 생성
+    "declaration": false,                     // .d.ts 파일 생성 안함
+    "moduleResolution": "node",               // Node.js 모듈 해석
+    "allowSyntheticDefaultImports": true,     // default import 허용
+    "esModuleInterop": true,                  // ES 모듈 호환성
+    "skipLibCheck": true,                     // 라이브러리 타입 체크 스킵
+    "forceConsistentCasingInFileNames": true, // 파일명 대소문자 일관성
+    "allowJs": true,                          // JavaScript 파일 허용
+    "checkJs": false,                         // JavaScript 타입 체크 안함
+    "typeRoots": ["./types", "./node_modules/@types"]
+  },
+  "include": [
+    "src/**/*",
+    "types/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "js/**/*",
+    "*.backup"
+  ],
+  "files": [
+    "types/cep.d.ts",
+    "types/extendscript.d.ts"
+  ]
+}

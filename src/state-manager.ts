@@ -1,0 +1,154 @@
+/**
+ * JSCEditHelper - State Manager
+ * 애플리케이션 상태 관리를 담당하는 모듈
+ */
+
+interface AppSettings {
+    folderPath: string;
+    audioTrack: string;
+}
+
+interface ValidationResult {
+    isValid: boolean;
+    errors: string[];
+}
+
+interface JSCStateManagerInterface {
+    setCurrentFolderPath(path: string): boolean;
+    getCurrentFolderPath(): string;
+    initializeFolderPath(): boolean;
+    saveFolderPath(path: string): boolean;
+    clearFolderPath(): void;
+    getSettings(): AppSettings;
+    validateState(): ValidationResult;
+}
+
+const JSCStateManager = (function(): JSCStateManagerInterface {
+    'use strict';
+    
+    let currentFolderPath: string = "";
+    
+    // 현재 폴더 경로 설정 (실용적 검증)
+    function setCurrentFolderPath(path: string): boolean {
+        if (window.JSCUtils.isValidPath(path)) {
+            currentFolderPath = path.trim();
+            window.JSCUtils.logDebug("Updated currentFolderPath");
+            return true;
+        }
+        
+        window.JSCUtils.logWarn("Invalid path provided");
+        return false;
+    }
+    
+    // 현재 폴더 경로 가져오기
+    function getCurrentFolderPath(): string {
+        return currentFolderPath;
+    }
+    
+    // 레거시 키에서 데이터 마이그레이션
+    function migrateLegacyData(): string | null {
+        const legacyKeys: string[] = ["JSCEditHelper_soundFolder"]; // 이전에 잘못 사용한 키들
+        
+        for (const legacyKey of legacyKeys) {
+            const legacyValue = window.JSCUtils.loadFromStorage(legacyKey);
+            
+            if (legacyValue && window.JSCUtils.isValidPath(legacyValue)) {
+                window.JSCUtils.logInfo("Migrating data from legacy key: " + legacyKey);
+                window.JSCUtils.saveToStorage(window.JSCUtils.CONFIG.SOUND_FOLDER_KEY, legacyValue);
+                window.JSCUtils.removeFromStorage(legacyKey); // 레거시 키 삭제
+                return legacyValue;
+            }
+        }
+        return null;
+    }
+    
+    // 폴더 경로 초기화 및 복원
+    function initializeFolderPath(): boolean {
+        window.JSCUtils.logDebug("Initializing folder path from storage");
+        
+        // 먼저 현재 키에서 시도
+        let savedFolder = window.JSCUtils.loadFromStorage(window.JSCUtils.CONFIG.SOUND_FOLDER_KEY);
+        
+        // 현재 키에 값이 없으면 레거시 데이터 마이그레이션 시도
+        if (!savedFolder) {
+            savedFolder = migrateLegacyData();
+        }
+
+        // 기존 방식의 관대한 검증 사용 (초기화 시에는)
+        if (savedFolder && window.JSCUtils.isValidPath(savedFolder)) {
+            currentFolderPath = savedFolder;
+            window.JSCUIManager.updateFolderPath(savedFolder);
+            window.JSCUtils.logInfo("Valid folder path restored from storage: " + savedFolder);
+            return true;
+        } else {
+            if (savedFolder) {
+                window.JSCUtils.logWarn("Invalid saved folder path detected, clearing storage: " + savedFolder);
+                window.JSCUtils.removeFromStorage(window.JSCUtils.CONFIG.SOUND_FOLDER_KEY);
+            }
+            currentFolderPath = "";
+            window.JSCUIManager.updateFolderPath("");
+            window.JSCUtils.logDebug("No valid folder path found, initialized to empty");
+            return false;
+        }
+    }
+    
+    // 폴더 경로 저장
+    function saveFolderPath(path: string): boolean {
+        if (setCurrentFolderPath(path)) {
+            window.JSCUtils.saveToStorage(window.JSCUtils.CONFIG.SOUND_FOLDER_KEY, path);
+            window.JSCUIManager.updateFolderPath(path);
+            return true;
+        }
+        return false;
+    }
+    
+    // 폴더 경로 지우기
+    function clearFolderPath(): void {
+        currentFolderPath = "";
+        window.JSCUtils.removeFromStorage(window.JSCUtils.CONFIG.SOUND_FOLDER_KEY);
+        window.JSCUIManager.updateFolderPath("");
+        window.JSCUtils.debugLog("Folder path cleared");
+    }
+    
+    // 설정 가져오기
+    function getSettings(): AppSettings {
+        const audioTrackElement = document.getElementById("audio-track") as HTMLSelectElement;
+        
+        return {
+            folderPath: currentFolderPath,
+            audioTrack: audioTrackElement ? audioTrackElement.value : "auto"
+        };
+    }
+    
+    // 실용적인 상태 검증
+    function validateState(): ValidationResult {
+        const errors: string[] = [];
+        
+        if (!currentFolderPath) {
+            errors.push("효과음 폴더 경로가 설정되지 않았습니다.");
+        } else if (!window.JSCUtils.isValidPath(currentFolderPath)) {
+            errors.push("효과음 폴더 경로가 올바르지 않습니다.");
+        }
+        
+        return {
+            isValid: errors.length === 0,
+            errors: errors
+        };
+    }
+    
+    // 공개 API
+    return {
+        setCurrentFolderPath: setCurrentFolderPath,
+        getCurrentFolderPath: getCurrentFolderPath,
+        initializeFolderPath: initializeFolderPath,
+        saveFolderPath: saveFolderPath,
+        clearFolderPath: clearFolderPath,
+        getSettings: getSettings,
+        validateState: validateState
+    };
+})();
+
+// 전역 접근을 위해 window 객체에 노출
+if (typeof window !== 'undefined') {
+    window.JSCStateManager = JSCStateManager;
+}

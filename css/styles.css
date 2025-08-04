@@ -292,4 +292,43 @@ button:hover {
     min-height: 16px;
     margin-top: 8px;
     transition: color 0.3s ease;
+}
+
+/* 디버그 정보 스타일 */
+.debug-section {
+    margin-top: 20px;
+    padding: 10px;
+    background-color: #1e1e1e;
+    border-radius: 4px;
+    border: 1px solid #404040;
+}
+
+#debug-button, #close-debug-button {
+    background-color: #ff6b35;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    margin-bottom: 10px;
+    display: block !important; /* 항상 표시 */
+}
+
+#debug-button:hover, #close-debug-button:hover {
+    background-color: #e55a2e;
+}
+
+.debug-info {
+    background-color: #000;
+    color: #00ff00;
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1.4;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #333;
+    font-family: 'Courier New', monospace;
+    display: block !important; /* 항상 표시 */
 } 

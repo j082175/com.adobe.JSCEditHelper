@@ -92,6 +92,8 @@ var JSCApp = (function () {
             window.JSCStateManager.initializeFolderPath();
             // 이벤트 리스너 설정
             window.JSCEventManager.setupEventListeners();
+            // 엔진 상태 확인 및 디버그 정보 표시
+            checkEngineStatus();
             console.log("JSCEditHelper initialized successfully");
             // 초기화 성공 플래그 설정
             JSCApp._initialized = true;
@@ -101,6 +103,44 @@ var JSCApp = (function () {
             console.error("JSCEditHelper initialization error:", e);
             return false;
         }
+    }
+    // 엔진 상태 확인 함수
+    function checkEngineStatus() {
+        var debugInfo = "=== JSCEditHelper 엔진 상태 ===\n";
+        debugInfo += "\uCD08\uAE30\uD654 \uC2DC\uAC04: ".concat(new Date().toISOString(), "\n\n");
+        // 기본 모듈 확인
+        debugInfo += "기본 모듈:\n";
+        debugInfo += "- JSCUtils: ".concat(window.JSCUtils ? "✓ 로드됨" : "✗ 없음", "\n");
+        debugInfo += "- JSCUIManager: ".concat(window.JSCUIManager ? "✓ 로드됨" : "✗ 없음", "\n");
+        debugInfo += "- JSCStateManager: ".concat(window.JSCStateManager ? "✓ 로드됨" : "✗ 없음", "\n");
+        debugInfo += "- JSCCommunication: ".concat(window.JSCCommunication ? "✓ 로드됨" : "✗ 없음", "\n");
+        debugInfo += "- JSCEventManager: ".concat(window.JSCEventManager ? "✓ 로드됨" : "✗ 없음", "\n");
+        debugInfo += "- JSCErrorHandler: ".concat(window.JSCErrorHandler ? "✓ 로드됨" : "✗ 없음", "\n\n");
+        // TypeScript 엔진 확인
+        debugInfo += "TypeScript 엔진:\n";
+        debugInfo += "- AudioFileProcessor: ".concat(window.AudioFileProcessor ? "✓ 로드됨" : "✗ 없음", "\n");
+        debugInfo += "- ClipTimeCalculator: ".concat(window.ClipTimeCalculator ? "✓ 로드됨" : "✗ 없음", "\n");
+        debugInfo += "- SoundEngine: ".concat(window.SoundEngine ? "✓ 로드됨" : "✗ 없음", "\n\n");
+        // SoundEngine 상세 상태
+        if (window.SoundEngine) {
+            try {
+                var engineStatus = window.SoundEngine.getEngineStatus();
+                debugInfo += "SoundEngine 상태:\n";
+                debugInfo += "- \uC900\uBE44 \uC0C1\uD0DC: ".concat(engineStatus.isReady ? "✓ 준비됨" : "✗ 준비되지 않음", "\n");
+                if (!engineStatus.isReady) {
+                    debugInfo += "- \uB204\uB77D\uB41C \uC758\uC874\uC131: ".concat(engineStatus.dependencies.join(', '), "\n");
+                }
+            }
+            catch (e) {
+                debugInfo += "- SoundEngine \uC0C1\uD0DC \uD655\uC778 \uC624\uB958: ".concat(e.message, "\n");
+            }
+        }
+        // 디버그 정보를 전역 변수에 저장하고 디버그 버튼 표시
+        window.lastDebugInfo = debugInfo;
+        if (window.JSCUIManager) {
+            window.JSCUIManager.toggleDebugButton(true);
+        }
+        console.log(debugInfo);
     }
     // 공개 API
     return {

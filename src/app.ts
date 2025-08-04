@@ -111,6 +111,9 @@ const JSCApp = (function(): JSCAppInterface {
             // 이벤트 리스너 설정
             window.JSCEventManager.setupEventListeners();
             
+            // 엔진 상태 확인 및 디버그 정보 표시
+            checkEngineStatus();
+            
             console.log("JSCEditHelper initialized successfully");
             // 초기화 성공 플래그 설정
             (JSCApp as any)._initialized = true;
@@ -119,6 +122,49 @@ const JSCApp = (function(): JSCAppInterface {
             console.error("JSCEditHelper initialization error:", e);
             return false;
         }
+    }
+    
+    // 엔진 상태 확인 함수
+    function checkEngineStatus(): void {
+        let debugInfo = "=== JSCEditHelper 엔진 상태 ===\n";
+        debugInfo += `초기화 시간: ${new Date().toISOString()}\n\n`;
+        
+        // 기본 모듈 확인
+        debugInfo += "기본 모듈:\n";
+        debugInfo += `- JSCUtils: ${(window as any).JSCUtils ? "✓ 로드됨" : "✗ 없음"}\n`;
+        debugInfo += `- JSCUIManager: ${(window as any).JSCUIManager ? "✓ 로드됨" : "✗ 없음"}\n`;
+        debugInfo += `- JSCStateManager: ${(window as any).JSCStateManager ? "✓ 로드됨" : "✗ 없음"}\n`;
+        debugInfo += `- JSCCommunication: ${(window as any).JSCCommunication ? "✓ 로드됨" : "✗ 없음"}\n`;
+        debugInfo += `- JSCEventManager: ${(window as any).JSCEventManager ? "✓ 로드됨" : "✗ 없음"}\n`;
+        debugInfo += `- JSCErrorHandler: ${(window as any).JSCErrorHandler ? "✓ 로드됨" : "✗ 없음"}\n\n`;
+        
+        // TypeScript 엔진 확인
+        debugInfo += "TypeScript 엔진:\n";
+        debugInfo += `- AudioFileProcessor: ${(window as any).AudioFileProcessor ? "✓ 로드됨" : "✗ 없음"}\n`;
+        debugInfo += `- ClipTimeCalculator: ${(window as any).ClipTimeCalculator ? "✓ 로드됨" : "✗ 없음"}\n`;
+        debugInfo += `- SoundEngine: ${(window as any).SoundEngine ? "✓ 로드됨" : "✗ 없음"}\n\n`;
+        
+        // SoundEngine 상세 상태
+        if ((window as any).SoundEngine) {
+            try {
+                const engineStatus = (window as any).SoundEngine.getEngineStatus();
+                debugInfo += "SoundEngine 상태:\n";
+                debugInfo += `- 준비 상태: ${engineStatus.isReady ? "✓ 준비됨" : "✗ 준비되지 않음"}\n`;
+                if (!engineStatus.isReady) {
+                    debugInfo += `- 누락된 의존성: ${engineStatus.dependencies.join(', ')}\n`;
+                }
+            } catch (e) {
+                debugInfo += `- SoundEngine 상태 확인 오류: ${(e as Error).message}\n`;
+            }
+        }
+        
+        // 디버그 정보를 전역 변수에 저장하고 디버그 버튼 표시
+        (window as any).lastDebugInfo = debugInfo;
+        if ((window as any).JSCUIManager) {
+            (window as any).JSCUIManager.toggleDebugButton(true);
+        }
+        
+        console.log(debugInfo);
     }
     
     // 공개 API

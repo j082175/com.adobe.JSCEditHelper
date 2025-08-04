@@ -19,7 +19,12 @@
       "Bash(npm run type-check:*)",
       "Bash(npm install)",
       "Bash(npm run build:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(copy host.jsx host-original-backup.jsx)",
+      "Bash(cp:*)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(dir:*)"
     ],
     "deny": []
   }

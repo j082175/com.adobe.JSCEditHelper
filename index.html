@@ -35,6 +35,9 @@
         
         <div class="insert-section">
             <h2>효과음 삽입</h2>
+            <div class="debug-controls">
+                <button id="test-sound-engine" style="background: #007acc; color: white; margin-bottom: 10px;">🔧 SoundEngine 테스트</button>
+            </div>
             <div class="options">
                 <!-- "삽입 위치" 옵션 제거
                 <div class="form-group">
@@ -75,6 +78,13 @@
             <div id="sound-list" class="sound-list"></div>
         </div>
 
+        <!-- 디버그 정보 섹션 -->
+        <div class="debug-section">
+            <button id="debug-button">디버그 정보 보기</button>
+            <button id="close-debug-button">디버그 정보 닫기</button>
+            <pre id="debug-info" class="debug-info">여기에 디버그 정보가 표시됩니다...</pre>
+        </div>
+
         <div class="footer">
             <p>© 2024 JSCEditHelper Extension</p>
         </div>
@@ -87,6 +97,12 @@
     <script src="js/ui-manager.js"></script>
     <script src="js/state-manager.js"></script>
     <script src="js/communication.js"></script>
+    
+    <!-- TypeScript 비즈니스 로직 엔진들 -->
+    <script src="js/audio-file-processor.js"></script>
+    <script src="js/clip-time-calculator.js"></script>
+    <script src="js/sound-engine.js"></script>
+    
     <script src="js/event-manager.js"></script>
     <script src="js/app.js"></script>
 </body>

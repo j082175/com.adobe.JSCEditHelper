@@ -73,8 +73,57 @@ var JSCApp = (function () {
         }
         return true;
     }
+    // DI 컨테이너 초기화 및 서비스 등록
+    function initializeDependencyInjection() {
+        try {
+            console.log("Initializing Dependency Injection container...");
+            // DI 컨테이너가 사용 가능한지 확인
+            if (!window.DI) {
+                console.error('DI container not available');
+                return false;
+            }
+            // 모든 서비스를 DI 컨테이너에 등록
+            var services = [
+                { key: 'JSCUtils', factory: function () { return window.JSCUtils; } },
+                { key: 'JSCUIManager', factory: function () { return window.JSCUIManager; } },
+                { key: 'JSCStateManager', factory: function () { return window.JSCStateManager; } },
+                { key: 'JSCCommunication', factory: function () { return window.JSCCommunication; } },
+                { key: 'JSCEventManager', factory: function () { return window.JSCEventManager; } },
+                { key: 'JSCErrorHandler', factory: function () { return window.JSCErrorHandler; } },
+                { key: 'SoundEngine', factory: function () { return window.SoundEngine; } },
+                { key: 'AudioFileProcessor', factory: function () { return window.AudioFileProcessor; } },
+                { key: 'ClipTimeCalculator', factory: function () { return window.ClipTimeCalculator; } },
+                { key: 'TextProcessor', factory: function () { return window.TextProcessor; } }
+            ];
+            // 서비스 등록
+            for (var _i = 0, services_1 = services; _i < services_1.length; _i++) {
+                var service = services_1[_i];
+                try {
+                    window.DI.register(service.key, service.factory);
+                    console.log("\u2713 Registered service: ".concat(service.key));
+                }
+                catch (error) {
+                    console.warn("\u26A0 Failed to register service: ".concat(service.key), error);
+                }
+            }
+            // 필수 의존성 검증
+            var requiredServices = ['JSCUtils', 'JSCUIManager', 'JSCStateManager', 'JSCCommunication', 'JSCEventManager'];
+            var validation = window.DI.validateDependencies(requiredServices);
+            if (!validation.isValid) {
+                console.error('DI validation failed. Missing services:', validation.missing);
+                return false;
+            }
+            console.log("✓ DI container initialized successfully");
+            return true;
+        }
+        catch (error) {
+            console.error("DI initialization error:", error);
+            return false;
+        }
+    }
     // 애플리케이션 초기화
     function initialize() {
+        var _a, _b, _c, _d;
         try {
             // 의존성 확인
             if (!checkDependencies()) {
@@ -82,16 +131,25 @@ var JSCApp = (function () {
                 return false;
             }
             console.log("JSCEditHelper initializing...");
+            // DI 컨테이너 초기화 (Phase 1.1)
+            if (!initializeDependencyInjection()) {
+                console.warn('DI initialization failed, falling back to legacy mode');
+            }
             // 디버그 UI 설정
             setupDebugUI();
+            // DI 서비스 가져오기 (DI 우선, fallback으로 window)
+            var communication = ((_a = window.DI) === null || _a === void 0 ? void 0 : _a.get('JSCCommunication')) || window.JSCCommunication;
+            var uiManager = ((_b = window.DI) === null || _b === void 0 ? void 0 : _b.get('JSCUIManager')) || window.JSCUIManager;
+            var stateManager = ((_c = window.DI) === null || _c === void 0 ? void 0 : _c.get('JSCStateManager')) || window.JSCStateManager;
+            var eventManager = ((_d = window.DI) === null || _d === void 0 ? void 0 : _d.get('JSCEventManager')) || window.JSCEventManager;
             // 통신 모듈 초기화
-            var csInterface = window.JSCCommunication.initialize();
+            var csInterface = communication.initialize();
             // 테마 설정
-            window.JSCUIManager.updateThemeWithAppSkinInfo(csInterface);
+            uiManager.updateThemeWithAppSkinInfo(csInterface);
             // 상태 초기화
-            window.JSCStateManager.initializeFolderPath();
+            stateManager.initializeFolderPath();
             // 이벤트 리스너 설정
-            window.JSCEventManager.setupEventListeners();
+            eventManager.setupEventListeners();
             // 엔진 상태 확인 및 디버그 정보 표시
             checkEngineStatus();
             console.log("JSCEditHelper initialized successfully");
@@ -108,6 +166,26 @@ var JSCApp = (function () {
     function checkEngineStatus() {
         var debugInfo = "=== JSCEditHelper 엔진 상태 ===\n";
         debugInfo += "\uCD08\uAE30\uD654 \uC2DC\uAC04: ".concat(new Date().toISOString(), "\n\n");
+        // DI 컨테이너 상태 확인
+        debugInfo += "Dependency Injection:\n";
+        if (window.DI) {
+            debugInfo += "- DI Container: ✓ 활성화됨\n";
+            try {
+                var requiredServices = ['JSCUtils', 'JSCUIManager', 'JSCStateManager', 'JSCCommunication', 'JSCEventManager'];
+                var validation = window.DI.validateDependencies(requiredServices);
+                debugInfo += "- \uD544\uC218 \uC11C\uBE44\uC2A4: ".concat(validation.isValid ? "✓ 모두 등록됨" : "✗ 일부 누락", "\n");
+                if (!validation.isValid) {
+                    debugInfo += "- \uB204\uB77D\uB41C \uC11C\uBE44\uC2A4: ".concat(validation.missing.join(', '), "\n");
+                }
+            }
+            catch (e) {
+                debugInfo += "- DI \uAC80\uC99D \uC624\uB958: ".concat(e.message, "\n");
+            }
+        }
+        else {
+            debugInfo += "- DI Container: ✗ 비활성화됨 (레거시 모드)\n";
+        }
+        debugInfo += "\n";
         // 기본 모듈 확인
         debugInfo += "기본 모듈:\n";
         debugInfo += "- JSCUtils: ".concat(window.JSCUtils ? "✓ 로드됨" : "✗ 없음", "\n");

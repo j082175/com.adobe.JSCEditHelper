@@ -61,6 +61,46 @@ interface ClipMovement {
 }
 
 const ClipTimeCalculator = (function() {
+    'use strict';
+    
+    // DI 컨테이너에서 의존성 가져오기 (옵션)
+    let diContainer: any = null;
+    let utilsService: any = null;
+    
+    function initializeDIDependencies() {
+        try {
+            diContainer = (window as any).DI;
+            if (diContainer) {
+                // DI에서 서비스 가져오기 시도
+                utilsService = diContainer.getSafe('JSCUtils');
+            }
+        }
+        catch (e) {
+            // DI 사용 불가시 레거시 모드로 작동
+        }
+    }
+    
+    // 초기화 시도 (즉시 및 지연)
+    initializeDIDependencies();
+    
+    // 앱 초기화 후에 DI 서비스 재시도
+    if (typeof window !== 'undefined') {
+        setTimeout(() => {
+            if (!utilsService) {
+                initializeDIDependencies();
+            }
+        }, 100);
+    }
+    
+    // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
+    function getUtils() {
+        return utilsService || (window as any).JSCUtils || {
+            logDebug: (msg: string) => { console.log('[DEBUG]', msg); },
+            logWarn: (msg: string) => { console.warn('[WARN]', msg); },
+            logInfo: (msg: string) => { console.info('[INFO]', msg); }
+        };
+    }
+    
     const TICKS_PER_SECOND = 254016000000; // Premiere Pro 내부 시간 단위
 
     /**
@@ -88,7 +128,8 @@ const ClipTimeCalculator = (function() {
         const gaps: ClipGap[] = [];
 
         if (sortedClips.length < 2) {
-            window.JSCUtils.logDebug('클립이 2개 미만이므로 간격 분석 불가');
+            const utils = getUtils();
+            utils.logDebug('클립이 2개 미만이므로 간격 분석 불가');
             return gaps;
         }
 
@@ -117,7 +158,8 @@ const ClipTimeCalculator = (function() {
             }
         }
 
-        window.JSCUtils.logDebug(`분석된 클립 간격: ${gaps.length}개`);
+        const utils = getUtils();
+        utils.logDebug(`분석된 클립 간격: ${gaps.length}개`);
         return gaps;
     }
 
@@ -133,7 +175,8 @@ const ClipTimeCalculator = (function() {
 
         // 클립이 없거나 오디오 파일이 없으면 실패
         if (!clips || clips.length === 0) {
-            window.JSCUtils.logWarn('선택된 클립이 없습니다');
+            const utils = getUtils();
+            utils.logWarn('선택된 클립이 없습니다');
             return {
                 insertions: [],
                 totalInsertions: 0,
@@ -143,7 +186,8 @@ const ClipTimeCalculator = (function() {
         }
 
         if (!audioFiles || audioFiles.length === 0) {
-            window.JSCUtils.logWarn('사용할 오디오 파일이 없습니다');
+            const utils = getUtils();
+            utils.logWarn('사용할 오디오 파일이 없습니다');
             return {
                 insertions: [],
                 totalInsertions: 0,
@@ -173,14 +217,16 @@ const ClipTimeCalculator = (function() {
             
             insertions.push(insertion);
             
-            window.JSCUtils.logInfo(`클립 ${clip.name}에 효과음 삽입 (길이: ${formatDuration(clip.duration)})`);
+            const utils = getUtils();
+            utils.logInfo(`클립 ${clip.name}에 효과음 삽입 (길이: ${formatDuration(clip.duration)})`);
         }
 
         // 예상 총 소요 시간 계산 (각 삽입당 평균 2초 가정)
         const estimatedTotalSeconds = insertions.length * 2;
         const estimatedDuration = createTimeCode(estimatedTotalSeconds);
 
-        window.JSCUtils.logInfo(`효과음 삽입 계획: ${insertions.length}개 위치 (클립: ${clips.length}개)`);
+        const utils = getUtils();
+        utils.logInfo(`효과음 삽입 계획: ${insertions.length}개 위치 (클립: ${clips.length}개)`);
 
         return {
             insertions,
@@ -247,7 +293,8 @@ const ClipTimeCalculator = (function() {
         // 예상 소요 시간 (이동할 클립 수 * 50ms)
         const estimatedTimeMs = movements.length * 50;
 
-        window.JSCUtils.logInfo(`마그넷 계획: ${movements.length}개 클립 이동, ${totalGapsRemoved}개 간격 제거`);
+        const utils = getUtils();
+        utils.logInfo(`마그넷 계획: ${movements.length}개 클립 이동, ${totalGapsRemoved}개 간격 제거`);
 
         return {
             movements,
@@ -343,14 +390,16 @@ const ClipTimeCalculator = (function() {
         const requiredFields = ['id', 'name', 'start', 'end', 'trackIndex'];
         for (const field of requiredFields) {
             if (!(field in clip)) {
-                window.JSCUtils.logWarn(`클립 정보에 필수 필드 누락: ${field}`);
+                const utils = getUtils();
+                utils.logWarn(`클립 정보에 필수 필드 누락: ${field}`);
                 return null;
             }
         }
 
         // 시간 필드 검증
         if (!isValidTimeCode(clip.start) || !isValidTimeCode(clip.end)) {
-            window.JSCUtils.logWarn('클립의 시간 정보가 유효하지 않음');
+            const utils = getUtils();
+            utils.logWarn('클립의 시간 정보가 유효하지 않음');
             return null;
         }
 
@@ -386,6 +435,21 @@ const ClipTimeCalculator = (function() {
         }
     }
 
+    // DI 상태 확인 함수 (디버깅용)
+    function getDIStatus() {
+        const dependencies: string[] = [];
+        if (utilsService) 
+            dependencies.push('JSCUtils (DI)');
+        else if ((window as any).JSCUtils)
+            dependencies.push('JSCUtils (Legacy)');
+            
+        return {
+            isDIAvailable: !!diContainer,
+            containerInfo: diContainer ? 'DI Container active' : 'Legacy mode',
+            dependencies: dependencies
+        };
+    }
+
     // 공개 API 반환
     return {
         sortClipsByTime,
@@ -397,7 +461,8 @@ const ClipTimeCalculator = (function() {
         addTime,
         subtractTime,
         validateClipInfo,
-        formatDuration
+        formatDuration,
+        getDIStatus // DI 패턴 적용
     };
 })();
 

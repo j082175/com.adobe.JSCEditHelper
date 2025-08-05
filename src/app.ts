@@ -85,6 +85,58 @@ const JSCApp = (function(): JSCAppInterface {
         return true;
     }
     
+    // DI 컨테이너 초기화 및 서비스 등록
+    function initializeDependencyInjection(): boolean {
+        try {
+            console.log("Initializing Dependency Injection container...");
+            
+            // DI 컨테이너가 사용 가능한지 확인
+            if (!(window as any).DI) {
+                console.error('DI container not available');
+                return false;
+            }
+            
+            // 모든 서비스를 DI 컨테이너에 등록
+            const services = [
+                { key: 'JSCUtils', factory: () => (window as any).JSCUtils },
+                { key: 'JSCUIManager', factory: () => (window as any).JSCUIManager },
+                { key: 'JSCStateManager', factory: () => (window as any).JSCStateManager },
+                { key: 'JSCCommunication', factory: () => (window as any).JSCCommunication },
+                { key: 'JSCEventManager', factory: () => (window as any).JSCEventManager },
+                { key: 'JSCErrorHandler', factory: () => (window as any).JSCErrorHandler },
+                { key: 'SoundEngine', factory: () => (window as any).SoundEngine },
+                { key: 'AudioFileProcessor', factory: () => (window as any).AudioFileProcessor },
+                { key: 'ClipTimeCalculator', factory: () => (window as any).ClipTimeCalculator },
+                { key: 'TextProcessor', factory: () => (window as any).TextProcessor }
+            ];
+            
+            // 서비스 등록
+            for (const service of services) {
+                try {
+                    (window as any).DI.register(service.key, service.factory);
+                    console.log(`✓ Registered service: ${service.key}`);
+                } catch (error) {
+                    console.warn(`⚠ Failed to register service: ${service.key}`, error);
+                }
+            }
+            
+            // 필수 의존성 검증
+            const requiredServices = ['JSCUtils', 'JSCUIManager', 'JSCStateManager', 'JSCCommunication', 'JSCEventManager'];
+            const validation = (window as any).DI.validateDependencies(requiredServices);
+            
+            if (!validation.isValid) {
+                console.error('DI validation failed. Missing services:', validation.missing);
+                return false;
+            }
+            
+            console.log("✓ DI container initialized successfully");
+            return true;            
+        } catch (error) {
+            console.error("DI initialization error:", error);
+            return false;
+        }
+    }
+    
     // 애플리케이션 초기화
     function initialize(): boolean {
         try {
@@ -96,20 +148,31 @@ const JSCApp = (function(): JSCAppInterface {
             
             console.log("JSCEditHelper initializing...");
             
+            // DI 컨테이너 초기화 (Phase 1.1)
+            if (!initializeDependencyInjection()) {
+                console.warn('DI initialization failed, falling back to legacy mode');
+            }
+            
             // 디버그 UI 설정
             setupDebugUI();
             
+            // DI 서비스 가져오기 (DI 우선, fallback으로 window)
+            const communication = (window as any).DI?.get('JSCCommunication') || (window as any).JSCCommunication;
+            const uiManager = (window as any).DI?.get('JSCUIManager') || (window as any).JSCUIManager;
+            const stateManager = (window as any).DI?.get('JSCStateManager') || (window as any).JSCStateManager;
+            const eventManager = (window as any).DI?.get('JSCEventManager') || (window as any).JSCEventManager;
+            
             // 통신 모듈 초기화
-            const csInterface = window.JSCCommunication.initialize();
+            const csInterface = communication.initialize();
             
             // 테마 설정
-            window.JSCUIManager.updateThemeWithAppSkinInfo(csInterface);
+            uiManager.updateThemeWithAppSkinInfo(csInterface);
             
             // 상태 초기화
-            window.JSCStateManager.initializeFolderPath();
+            stateManager.initializeFolderPath();
             
             // 이벤트 리스너 설정
-            window.JSCEventManager.setupEventListeners();
+            eventManager.setupEventListeners();
             
             // 엔진 상태 확인 및 디버그 정보 표시
             checkEngineStatus();
@@ -128,6 +191,25 @@ const JSCApp = (function(): JSCAppInterface {
     function checkEngineStatus(): void {
         let debugInfo = "=== JSCEditHelper 엔진 상태 ===\n";
         debugInfo += `초기화 시간: ${new Date().toISOString()}\n\n`;
+        
+        // DI 컨테이너 상태 확인
+        debugInfo += "Dependency Injection:\n";
+        if ((window as any).DI) {
+            debugInfo += "- DI Container: ✓ 활성화됨\n";
+            try {
+                const requiredServices = ['JSCUtils', 'JSCUIManager', 'JSCStateManager', 'JSCCommunication', 'JSCEventManager'];
+                const validation = (window as any).DI.validateDependencies(requiredServices);
+                debugInfo += `- 필수 서비스: ${validation.isValid ? "✓ 모두 등록됨" : "✗ 일부 누락"}\n`;
+                if (!validation.isValid) {
+                    debugInfo += `- 누락된 서비스: ${validation.missing.join(', ')}\n`;
+                }
+            } catch (e) {
+                debugInfo += `- DI 검증 오류: ${(e as Error).message}\n`;
+            }
+        } else {
+            debugInfo += "- DI Container: ✗ 비활성화됨 (레거시 모드)\n";
+        }
+        debugInfo += "\n";
         
         // 기본 모듈 확인
         debugInfo += "기본 모듈:\n";

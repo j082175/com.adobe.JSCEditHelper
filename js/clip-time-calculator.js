@@ -13,6 +13,40 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     return to.concat(ar || Array.prototype.slice.call(from));
 };
 var ClipTimeCalculator = (function () {
+    'use strict';
+    // DI 컨테이너에서 의존성 가져오기 (옵션)
+    var diContainer = null;
+    var utilsService = null;
+    function initializeDIDependencies() {
+        try {
+            diContainer = window.DI;
+            if (diContainer) {
+                // DI에서 서비스 가져오기 시도
+                utilsService = diContainer.getSafe('JSCUtils');
+            }
+        }
+        catch (e) {
+            // DI 사용 불가시 레거시 모드로 작동
+        }
+    }
+    // 초기화 시도 (즉시 및 지연)
+    initializeDIDependencies();
+    // 앱 초기화 후에 DI 서비스 재시도
+    if (typeof window !== 'undefined') {
+        setTimeout(function () {
+            if (!utilsService) {
+                initializeDIDependencies();
+            }
+        }, 100);
+    }
+    // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
+    function getUtils() {
+        return utilsService || window.JSCUtils || {
+            logDebug: function (msg) { console.log('[DEBUG]', msg); },
+            logWarn: function (msg) { console.warn('[WARN]', msg); },
+            logInfo: function (msg) { console.info('[INFO]', msg); }
+        };
+    }
     var TICKS_PER_SECOND = 254016000000; // Premiere Pro 내부 시간 단위
     /**
      * 선택된 클립들을 시간 순으로 정렬
@@ -36,7 +70,8 @@ var ClipTimeCalculator = (function () {
         var sortedClips = sortClipsByTime(clips);
         var gaps = [];
         if (sortedClips.length < 2) {
-            window.JSCUtils.logDebug('클립이 2개 미만이므로 간격 분석 불가');
+            var utils_1 = getUtils();
+            utils_1.logDebug('클립이 2개 미만이므로 간격 분석 불가');
             return gaps;
         }
         for (var i = 0; i < sortedClips.length - 1; i++) {
@@ -60,7 +95,8 @@ var ClipTimeCalculator = (function () {
                 }
             }
         }
-        window.JSCUtils.logDebug("\uBD84\uC11D\uB41C \uD074\uB9BD \uAC04\uACA9: ".concat(gaps.length, "\uAC1C"));
+        var utils = getUtils();
+        utils.logDebug("\uBD84\uC11D\uB41C \uD074\uB9BD \uAC04\uACA9: ".concat(gaps.length, "\uAC1C"));
         return gaps;
     }
     /**
@@ -71,7 +107,8 @@ var ClipTimeCalculator = (function () {
         var insertions = [];
         // 클립이 없거나 오디오 파일이 없으면 실패
         if (!clips || clips.length === 0) {
-            window.JSCUtils.logWarn('선택된 클립이 없습니다');
+            var utils_2 = getUtils();
+            utils_2.logWarn('선택된 클립이 없습니다');
             return {
                 insertions: [],
                 totalInsertions: 0,
@@ -80,7 +117,8 @@ var ClipTimeCalculator = (function () {
             };
         }
         if (!audioFiles || audioFiles.length === 0) {
-            window.JSCUtils.logWarn('사용할 오디오 파일이 없습니다');
+            var utils_3 = getUtils();
+            utils_3.logWarn('사용할 오디오 파일이 없습니다');
             return {
                 insertions: [],
                 totalInsertions: 0,
@@ -104,12 +142,14 @@ var ClipTimeCalculator = (function () {
                 clipDuration: clip.duration // 클립 길이 정보 추가 (pre-trimming용)
             };
             insertions.push(insertion);
-            window.JSCUtils.logInfo("\uD074\uB9BD ".concat(clip.name, "\uC5D0 \uD6A8\uACFC\uC74C \uC0BD\uC785 (\uAE38\uC774: ").concat(formatDuration(clip.duration), ")"));
+            var utils_4 = getUtils();
+            utils_4.logInfo("\uD074\uB9BD ".concat(clip.name, "\uC5D0 \uD6A8\uACFC\uC74C \uC0BD\uC785 (\uAE38\uC774: ").concat(formatDuration(clip.duration), ")"));
         }
         // 예상 총 소요 시간 계산 (각 삽입당 평균 2초 가정)
         var estimatedTotalSeconds = insertions.length * 2;
         var estimatedDuration = createTimeCode(estimatedTotalSeconds);
-        window.JSCUtils.logInfo("\uD6A8\uACFC\uC74C \uC0BD\uC785 \uACC4\uD68D: ".concat(insertions.length, "\uAC1C \uC704\uCE58 (\uD074\uB9BD: ").concat(clips.length, "\uAC1C)"));
+        var utils = getUtils();
+        utils.logInfo("\uD6A8\uACFC\uC74C \uC0BD\uC785 \uACC4\uD68D: ".concat(insertions.length, "\uAC1C \uC704\uCE58 (\uD074\uB9BD: ").concat(clips.length, "\uAC1C)"));
         return {
             insertions: insertions,
             totalInsertions: insertions.length,
@@ -162,7 +202,8 @@ var ClipTimeCalculator = (function () {
         });
         // 예상 소요 시간 (이동할 클립 수 * 50ms)
         var estimatedTimeMs = movements.length * 50;
-        window.JSCUtils.logInfo("\uB9C8\uADF8\uB137 \uACC4\uD68D: ".concat(movements.length, "\uAC1C \uD074\uB9BD \uC774\uB3D9, ").concat(totalGapsRemoved, "\uAC1C \uAC04\uACA9 \uC81C\uAC70"));
+        var utils = getUtils();
+        utils.logInfo("\uB9C8\uADF8\uB137 \uACC4\uD68D: ".concat(movements.length, "\uAC1C \uD074\uB9BD \uC774\uB3D9, ").concat(totalGapsRemoved, "\uAC1C \uAC04\uACA9 \uC81C\uAC70"));
         return {
             movements: movements,
             totalMoved: movements.length,
@@ -245,13 +286,15 @@ var ClipTimeCalculator = (function () {
         for (var _i = 0, requiredFields_1 = requiredFields; _i < requiredFields_1.length; _i++) {
             var field = requiredFields_1[_i];
             if (!(field in clip)) {
-                window.JSCUtils.logWarn("\uD074\uB9BD \uC815\uBCF4\uC5D0 \uD544\uC218 \uD544\uB4DC \uB204\uB77D: ".concat(field));
+                var utils = getUtils();
+                utils.logWarn("\uD074\uB9BD \uC815\uBCF4\uC5D0 \uD544\uC218 \uD544\uB4DC \uB204\uB77D: ".concat(field));
                 return null;
             }
         }
         // 시간 필드 검증
         if (!isValidTimeCode(clip.start) || !isValidTimeCode(clip.end)) {
-            window.JSCUtils.logWarn('클립의 시간 정보가 유효하지 않음');
+            var utils = getUtils();
+            utils.logWarn('클립의 시간 정보가 유효하지 않음');
             return null;
         }
         return clip;
@@ -284,6 +327,19 @@ var ClipTimeCalculator = (function () {
             return "".concat(hours, "\uC2DC\uAC04 ").concat(minutes, "\uBD84");
         }
     }
+    // DI 상태 확인 함수 (디버깅용)
+    function getDIStatus() {
+        var dependencies = [];
+        if (utilsService)
+            dependencies.push('JSCUtils (DI)');
+        else if (window.JSCUtils)
+            dependencies.push('JSCUtils (Legacy)');
+        return {
+            isDIAvailable: !!diContainer,
+            containerInfo: diContainer ? 'DI Container active' : 'Legacy mode',
+            dependencies: dependencies
+        };
+    }
     // 공개 API 반환
     return {
         sortClipsByTime: sortClipsByTime,
@@ -295,7 +351,8 @@ var ClipTimeCalculator = (function () {
         addTime: addTime,
         subtractTime: subtractTime,
         validateClipInfo: validateClipInfo,
-        formatDuration: formatDuration
+        formatDuration: formatDuration,
+        getDIStatus: getDIStatus // DI 패턴 적용
     };
 })();
 // 전역 접근을 위해 window 객체에 노출

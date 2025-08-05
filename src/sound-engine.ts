@@ -27,6 +27,76 @@ interface ExtendScriptCommand {
 }
 
 const SoundEngine = (function() {
+    'use strict';
+    
+    // DI 컨테이너에서 의존성 가져오기 (옵션)
+    let diContainer: any = null;
+    let utilsService: any = null;
+    let communicationService: any = null;
+    let uiService: any = null;
+    let clipCalculatorService: any = null;
+    
+    function initializeDIDependencies() {
+        try {
+            diContainer = (window as any).DI;
+            if (diContainer) {
+                // DI에서 서비스 가져오기 시도
+                utilsService = diContainer.getSafe('JSCUtils');
+                communicationService = diContainer.getSafe('JSCCommunication');
+                uiService = diContainer.getSafe('JSCUIManager');
+                clipCalculatorService = diContainer.getSafe('ClipTimeCalculator');
+            }
+        }
+        catch (e) {
+            // DI 사용 불가시 레거시 모드로 작동
+        }
+    }
+    
+    // 초기화 시도 (즉시 및 지연)
+    initializeDIDependencies();
+    
+    // 앱 초기화 후에 DI 서비스 재시도
+    if (typeof window !== 'undefined') {
+        setTimeout(() => {
+            if (!utilsService || !communicationService || !uiService || !clipCalculatorService) {
+                initializeDIDependencies();
+            }
+        }, 100);
+    }
+    
+    // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
+    function getUtils() {
+        return utilsService || (window as any).JSCUtils || {
+            isValidPath: (path: string) => !!path,
+            safeJSONParse: (str: string) => { 
+                try { return JSON.parse(str); } 
+                catch(e) { return null; } 
+            }
+        };
+    }
+    
+    function getCommunication() {
+        return communicationService || (window as any).JSCCommunication || {
+            callExtendScript: (_script: string, callback: (result: string) => void) => { 
+                callback('error: Communication service not available'); 
+            }
+        };
+    }
+    
+    function getUIManager() {
+        return uiService || (window as any).JSCUIManager || {
+            updateStatus: (msg: string, _success: boolean) => { console.log('Status:', msg); }
+        };
+    }
+    
+    function getClipCalculator() {
+        return clipCalculatorService || (window as any).ClipTimeCalculator || {
+            createInsertionPlan: () => ({ totalInsertions: 0 }),
+            createMagnetPlan: () => ({ totalMoved: 0, gapsRemoved: 0 }),
+            formatDuration: (duration: number) => duration + 'ms'
+        };
+    }
+    
     let requestCounter = 0;
 
     /**
@@ -79,7 +149,8 @@ const SoundEngine = (function() {
 
             // 4. 삽입 계획 생성
             const audioTrackNumber = parseAudioTrack(config.audioTrack);
-            const insertionPlan = (window as any).ClipTimeCalculator.createInsertionPlan(clips, audioFiles, audioTrackNumber);
+            const clipCalculator = getClipCalculator();
+            const insertionPlan = clipCalculator.createInsertionPlan(clips, audioFiles, audioTrackNumber);
             
             if (insertionPlan.totalInsertions === 0) {
                 return {
@@ -89,7 +160,7 @@ const SoundEngine = (function() {
                 };
             }
 
-            debugInfo += `삽입 계획: ${insertionPlan.totalInsertions}개 위치, 예상 시간: ${(window as any).ClipTimeCalculator.formatDuration(insertionPlan.estimatedDuration)}\n`;
+            debugInfo += `삽입 계획: ${insertionPlan.totalInsertions}개 위치, 예상 시간: ${clipCalculator.formatDuration(insertionPlan.estimatedDuration)}\n`;
 
             // 5. ExtendScript 명령 생성 및 실행
             const command = createInsertionCommand(insertionPlan, config);
@@ -168,7 +239,8 @@ const SoundEngine = (function() {
             debugInfo += `시퀀스 내 클립: ${clips.length}개\n`;
 
             // 2. 마그넷 계획 생성
-            const magnetPlan = (window as any).ClipTimeCalculator.createMagnetPlan(clips);
+            const clipCalculator = getClipCalculator();
+            const magnetPlan = clipCalculator.createMagnetPlan(clips);
             
             if (magnetPlan.totalMoved === 0) {
                 return {
@@ -226,8 +298,11 @@ const SoundEngine = (function() {
         // 폴더 경로 검증
         if (!config.folderPath || typeof config.folderPath !== 'string') {
             errors.push('폴더 경로가 필요합니다');
-        } else if (!window.JSCUtils.isValidPath(config.folderPath)) {
-            errors.push('유효하지 않은 폴더 경로입니다');
+        } else {
+            const utils = getUtils();
+            if (!utils.isValidPath(config.folderPath)) {
+                errors.push('유효하지 않은 폴더 경로입니다');
+            }
         }
 
         // 오디오 트랙 검증
@@ -395,7 +470,8 @@ const SoundEngine = (function() {
             console.log(logEntry1);
             debugLog += logEntry1 + "\n";
 
-            window.JSCCommunication.callExtendScript(jsxFunction, (result: string) => {
+            const communication = getCommunication();
+            communication.callExtendScript(jsxFunction, (result: string) => {
                 try {
                     const logEntry2 = `🔧 ExtendScript 원본 응답: ${result}`;
                     const logEntry3 = `🔧 응답 타입: ${typeof result}`;
@@ -423,7 +499,8 @@ const SoundEngine = (function() {
                     }
 
                     // JSON 응답 파싱 시도
-                    const parsedResult = window.JSCUtils.safeJSONParse(result);
+                    const utils = getUtils();
+                    const parsedResult = utils.safeJSONParse(result);
                     const logEntry6 = `🔧 JSON 파싱 결과: ${JSON.stringify(parsedResult)}`;
                     console.log(logEntry6);
                     debugLog += logEntry6 + "\n";
@@ -494,30 +571,67 @@ const SoundEngine = (function() {
         const dependencies = [];
         let isReady = true;
 
-        // 필수 의존성 체크
-        if (!window.JSCUtils) {
+        // 필수 의존성 체크 (DI 우선, 레거시 fallback)
+        const utils = getUtils();
+        const communication = getCommunication();
+        const uiManager = getUIManager();
+        const clipCalculator = getClipCalculator();
+        
+        if (!utils || (!utilsService && !(window as any).JSCUtils)) {
             dependencies.push('JSCUtils');
             isReady = false;
         }
-
-        if (!window.JSCCommunication) {
+        if (!communication || (!communicationService && !(window as any).JSCCommunication)) {
             dependencies.push('JSCCommunication');
             isReady = false;
         }
-
-        if (!window.JSCUIManager) {
+        if (!uiManager || (!uiService && !(window as any).JSCUIManager)) {
             dependencies.push('JSCUIManager');
             isReady = false;
         }
-
+        if (!clipCalculator || (!clipCalculatorService && !(window as any).ClipTimeCalculator)) {
+            dependencies.push('ClipTimeCalculator');
+            isReady = false;
+        }
         return { isReady, dependencies };
+    }
+    
+    // DI 상태 확인 함수 (디버깅용) - Phase 2.6
+    function getDIStatus() {
+        const dependencies: string[] = [];
+        if (utilsService) 
+            dependencies.push('JSCUtils (DI)');
+        else if ((window as any).JSCUtils)
+            dependencies.push('JSCUtils (Legacy)');
+        
+        if (communicationService)
+            dependencies.push('JSCCommunication (DI)');  
+        else if ((window as any).JSCCommunication)
+            dependencies.push('JSCCommunication (Legacy)');
+            
+        if (uiService)
+            dependencies.push('JSCUIManager (DI)');  
+        else if ((window as any).JSCUIManager)
+            dependencies.push('JSCUIManager (Legacy)');
+            
+        if (clipCalculatorService)
+            dependencies.push('ClipTimeCalculator (DI)');  
+        else if ((window as any).ClipTimeCalculator)
+            dependencies.push('ClipTimeCalculator (Legacy)');
+            
+        return {
+            isDIAvailable: !!diContainer,
+            containerInfo: diContainer ? 'DI Container active' : 'Legacy mode',
+            dependencies: dependencies
+        };
     }
 
     // 공개 API 반환
     return {
         executeSoundInsertion,
         executeMagnetClips,
-        getEngineStatus
+        getEngineStatus,
+        getDIStatus // Phase 2.6
     };
 })();
 

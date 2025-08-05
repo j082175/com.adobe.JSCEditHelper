@@ -6,6 +6,32 @@
 /// <reference path="../types/cep.d.ts" />
 var JSCUIManager = (function () {
     'use strict';
+    // DI 컨테이너에서 의존성 가져오기 (옵션)
+    var diContainer = null;
+    var utilsService = null;
+    var eventService = null;
+    try {
+        diContainer = window.DI;
+        if (diContainer) {
+            // DI에서 서비스 가져오기 시도
+            utilsService = diContainer.getSafe('JSCUtils');
+            eventService = diContainer.getSafe('JSCEventManager');
+        }
+    }
+    catch (e) {
+        // DI 사용 불가시 레거시 모드로 작동
+    }
+    // 유틸리티 서비스 가져오기 (DI 우선, 레거시 fallback)
+    function getUtils() {
+        return utilsService || window.JSCUtils || {
+            getShortPath: function (path) { return path; },
+            isValidPath: function (path) { return !!path; }
+        };
+    }
+    // 이벤트 서비스 가져오기 (DI 우선, 레거시 fallback)
+    function getEventManager() {
+        return eventService || window.JSCEventManager || null;
+    }
     // 상태 메시지 업데이트
     function updateStatus(message, isSuccess) {
         var statusElement = document.getElementById("status-message");
@@ -71,7 +97,8 @@ var JSCUIManager = (function () {
             return;
         container.innerHTML = ""; // 이전 버튼들 제거
         if (folderPathSpan && currentFolderPath) {
-            folderPathSpan.textContent = window.JSCUtils.getShortPath(currentFolderPath);
+            var utils = getUtils();
+            folderPathSpan.textContent = utils.getShortPath(currentFolderPath);
         }
         if (soundFiles && soundFiles.length > 0) {
             soundFiles.forEach(function (soundFile) {
@@ -81,8 +108,9 @@ var JSCUIManager = (function () {
                     button.setAttribute("data-fsname", soundFile.fsName);
                     button.addEventListener("click", function (event) {
                         // 이벤트는 나중에 event-manager에서 처리하도록 위임
-                        if (window.JSCEventManager && window.JSCEventManager.handleSoundFileButtonClick) {
-                            window.JSCEventManager.handleSoundFileButtonClick(event);
+                        var eventManager = getEventManager();
+                        if (eventManager && eventManager.handleSoundFileButtonClick) {
+                            eventManager.handleSoundFileButtonClick(event);
                         }
                     });
                     container.appendChild(button);
@@ -102,7 +130,8 @@ var JSCUIManager = (function () {
             folderInput.value = path || "";
         }
         if (refreshButton) {
-            refreshButton.disabled = !path || !window.JSCUtils.isValidPath(path);
+            var utils = getUtils();
+            refreshButton.disabled = !path || !utils.isValidPath(path);
         }
     }
     // 디버그 버튼 표시/숨김 설정
@@ -163,6 +192,22 @@ var JSCUIManager = (function () {
             console.error('Theme update failed:', e.message);
         }
     }
+    // DI 상태 확인 함수 (디버깅용) - Phase 2.1
+    function getDIStatus() {
+        var dependencies = [];
+        if (utilsService)
+            dependencies.push('JSCUtils (DI)');
+        else if (window.JSCUtils)
+            dependencies.push('JSCUtils (Legacy)');
+        if (eventService)
+            dependencies.push('JSCEventManager (DI)');
+        else if (window.JSCEventManager)
+            dependencies.push('JSCEventManager (Legacy)');
+        return {
+            isDIAvailable: !!diContainer,
+            dependencies: dependencies
+        };
+    }
     // 공개 API
     return {
         updateStatus: updateStatus,
@@ -173,7 +218,8 @@ var JSCUIManager = (function () {
         toggleDebugButton: toggleDebugButton,
         showDebugInfo: showDebugInfo,
         resetDebugUI: resetDebugUI,
-        updateThemeWithAppSkinInfo: updateThemeWithAppSkinInfo
+        updateThemeWithAppSkinInfo: updateThemeWithAppSkinInfo,
+        getDIStatus: getDIStatus // Phase 2.1
     };
 })();
 // 전역 접근을 위해 window 객체에 노출

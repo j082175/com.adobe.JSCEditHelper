@@ -4,6 +4,49 @@
  * 오디오 파일 검색, 필터링, 검증을 담당하는 TypeScript 엔진
  */
 var AudioFileProcessor = (function () {
+    'use strict';
+    // DI 컨테이너에서 의존성 가져오기 (옵션)
+    var diContainer = null;
+    var utilsService = null;
+    var communicationService = null;
+    function initializeDIDependencies() {
+        try {
+            diContainer = window.DI;
+            if (diContainer) {
+                // DI에서 서비스 가져오기 시도
+                utilsService = diContainer.getSafe('JSCUtils');
+                communicationService = diContainer.getSafe('JSCCommunication');
+            }
+        }
+        catch (e) {
+            // DI 사용 불가시 레거시 모드로 작동
+        }
+    }
+    // 초기화 시도 (즉시 및 지연)
+    initializeDIDependencies();
+    // 앱 초기화 후에 DI 서비스 재시도
+    if (typeof window !== 'undefined') {
+        setTimeout(function () {
+            if (!utilsService || !communicationService) {
+                initializeDIDependencies();
+            }
+        }, 100);
+    }
+    // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
+    function getUtils() {
+        return utilsService || window.JSCUtils || {
+            logDebug: function (msg) { console.log('[DEBUG]', msg); },
+            logWarn: function (msg) { console.warn('[WARN]', msg); },
+            logInfo: function (msg) { console.info('[INFO]', msg); }
+        };
+    }
+    function getCommunication() {
+        return communicationService || window.JSCCommunication || {
+            callExtendScript: function (_script, callback) {
+                callback('error: Communication service not available');
+            }
+        };
+    }
     var DEFAULT_EXTENSIONS = [
         '.wav', '.mp3', '.aif', '.aiff', '.m4a',
         '.WAV', '.MP3', '.AIF', '.AIFF', '.M4A'
@@ -13,7 +56,8 @@ var AudioFileProcessor = (function () {
      * 폴더에서 오디오 파일을 검색하고 필터링
      */
     function processAudioFolder(config) {
-        window.JSCUtils.logDebug("Audio folder processing started: ".concat(config.folderPath));
+        var utils = getUtils();
+        utils.logDebug("Audio folder processing started: ".concat(config.folderPath));
         // 경로 정규화
         var normalizedPath = normalizePath(config.folderPath);
         // 폴더 유효성 검사
@@ -84,7 +128,8 @@ var AudioFileProcessor = (function () {
         });
         // 이름 순으로 정렬
         filteredFiles.sort(function (a, b) { return a.name.localeCompare(b.name); });
-        window.JSCUtils.logDebug("Filtered ".concat(filteredFiles.length, " files from ").concat(files.length, " total"));
+        var utils = getUtils();
+        utils.logDebug("Filtered ".concat(filteredFiles.length, " files from ").concat(files.length, " total"));
         return filteredFiles;
     }
     /**
@@ -150,9 +195,11 @@ var AudioFileProcessor = (function () {
     function requestAudioFilesFromHost(command) {
         // 이 부분은 기존 communication 시스템을 활용
         var commandJson = JSON.stringify(command);
-        // 임시로 기존 방식 사용 (나중에 개선)
-        window.JSCCommunication.callExtendScript("getAudioFilesAdvanced(".concat(JSON.stringify(commandJson), ")"), function (result) {
-            window.JSCUtils.logDebug('Audio files result received: ' + result);
+        // DI 서비스 사용으로 개선
+        var communication = getCommunication();
+        var utils = getUtils();
+        communication.callExtendScript("getAudioFilesAdvanced(".concat(JSON.stringify(commandJson), ")"), function (result) {
+            utils.logDebug('Audio files result received: ' + result);
         });
         // 동기적 처리를 위한 임시 구현 (실제로는 비동기로 처리)
         return {
@@ -196,6 +243,23 @@ var AudioFileProcessor = (function () {
         var i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
+    // DI 상태 확인 함수 (디버깅용)
+    function getDIStatus() {
+        var dependencies = [];
+        if (utilsService)
+            dependencies.push('JSCUtils (DI)');
+        else if (window.JSCUtils)
+            dependencies.push('JSCUtils (Legacy)');
+        if (communicationService)
+            dependencies.push('JSCCommunication (DI)');
+        else if (window.JSCCommunication)
+            dependencies.push('JSCCommunication (Legacy)');
+        return {
+            isDIAvailable: !!diContainer,
+            containerInfo: diContainer ? 'DI Container active' : 'Legacy mode',
+            dependencies: dependencies
+        };
+    }
     // 공개 API 반환
     return {
         processAudioFolder: processAudioFolder,
@@ -203,7 +267,8 @@ var AudioFileProcessor = (function () {
         isSupportedAudioFile: isSupportedAudioFile,
         filterAudioFiles: filterAudioFiles,
         createAudioFileInfo: createAudioFileInfo,
-        formatFileSize: formatFileSize
+        formatFileSize: formatFileSize,
+        getDIStatus: getDIStatus // DI 패턴 적용
     };
 })();
 // 전역 접근을 위해 window 객체에 노출

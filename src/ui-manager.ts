@@ -20,10 +20,40 @@ interface JSCUIManagerInterface {
     showDebugInfo(): void;
     resetDebugUI(): void;
     updateThemeWithAppSkinInfo(csInterface: any): void;
+    getDIStatus(): { isDIAvailable: boolean; dependencies: string[] }; // Phase 2.1
 }
 
 const JSCUIManager = (function(): JSCUIManagerInterface {
     'use strict';
+    
+    // DI 컨테이너에서 의존성 가져오기 (옵션)
+    let diContainer: any = null;
+    let utilsService: any = null;
+    let eventService: any = null;
+    
+    try {
+        diContainer = (window as any).DI;
+        if (diContainer) {
+            // DI에서 서비스 가져오기 시도
+            utilsService = diContainer.getSafe('JSCUtils');
+            eventService = diContainer.getSafe('JSCEventManager');
+        }
+    } catch (e) {
+        // DI 사용 불가시 레거시 모드로 작동
+    }
+    
+    // 유틸리티 서비스 가져오기 (DI 우선, 레거시 fallback)
+    function getUtils(): any {
+        return utilsService || window.JSCUtils || {
+            getShortPath: (path: string) => path,
+            isValidPath: (path: string) => !!path
+        };
+    }
+    
+    // 이벤트 서비스 가져오기 (DI 우선, 레거시 fallback)
+    function getEventManager(): any {
+        return eventService || window.JSCEventManager || null;
+    }
     
     // 상태 메시지 업데이트
     function updateStatus(message: string, isSuccess?: boolean): void {
@@ -101,7 +131,8 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
         container.innerHTML = ""; // 이전 버튼들 제거
         
         if (folderPathSpan && currentFolderPath) {
-            folderPathSpan.textContent = window.JSCUtils.getShortPath(currentFolderPath);
+            const utils = getUtils();
+            folderPathSpan.textContent = utils.getShortPath(currentFolderPath);
         }
 
         if (soundFiles && soundFiles.length > 0) {
@@ -112,8 +143,9 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
                     button.setAttribute("data-fsname", soundFile.fsName);
                     button.addEventListener("click", function(event: Event) {
                         // 이벤트는 나중에 event-manager에서 처리하도록 위임
-                        if (window.JSCEventManager && window.JSCEventManager.handleSoundFileButtonClick) {
-                            window.JSCEventManager.handleSoundFileButtonClick(event);
+                        const eventManager = getEventManager();
+                        if (eventManager && eventManager.handleSoundFileButtonClick) {
+                            eventManager.handleSoundFileButtonClick(event);
                         }
                     });
                     container.appendChild(button);
@@ -135,7 +167,8 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
         }
         
         if (refreshButton) {
-            refreshButton.disabled = !path || !window.JSCUtils.isValidPath(path);
+            const utils = getUtils();
+            refreshButton.disabled = !path || !utils.isValidPath(path);
         }
     }
     
@@ -205,6 +238,22 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
         }
     }
     
+    // DI 상태 확인 함수 (디버깅용) - Phase 2.1
+    function getDIStatus(): { isDIAvailable: boolean; dependencies: string[] } {
+        const dependencies: string[] = [];
+        
+        if (utilsService) dependencies.push('JSCUtils (DI)');
+        else if (window.JSCUtils) dependencies.push('JSCUtils (Legacy)');
+        
+        if (eventService) dependencies.push('JSCEventManager (DI)');
+        else if (window.JSCEventManager) dependencies.push('JSCEventManager (Legacy)');
+        
+        return {
+            isDIAvailable: !!diContainer,
+            dependencies: dependencies
+        };
+    }
+    
     // 공개 API
     return {
         updateStatus: updateStatus,
@@ -215,7 +264,8 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
         toggleDebugButton: toggleDebugButton,
         showDebugInfo: showDebugInfo,
         resetDebugUI: resetDebugUI,
-        updateThemeWithAppSkinInfo: updateThemeWithAppSkinInfo
+        updateThemeWithAppSkinInfo: updateThemeWithAppSkinInfo,
+        getDIStatus: getDIStatus // Phase 2.1
     };
 })();
 

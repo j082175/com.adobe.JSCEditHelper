@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phase 2 Final Integration Test - JSC Edit Helper DI System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #2d2d2d;
+            color: #ffffff;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #3a3a3a;
+            border-radius: 8px;
+        }
+        .module-section {
+            margin-bottom: 25px;
+            padding: 20px;
+            background-color: #3a3a3a;
+            border-radius: 8px;
+            border-left: 4px solid #007acc;
+        }
+        .module-card {
+            background-color: #4a4a4a;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border: 1px solid #555;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-ready { background-color: #28a745; }
+        .status-partial { background-color: #ffc107; }
+        .status-error { background-color: #dc3545; }
+        .dependencies {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #cccccc;
+        }
+        .dependency-item {
+            display: inline-block;
+            margin: 2px 5px;
+            padding: 3px 8px;
+            background-color: #555;
+            border-radius: 12px;
+            font-size: 0.8em;
+        }
+        .dependency-di { background-color: #28a745; }
+        .dependency-legacy { background-color: #6c757d; }
+        .test-button {
+            background-color: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background-color: #005a9e;
+        }
+        .stats-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .stat-card {
+            background-color: #4a4a4a;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .communication-test {
+            background-color: #3a3a3a;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+        .test-result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            background-color: #2a2a2a;
+            font-family: monospace;
+            font-size: 0.9em;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <div class="test-header">
+            <h1>🧪 Phase 2 Final Integration Test</h1>
+            <p>전체 DI 시스템 통합 테스트 및 검증</p>
+            <div>
+                <button class="test-button" onclick="runFullSystemTest()">🚀 전체 시스템 테스트</button>
+                <button class="test-button" onclick="testCrossModuleCommunication()">🔄 모듈 간 통신 테스트</button>
+                <button class="test-button" onclick="refreshModuleStatus()">🔄 상태 새로고침</button>
+            </div>
+        </div>
+
+        <!-- 시스템 통계 -->
+        <div class="stats-section" id="systemStats">
+            <div class="stat-card">
+                <div class="stat-number" id="totalModules">0</div>
+                <div>총 모듈 수</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="diEnabledModules">0</div>
+                <div>DI 활성화 모듈</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="legacyModules">0</div>
+                <div>레거시 모드 모듈</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="diCoverage">0%</div>
+                <div>DI 적용률</div>
+            </div>
+        </div>
+
+        <!-- 모듈별 상태 -->
+        <div class="module-section">
+            <h2>📦 모듈별 DI 상태</h2>
+            <div id="moduleStatus"></div>
+        </div>
+
+        <!-- 의존성 네트워크 -->
+        <div class="module-section">
+            <h2>🔗 의존성 네트워크</h2>
+            <div id="dependencyNetwork"></div>
+        </div>
+
+        <!-- 크로스 모듈 통신 테스트 -->
+        <div class="module-section">
+            <h2>🔄 크로스 모듈 통신 테스트</h2>
+            <div id="communicationTests"></div>
+        </div>
+
+        <!-- 전체 시스템 테스트 결과 -->
+        <div class="module-section">
+            <h2>📊 시스템 테스트 결과</h2>
+            <div id="systemTestResults"></div>
+        </div>
+    </div>
+
+    <!-- 필수 스크립트 로드 -->
+    <script src="js/di-container.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/ui-manager.js"></script>
+    <script src="js/state-manager.js"></script>
+    <script src="js/communication.js"></script>
+    <script src="js/event-manager.js"></script>
+    <script src="js/error-handler.js"></script>
+    <script src="js/sound-engine.js"></script>
+    <script src="js/audio-file-processor.js"></script>
+    <script src="js/clip-time-calculator.js"></script>
+
+    <script>
+        let testResults = {};
+        let moduleStatuses = {};
+
+        // 모듈 목록 정의
+        const modules = [
+            'JSCUtils',
+            'JSCUIManager', 
+            'JSCStateManager',
+            'JSCCommunication',
+            'JSCEventManager',
+            'JSCErrorHandler',
+            'SoundEngine',
+            'AudioFileProcessor',
+            'ClipTimeCalculator'
+        ];
+
+        // 페이지 로드 시 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Phase 2 Final Integration Test 시작');
+            initializeTest();
+        });
+
+        function initializeTest() {
+            // DI 컨테이너 상태 확인
+            if (window.DI) {
+                console.log('✓ DI Container 사용 가능');
+            } else {
+                console.error('✗ DI Container 없음');
+            }
+
+            // 초기 모듈 상태 수집
+            refreshModuleStatus();
+        }
+
+        function refreshModuleStatus() {
+            console.log('모듈 상태 새로고침 중...');
+            moduleStatuses = {};
+
+            modules.forEach(moduleName => {
+                const module = window[moduleName];
+                if (module) {
+                    let status = {
+                        available: true,
+                        hasDIStatus: typeof module.getDIStatus === 'function',
+                        diInfo: null
+                    };
+
+                    if (status.hasDIStatus) {
+                        try {
+                            status.diInfo = module.getDIStatus();
+                        } catch (e) {
+                            console.warn(`${moduleName} getDIStatus 오류:`, e);
+                            status.diInfo = { error: e.message };
+                        }
+                    }
+
+                    moduleStatuses[moduleName] = status;
+                } else {
+                    moduleStatuses[moduleName] = { available: false };
+                }
+            });
+
+            updateUI();
+        }
+
+        function updateUI() {
+            updateSystemStats();
+            updateModuleStatusDisplay();
+            updateDependencyNetwork();
+        }
+
+        function updateSystemStats() {
+            const totalModules = modules.length;
+            let diEnabled = 0;
+            let legacy = 0;
+
+            Object.values(moduleStatuses).forEach(status => {
+                if (status.available && status.diInfo) {
+                    if (status.diInfo.isDIAvailable) {
+                        diEnabled++;
+                    } else {
+                        legacy++;
+                    }
+                }
+            });
+
+            const diCoverage = totalModules > 0 ? Math.round((diEnabled / totalModules) * 100) : 0;
+
+            document.getElementById('totalModules').textContent = totalModules;
+            document.getElementById('diEnabledModules').textContent = diEnabled;
+            document.getElementById('legacyModules').textContent = legacy;
+            document.getElementById('diCoverage').textContent = diCoverage + '%';
+        }
+
+        function updateModuleStatusDisplay() {
+            const container = document.getElementById('moduleStatus');
+            container.innerHTML = '';
+
+            modules.forEach(moduleName => {
+                const status = moduleStatuses[moduleName];
+                const card = document.createElement('div');
+                card.className = 'module-card';
+
+                let statusClass = 'status-error';
+                let statusText = '사용 불가';
+
+                if (status.available) {
+                    if (status.diInfo) {
+                        statusClass = status.diInfo.isDIAvailable ? 'status-ready' : 'status-partial';
+                        statusText = status.diInfo.containerInfo || (status.diInfo.isDIAvailable ? 'DI 활성' : '레거시 모드');
+                    } else {
+                        statusClass = 'status-partial';
+                        statusText = '상태 확인 불가';
+                    }
+                }
+
+                card.innerHTML = `
+                    <div>
+                        <span class="status-indicator ${statusClass}"></span>
+                        <strong>${moduleName}</strong>
+                        <span style="float: right; color: #999;">${statusText}</span>
+                    </div>
+                    ${status.available && status.diInfo && status.diInfo.dependencies ? `
+                        <div class="dependencies">
+                            의존성: ${status.diInfo.dependencies.map(dep => `
+                                <span class="dependency-item ${dep.includes('(DI)') ? 'dependency-di' : 'dependency-legacy'}">${dep}</span>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                `;
+
+                container.appendChild(card);
+            });
+        }
+
+        function updateDependencyNetwork() {
+            const container = document.getElementById('dependencyNetwork');
+            const networkInfo = analyzeDependencyNetwork();
+            
+            container.innerHTML = `
+                <div class="module-card">
+                    <h4>의존성 분석</h4>
+                    <p>총 의존성 연결: <strong>${networkInfo.totalConnections}</strong></p>
+                    <p>DI 연결: <strong>${networkInfo.diConnections}</strong></p>
+                    <p>레거시 연결: <strong>${networkInfo.legacyConnections}</strong></p>
+                    <p>DI 연결률: <strong>${networkInfo.diCoverage}%</strong></p>
+                </div>
+            `;
+        }
+
+        function analyzeDependencyNetwork() {
+            let totalConnections = 0;
+            let diConnections = 0;
+            let legacyConnections = 0;
+
+            Object.values(moduleStatuses).forEach(status => {
+                if (status.available && status.diInfo && status.diInfo.dependencies) {
+                    status.diInfo.dependencies.forEach(dep => {
+                        totalConnections++;
+                        if (dep.includes('(DI)')) {
+                            diConnections++;
+                        } else {
+                            legacyConnections++;
+                        }
+                    });
+                }
+            });
+
+            const diCoverage = totalConnections > 0 ? Math.round((diConnections / totalConnections) * 100) : 0;
+
+            return {
+                totalConnections,
+                diConnections,
+                legacyConnections,
+                diCoverage
+            };
+        }
+
+        function testCrossModuleCommunication() {
+            console.log('크로스 모듈 통신 테스트 시작');
+            
+            const tests = [
+                {
+                    name: 'DI Container 서비스 해결',
+                    test: () => {
+                        if (!window.DI) return { success: false, message: 'DI Container 없음' };
+                        
+                        const utilsService = window.DI.getSafe('JSCUtils');
+                        const uiService = window.DI.getSafe('JSCUIManager');
+                        
+                        return {
+                            success: !!(utilsService && uiService),
+                            message: `Utils: ${!!utilsService}, UI: ${!!uiService}`
+                        };
+                    }
+                },
+                {
+                    name: '모듈 간 DI 통신',
+                    test: () => {
+                        try {
+                            // UI Manager에서 Utils 서비스 사용 테스트
+                            if (window.JSCUIManager && window.JSCUIManager.getDIStatus) {
+                                const diStatus = window.JSCUIManager.getDIStatus();
+                                return {
+                                    success: true,
+                                    message: `DI 상태: ${diStatus.isDIAvailable ? '활성' : '비활성'}`
+                                };
+                            }
+                            return { success: false, message: 'UI Manager DI 상태 확인 불가' };
+                        } catch (e) {
+                            return { success: false, message: e.message };
+                        }
+                    }
+                },
+                {
+                    name: 'Error Handler 통합',
+                    test: () => {
+                        try {
+                            if (window.JSCErrorHandler && window.JSCErrorHandler.getDIStatus) {
+                                const diStatus = window.JSCErrorHandler.getDIStatus();
+                                return {
+                                    success: true,
+                                    message: `Error Handler DI: ${diStatus.isDIAvailable ? '활성' : '비활성'}`
+                                };
+                            }
+                            return { success: false, message: 'Error Handler 없음' };
+                        } catch (e) {
+                            return { success: false, message: e.message };
+                        }
+                    }
+                },
+                {
+                    name: 'Sound Engine 통합',
+                    test: () => {
+                        try {
+                            if (window.SoundEngine && window.SoundEngine.getDIStatus) {
+                                const diStatus = window.SoundEngine.getDIStatus();
+                                return {
+                                    success: true,
+                                    message: `Sound Engine DI: ${diStatus.isDIAvailable ? '활성' : '비활성'}`
+                                };
+                            }
+                            return { success: false, message: 'Sound Engine 없음' };
+                        } catch (e) {
+                            return { success: false, message: e.message };
+                        }
+                    }
+                }
+            ];
+
+            const container = document.getElementById('communicationTests');
+            container.innerHTML = '';
+
+            tests.forEach(testCase => {
+                const result = testCase.test();
+                const testDiv = document.createElement('div');
+                testDiv.className = 'communication-test';
+                testDiv.innerHTML = `
+                    <div>
+                        <span class="status-indicator ${result.success ? 'status-ready' : 'status-error'}"></span>
+                        <strong>${testCase.name}</strong>
+                    </div>
+                    <div class="test-result">${result.message}</div>
+                `;
+                container.appendChild(testDiv);
+            });
+        }
+
+        function runFullSystemTest() {
+            console.log('전체 시스템 테스트 실행');
+            
+            const results = {
+                timestamp: new Date().toISOString(),
+                diContainer: !!window.DI,
+                modulesLoaded: 0,
+                modulesWithDI: 0,
+                totalDependencies: 0,
+                diDependencies: 0,
+                tests: []
+            };
+
+            // 모듈 로드 상태 확인
+            modules.forEach(moduleName => {
+                if (window[moduleName]) {
+                    results.modulesLoaded++;
+                    
+                    const status = moduleStatuses[moduleName];
+                    if (status && status.diInfo && status.diInfo.isDIAvailable) {
+                        results.modulesWithDI++;
+                    }
+                    
+                    if (status && status.diInfo && status.diInfo.dependencies) {
+                        status.diInfo.dependencies.forEach(dep => {
+                            results.totalDependencies++;
+                            if (dep.includes('(DI)')) {
+                                results.diDependencies++;
+                            }
+                        });
+                    }
+                }
+            });
+
+            // 전체 시스템 테스트 수행
+            const systemTests = [
+                {
+                    name: 'DI Container 초기화',
+                    success: !!window.DI,
+                    message: window.DI ? 'DI Container 활성화됨' : 'DI Container 없음'
+                },
+                {
+                    name: '핵심 모듈 로드',
+                    success: results.modulesLoaded >= 5,
+                    message: `${results.modulesLoaded}/${modules.length} 모듈 로드됨`
+                },
+                {
+                    name: 'DI 적용률',
+                    success: (results.modulesWithDI / results.modulesLoaded) >= 0.7,
+                    message: `${Math.round((results.modulesWithDI / results.modulesLoaded) * 100)}% DI 적용`
+                },
+                {
+                    name: '의존성 DI 전환율',
+                    success: results.totalDependencies > 0 && (results.diDependencies / results.totalDependencies) >= 0.5,
+                    message: `${Math.round((results.diDependencies / results.totalDependencies) * 100)}% 의존성이 DI로 전환됨`
+                }
+            ];
+
+            results.tests = systemTests;
+
+            // 결과 표시
+            const container = document.getElementById('systemTestResults');
+            container.innerHTML = `
+                <div class="test-result">
+=== Phase 2 Final Integration Test Results ===
+테스트 시간: ${results.timestamp}
+
+DI Container: ${results.diContainer ? '✓ 활성화됨' : '✗ 비활성화됨'}
+모듈 로드: ${results.modulesLoaded}/${modules.length}
+DI 적용 모듈: ${results.modulesWithDI}/${results.modulesLoaded}
+총 의존성: ${results.totalDependencies}
+DI 의존성: ${results.diDependencies}
+
+테스트 결과:
+${systemTests.map(test => `${test.success ? '✓' : '✗'} ${test.name}: ${test.message}`).join('\n')}
+
+전체 평가: ${systemTests.every(test => test.success) ? '✅ 성공 - Phase 2 DI 전환 완료!' : '⚠️  일부 항목 미완성'}
+                </div>
+            `;
+
+            // 콘솔에도 출력
+            console.log('Phase 2 Final Integration Test 완료:', results);
+        }
+    </script>
+</body>
+</html>

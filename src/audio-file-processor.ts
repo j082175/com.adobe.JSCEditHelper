@@ -26,6 +26,56 @@ interface AudioProcessingConfig {
 }
 
 const AudioFileProcessor = (function() {
+    'use strict';
+    
+    // DI 컨테이너에서 의존성 가져오기 (옵션)
+    let diContainer: any = null;
+    let utilsService: any = null;
+    let communicationService: any = null;
+    
+    function initializeDIDependencies() {
+        try {
+            diContainer = (window as any).DI;
+            if (diContainer) {
+                // DI에서 서비스 가져오기 시도
+                utilsService = diContainer.getSafe('JSCUtils');
+                communicationService = diContainer.getSafe('JSCCommunication');
+            }
+        }
+        catch (e) {
+            // DI 사용 불가시 레거시 모드로 작동
+        }
+    }
+    
+    // 초기화 시도 (즉시 및 지연)
+    initializeDIDependencies();
+    
+    // 앱 초기화 후에 DI 서비스 재시도
+    if (typeof window !== 'undefined') {
+        setTimeout(() => {
+            if (!utilsService || !communicationService) {
+                initializeDIDependencies();
+            }
+        }, 100);
+    }
+    
+    // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
+    function getUtils() {
+        return utilsService || (window as any).JSCUtils || {
+            logDebug: (msg: string) => { console.log('[DEBUG]', msg); },
+            logWarn: (msg: string) => { console.warn('[WARN]', msg); },
+            logInfo: (msg: string) => { console.info('[INFO]', msg); }
+        };
+    }
+    
+    function getCommunication() {
+        return communicationService || (window as any).JSCCommunication || {
+            callExtendScript: (_script: string, callback: (result: string) => void) => { 
+                callback('error: Communication service not available'); 
+            }
+        };
+    }
+    
     const DEFAULT_EXTENSIONS = [
         '.wav', '.mp3', '.aif', '.aiff', '.m4a',
         '.WAV', '.MP3', '.AIF', '.AIFF', '.M4A'
@@ -37,7 +87,8 @@ const AudioFileProcessor = (function() {
      * 폴더에서 오디오 파일을 검색하고 필터링
      */
     function processAudioFolder(config: AudioProcessingConfig): AudioFolderResult {
-        window.JSCUtils.logDebug(`Audio folder processing started: ${config.folderPath}`);
+        const utils = getUtils();
+        utils.logDebug(`Audio folder processing started: ${config.folderPath}`);
         
         // 경로 정규화
         const normalizedPath = normalizePath(config.folderPath);
@@ -122,7 +173,8 @@ const AudioFileProcessor = (function() {
         // 이름 순으로 정렬
         filteredFiles.sort((a, b) => a.name.localeCompare(b.name));
 
-        window.JSCUtils.logDebug(`Filtered ${filteredFiles.length} files from ${files.length} total`);
+        const utils = getUtils();
+        utils.logDebug(`Filtered ${filteredFiles.length} files from ${files.length} total`);
         return filteredFiles;
     }
 
@@ -200,11 +252,13 @@ const AudioFileProcessor = (function() {
         // 이 부분은 기존 communication 시스템을 활용
         const commandJson = JSON.stringify(command);
         
-        // 임시로 기존 방식 사용 (나중에 개선)
-        window.JSCCommunication.callExtendScript(
+        // DI 서비스 사용으로 개선
+        const communication = getCommunication();
+        const utils = getUtils();
+        communication.callExtendScript(
             `getAudioFilesAdvanced(${JSON.stringify(commandJson)})`,
             (result: string) => {
-                window.JSCUtils.logDebug('Audio files result received: ' + result);
+                utils.logDebug('Audio files result received: ' + result);
             }
         );
 
@@ -256,6 +310,26 @@ const AudioFileProcessor = (function() {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 
+    // DI 상태 확인 함수 (디버깅용)
+    function getDIStatus() {
+        const dependencies: string[] = [];
+        if (utilsService) 
+            dependencies.push('JSCUtils (DI)');
+        else if ((window as any).JSCUtils)
+            dependencies.push('JSCUtils (Legacy)');
+        
+        if (communicationService)
+            dependencies.push('JSCCommunication (DI)');  
+        else if ((window as any).JSCCommunication)
+            dependencies.push('JSCCommunication (Legacy)');
+            
+        return {
+            isDIAvailable: !!diContainer,
+            containerInfo: diContainer ? 'DI Container active' : 'Legacy mode',
+            dependencies: dependencies
+        };
+    }
+
     // 공개 API 반환
     return {
         processAudioFolder,
@@ -263,7 +337,8 @@ const AudioFileProcessor = (function() {
         isSupportedAudioFile,
         filterAudioFiles,
         createAudioFileInfo,
-        formatFileSize
+        formatFileSize,
+        getDIStatus // DI 패턴 적용
     };
 })();
 

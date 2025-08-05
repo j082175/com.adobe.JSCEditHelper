@@ -51,13 +51,78 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
     }
 };
 var SoundEngine = (function () {
+    'use strict';
+    // DI 컨테이너에서 의존성 가져오기 (옵션)
+    var diContainer = null;
+    var utilsService = null;
+    var communicationService = null;
+    var uiService = null;
+    var clipCalculatorService = null;
+    function initializeDIDependencies() {
+        try {
+            diContainer = window.DI;
+            if (diContainer) {
+                // DI에서 서비스 가져오기 시도
+                utilsService = diContainer.getSafe('JSCUtils');
+                communicationService = diContainer.getSafe('JSCCommunication');
+                uiService = diContainer.getSafe('JSCUIManager');
+                clipCalculatorService = diContainer.getSafe('ClipTimeCalculator');
+            }
+        }
+        catch (e) {
+            // DI 사용 불가시 레거시 모드로 작동
+        }
+    }
+    // 초기화 시도 (즉시 및 지연)
+    initializeDIDependencies();
+    // 앱 초기화 후에 DI 서비스 재시도
+    if (typeof window !== 'undefined') {
+        setTimeout(function () {
+            if (!utilsService || !communicationService || !uiService || !clipCalculatorService) {
+                initializeDIDependencies();
+            }
+        }, 100);
+    }
+    // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
+    function getUtils() {
+        return utilsService || window.JSCUtils || {
+            isValidPath: function (path) { return !!path; },
+            safeJSONParse: function (str) {
+                try {
+                    return JSON.parse(str);
+                }
+                catch (e) {
+                    return null;
+                }
+            }
+        };
+    }
+    function getCommunication() {
+        return communicationService || window.JSCCommunication || {
+            callExtendScript: function (_script, callback) {
+                callback('error: Communication service not available');
+            }
+        };
+    }
+    function getUIManager() {
+        return uiService || window.JSCUIManager || {
+            updateStatus: function (msg, _success) { console.log('Status:', msg); }
+        };
+    }
+    function getClipCalculator() {
+        return clipCalculatorService || window.ClipTimeCalculator || {
+            createInsertionPlan: function () { return ({ totalInsertions: 0 }); },
+            createMagnetPlan: function () { return ({ totalMoved: 0, gapsRemoved: 0 }); },
+            formatDuration: function (duration) { return duration + 'ms'; }
+        };
+    }
     var requestCounter = 0;
     /**
      * 효과음 삽입 전체 프로세스 실행
      */
     function executeSoundInsertion(config) {
         return __awaiter(this, void 0, void 0, function () {
-            var startTime, debugInfo, validation, audioResult, audioFiles, clipsResult, clips, audioTrackNumber, insertionPlan, command, executionResult, executionTime, result, error_1, executionTime;
+            var startTime, debugInfo, validation, audioResult, audioFiles, clipsResult, clips, audioTrackNumber, clipCalculator, insertionPlan, command, executionResult, executionTime, result, error_1, executionTime;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
@@ -104,7 +169,8 @@ var SoundEngine = (function () {
                         clips = clipsResult.data;
                         debugInfo += "\uC120\uD0DD\uB41C \uD074\uB9BD: ".concat(clips.length, "\uAC1C\n");
                         audioTrackNumber = parseAudioTrack(config.audioTrack);
-                        insertionPlan = window.ClipTimeCalculator.createInsertionPlan(clips, audioFiles, audioTrackNumber);
+                        clipCalculator = getClipCalculator();
+                        insertionPlan = clipCalculator.createInsertionPlan(clips, audioFiles, audioTrackNumber);
                         if (insertionPlan.totalInsertions === 0) {
                             return [2 /*return*/, {
                                     success: false,
@@ -112,7 +178,7 @@ var SoundEngine = (function () {
                                     debug: debugInfo + "삽입 계획 생성 실패: 삽입 위치 없음\n"
                                 }];
                         }
-                        debugInfo += "\uC0BD\uC785 \uACC4\uD68D: ".concat(insertionPlan.totalInsertions, "\uAC1C \uC704\uCE58, \uC608\uC0C1 \uC2DC\uAC04: ").concat(window.ClipTimeCalculator.formatDuration(insertionPlan.estimatedDuration), "\n");
+                        debugInfo += "\uC0BD\uC785 \uACC4\uD68D: ".concat(insertionPlan.totalInsertions, "\uAC1C \uC704\uCE58, \uC608\uC0C1 \uC2DC\uAC04: ").concat(clipCalculator.formatDuration(insertionPlan.estimatedDuration), "\n");
                         command = createInsertionCommand(insertionPlan, config);
                         debugInfo += "ExtendScript \uBA85\uB839 \uC0DD\uC131 \uC644\uB8CC\n";
                         return [4 /*yield*/, executeExtendScriptCommand(command)];
@@ -168,7 +234,7 @@ var SoundEngine = (function () {
      */
     function executeMagnetClips() {
         return __awaiter(this, void 0, void 0, function () {
-            var startTime, debugInfo, clipsResult, clips, magnetPlan, command, executionResult, executionTime, error_2, executionTime;
+            var startTime, debugInfo, clipsResult, clips, clipCalculator, magnetPlan, command, executionResult, executionTime, error_2, executionTime;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
@@ -189,7 +255,8 @@ var SoundEngine = (function () {
                         }
                         clips = clipsResult.data;
                         debugInfo += "\uC2DC\uD000\uC2A4 \uB0B4 \uD074\uB9BD: ".concat(clips.length, "\uAC1C\n");
-                        magnetPlan = window.ClipTimeCalculator.createMagnetPlan(clips);
+                        clipCalculator = getClipCalculator();
+                        magnetPlan = clipCalculator.createMagnetPlan(clips);
                         if (magnetPlan.totalMoved === 0) {
                             return [2 /*return*/, {
                                     success: true,
@@ -244,8 +311,11 @@ var SoundEngine = (function () {
         if (!config.folderPath || typeof config.folderPath !== 'string') {
             errors.push('폴더 경로가 필요합니다');
         }
-        else if (!window.JSCUtils.isValidPath(config.folderPath)) {
-            errors.push('유효하지 않은 폴더 경로입니다');
+        else {
+            var utils = getUtils();
+            if (!utils.isValidPath(config.folderPath)) {
+                errors.push('유효하지 않은 폴더 경로입니다');
+            }
         }
         // 오디오 트랙 검증
         if (config.audioTrack === undefined || config.audioTrack === null) {
@@ -420,7 +490,8 @@ var SoundEngine = (function () {
                         var logEntry1 = "\uD83D\uDD27 ExtendScript \uD638\uCD9C: ".concat(jsxFunction);
                         console.log(logEntry1);
                         debugLog += logEntry1 + "\n";
-                        window.JSCCommunication.callExtendScript(jsxFunction, function (result) {
+                        var communication = getCommunication();
+                        communication.callExtendScript(jsxFunction, function (result) {
                             try {
                                 var logEntry2 = "\uD83D\uDD27 ExtendScript \uC6D0\uBCF8 \uC751\uB2F5: ".concat(result);
                                 var logEntry3 = "\uD83D\uDD27 \uC751\uB2F5 \uD0C0\uC785: ".concat(typeof result);
@@ -443,7 +514,8 @@ var SoundEngine = (function () {
                                     return;
                                 }
                                 // JSON 응답 파싱 시도
-                                var parsedResult = window.JSCUtils.safeJSONParse(result);
+                                var utils = getUtils();
+                                var parsedResult = utils.safeJSONParse(result);
                                 var logEntry6 = "\uD83D\uDD27 JSON \uD30C\uC2F1 \uACB0\uACFC: ".concat(JSON.stringify(parsedResult));
                                 console.log(logEntry6);
                                 debugLog += logEntry6 + "\n";
@@ -503,26 +575,60 @@ var SoundEngine = (function () {
     function getEngineStatus() {
         var dependencies = [];
         var isReady = true;
-        // 필수 의존성 체크
-        if (!window.JSCUtils) {
+        // 필수 의존성 체크 (DI 우선, 레거시 fallback)
+        var utils = getUtils();
+        var communication = getCommunication();
+        var uiManager = getUIManager();
+        var clipCalculator = getClipCalculator();
+        if (!utils || (!utilsService && !window.JSCUtils)) {
             dependencies.push('JSCUtils');
             isReady = false;
         }
-        if (!window.JSCCommunication) {
+        if (!communication || (!communicationService && !window.JSCCommunication)) {
             dependencies.push('JSCCommunication');
             isReady = false;
         }
-        if (!window.JSCUIManager) {
+        if (!uiManager || (!uiService && !window.JSCUIManager)) {
             dependencies.push('JSCUIManager');
             isReady = false;
         }
+        if (!clipCalculator || (!clipCalculatorService && !window.ClipTimeCalculator)) {
+            dependencies.push('ClipTimeCalculator');
+            isReady = false;
+        }
         return { isReady: isReady, dependencies: dependencies };
+    }
+    // DI 상태 확인 함수 (디버깅용) - Phase 2.6
+    function getDIStatus() {
+        var dependencies = [];
+        if (utilsService)
+            dependencies.push('JSCUtils (DI)');
+        else if (window.JSCUtils)
+            dependencies.push('JSCUtils (Legacy)');
+        if (communicationService)
+            dependencies.push('JSCCommunication (DI)');
+        else if (window.JSCCommunication)
+            dependencies.push('JSCCommunication (Legacy)');
+        if (uiService)
+            dependencies.push('JSCUIManager (DI)');
+        else if (window.JSCUIManager)
+            dependencies.push('JSCUIManager (Legacy)');
+        if (clipCalculatorService)
+            dependencies.push('ClipTimeCalculator (DI)');
+        else if (window.ClipTimeCalculator)
+            dependencies.push('ClipTimeCalculator (Legacy)');
+        return {
+            isDIAvailable: !!diContainer,
+            containerInfo: diContainer ? 'DI Container active' : 'Legacy mode',
+            dependencies: dependencies
+        };
     }
     // 공개 API 반환
     return {
         executeSoundInsertion: executeSoundInsertion,
         executeMagnetClips: executeMagnetClips,
-        getEngineStatus: getEngineStatus
+        getEngineStatus: getEngineStatus,
+        getDIStatus: getDIStatus // Phase 2.6
     };
 })();
 // 전역 접근을 위해 window 객체에 노출

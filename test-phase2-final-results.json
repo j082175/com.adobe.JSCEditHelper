@@ -1,0 +1,320 @@
+{
+  "timestamp": "2025-08-05T10:23:37.704Z",
+  "totalTests": 6,
+  "passedTests": 4,
+  "failedTests": 2,
+  "tests": [
+    {
+      "name": "JavaScript 파일 존재 확인",
+      "success": true,
+      "message": "모든 필수 파일이 존재합니다 (9개)",
+      "details": null
+    },
+    {
+      "name": "TypeScript 소스 파일 확인",
+      "success": true,
+      "message": "모든 TypeScript 소스 파일이 존재합니다 (8개)",
+      "details": null
+    },
+    {
+      "name": "DI 패턴 변환 검증",
+      "success": true,
+      "message": "DI 패턴 변환률: 82% (23/28)",
+      "details": [
+        {
+          "file": "js/utils.js",
+          "diScore": 2,
+          "maxScore": 4,
+          "patterns": {
+            "diContainer": true,
+            "initializeDI": false,
+            "getDIStatus": true,
+            "serviceHelpers": false
+          }
+        },
+        {
+          "file": "js/ui-manager.js",
+          "diScore": 3,
+          "maxScore": 4,
+          "patterns": {
+            "diContainer": true,
+            "initializeDI": false,
+            "getDIStatus": true,
+            "serviceHelpers": true
+          }
+        },
+        {
+          "file": "js/state-manager.js",
+          "diScore": 3,
+          "maxScore": 4,
+          "patterns": {
+            "diContainer": true,
+            "initializeDI": false,
+            "getDIStatus": true,
+            "serviceHelpers": true
+          }
+        },
+        {
+          "file": "js/communication.js",
+          "diScore": 3,
+          "maxScore": 4,
+          "patterns": {
+            "diContainer": true,
+            "initializeDI": false,
+            "getDIStatus": true,
+            "serviceHelpers": true
+          }
+        },
+        {
+          "file": "js/event-manager.js",
+          "diScore": 4,
+          "maxScore": 4,
+          "patterns": {
+            "diContainer": true,
+            "initializeDI": true,
+            "getDIStatus": true,
+            "serviceHelpers": true
+          }
+        },
+        {
+          "file": "js/error-handler.js",
+          "diScore": 4,
+          "maxScore": 4,
+          "patterns": {
+            "diContainer": true,
+            "initializeDI": true,
+            "getDIStatus": true,
+            "serviceHelpers": true
+          }
+        },
+        {
+          "file": "js/sound-engine.js",
+          "diScore": 4,
+          "maxScore": 4,
+          "patterns": {
+            "diContainer": true,
+            "initializeDI": true,
+            "getDIStatus": true,
+            "serviceHelpers": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "레거시 코드 제거 검증",
+      "success": false,
+      "message": "직접적인 window 참조가 남아있는 파일: 7개",
+      "details": [
+        {
+          "file": "js/utils.js",
+          "patterns": [
+            "window.JSCUtils"
+          ],
+          "count": 1
+        },
+        {
+          "file": "js/ui-manager.js",
+          "patterns": [
+            "window.JSCUtil",
+            "window.JSCEventManage",
+            "window.JSCUtils",
+            "window.JSCEventManager",
+            "window.JSCUIManager"
+          ],
+          "count": 5
+        },
+        {
+          "file": "js/state-manager.js",
+          "patterns": [
+            "window.JSCUtil",
+            "window.JSCUIManage",
+            "window.JSCUtils",
+            "window.JSCUIManager",
+            "window.JSCStateManager"
+          ],
+          "count": 5
+        },
+        {
+          "file": "js/communication.js",
+          "patterns": [
+            "window.JSCUtil",
+            "window.JSCUIManage",
+            "window.JSCErrorHandle",
+            "window.JSCStateManage",
+            "window.JSCUtils",
+            "window.JSCUIManager",
+            "window.JSCErrorHandler",
+            "window.JSCStateManager",
+            "window.JSCCommunication"
+          ],
+          "count": 9
+        },
+        {
+          "file": "js/event-manager.js",
+          "patterns": [
+            "window.JSCUtil",
+            "window.JSCUIManage",
+            "window.JSCStateManage",
+            "window.JSCCommunicatio",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCStateManager",
+            "window.JSCCommunication",
+            "window.JSCStateManager",
+            "window.JSCStateManager",
+            "window.JSCStateManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCStateManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCStateManager",
+            "window.JSCUIManager",
+            "window.JSCStateManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUtils",
+            "window.JSCUIManager",
+            "window.JSCCommunication",
+            "window.JSCCommunication",
+            "window.JSCUtils",
+            "window.JSCUtils",
+            "window.JSCStateManager",
+            "window.JSCStateManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCStateManager",
+            "window.JSCUtils",
+            "window.JSCUtils",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUtils",
+            "window.JSCUtils",
+            "window.JSCCommunication",
+            "window.JSCUtils",
+            "window.JSCUIManager",
+            "window.JSCCommunication",
+            "window.JSCUtils",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUtils",
+            "window.JSCStateManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUtils",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUtils",
+            "window.JSCUIManager",
+            "window.JSCUtils",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUtils",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCCommunication",
+            "window.JSCCommunication",
+            "window.JSCCommunication",
+            "window.JSCCommunication",
+            "window.JSCCommunication",
+            "window.JSCUtils",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUIManager",
+            "window.JSCUtils",
+            "window.JSCUIManager",
+            "window.JSCStateManager",
+            "window.JSCCommunication",
+            "window.JSCEventManager"
+          ],
+          "count": 100
+        },
+        {
+          "file": "js/error-handler.js",
+          "patterns": [
+            "window.JSCUtil",
+            "window.JSCUIManage",
+            "window.JSCUtils",
+            "window.JSCUIManager",
+            "window.JSCErrorHandler"
+          ],
+          "count": 5
+        },
+        {
+          "file": "js/sound-engine.js",
+          "patterns": [
+            "window.JSCUtil",
+            "window.JSCCommunicatio",
+            "window.JSCUIManage",
+            "window.JSCUtils",
+            "window.JSCCommunication",
+            "window.JSCUIManager",
+            "window.JSCUtils",
+            "window.JSCCommunication",
+            "window.JSCUIManager"
+          ],
+          "count": 9
+        }
+      ]
+    },
+    {
+      "name": "테스트 파일 존재 확인",
+      "success": true,
+      "message": "테스트 파일: 3/3개 존재",
+      "details": [
+        "test-phase2-integration.html",
+        "test-phase2-final-integration.html",
+        "test-phase2-node.js"
+      ]
+    },
+    {
+      "name": "설정 파일 검증",
+      "success": false,
+      "message": "유효한 설정 파일: 1/3개",
+      "details": {
+        "valid": [
+          {
+            "file": "package.json",
+            "status": "valid JSON"
+          }
+        ],
+        "invalid": [
+          {
+            "file": "tsconfig.json",
+            "error": "Expected double-quoted property name in JSON at position 71 (line 3 column 47)"
+          },
+          {
+            "file": "manifest.xml",
+            "error": "file not found"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -32,10 +32,19 @@ interface JSCUtilsInterface {
     loadFromStorage(key: string): string | null;
     removeFromStorage(key: string): boolean;
     safeJSONParse(jsonString: string): any;
+    getDIStatus(): { isDIAvailable: boolean; containerInfo: string }; // Phase 1.2
 }
 
 const JSCUtils = (function(): JSCUtilsInterface {
     'use strict';
+    
+    // DI 컨테이너에서 의존성 가져오기 (옵션)
+    let diContainer: any = null;
+    try {
+        diContainer = (window as any).DI;
+    } catch (e) {
+        // DI 사용 불가시 레거시 모드로 작동
+    }
     
     // 설정 상수 (환경변수에서 읽어오거나 기본값 사용)
     const CONFIG: JSCConfig = {
@@ -53,23 +62,40 @@ const JSCUtils = (function(): JSCUtilsInterface {
     
     const currentLogLevel: LogLevel = CONFIG.DEBUG_MODE ? LogLevel.DEBUG : LogLevel.INFO;
     
-    // 로깅 함수
+    // 로깅 함수 (DI 지원)
     function log(level: LogLevel, message: string): void {
         if (level <= currentLogLevel && console) {
             const prefix = `[${CONFIG.APP_NAME}] `;
-            switch (level) {
-                case LogLevel.ERROR:
-                    console.error(prefix + "ERROR: " + message);
-                    break;
-                case LogLevel.WARN:
-                    console.warn(prefix + "WARN: " + message);
-                    break;
-                case LogLevel.INFO:
-                    console.info(prefix + "INFO: " + message);
-                    break;
-                case LogLevel.DEBUG:
-                    console.log(prefix + "DEBUG: " + message);
-                    break;
+            
+            // DI에서 로거 서비스를 가져오려고 시도 (확장성)
+            let logger = null;
+            if (diContainer) {
+                try {
+                    logger = diContainer.getSafe('Logger');
+                } catch (e) {
+                    // 로거 서비스 없음, console 사용
+                }
+            }
+            
+            if (logger && typeof logger.log === 'function') {
+                // DI 로거 사용
+                logger.log(level, prefix + message);
+            } else {
+                // 기본 console 사용
+                switch (level) {
+                    case LogLevel.ERROR:
+                        console.error(prefix + "ERROR: " + message);
+                        break;
+                    case LogLevel.WARN:
+                        console.warn(prefix + "WARN: " + message);
+                        break;
+                    case LogLevel.INFO:
+                        console.info(prefix + "INFO: " + message);
+                        break;
+                    case LogLevel.DEBUG:
+                        console.log(prefix + "DEBUG: " + message);
+                        break;
+                }
             }
         }
     }
@@ -192,6 +218,14 @@ const JSCUtils = (function(): JSCUtilsInterface {
         }
     }
     
+    // DI 상태 확인 함수 (디버깅용)
+    function getDIStatus(): { isDIAvailable: boolean; containerInfo: string } {
+        return {
+            isDIAvailable: !!diContainer,
+            containerInfo: diContainer ? 'DI Container active' : 'Legacy mode'
+        };
+    }
+    
     // 공개 API
     return {
         CONFIG: CONFIG,
@@ -207,7 +241,8 @@ const JSCUtils = (function(): JSCUtilsInterface {
         saveToStorage: saveToStorage,
         loadFromStorage: loadFromStorage,
         removeFromStorage: removeFromStorage,
-        safeJSONParse: safeJSONParse
+        safeJSONParse: safeJSONParse,
+        getDIStatus: getDIStatus // DI 상태 확인 (Phase 1.2)
     };
 })();
 

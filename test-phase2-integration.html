@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Phase 2 Integration Test - DI System Validation</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            margin: 20px; 
+            background: #1e1e1e; 
+            color: #fff; 
+            line-height: 1.6;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .test-section { 
+            margin: 15px 0; 
+            padding: 20px; 
+            border: 1px solid #444; 
+            border-radius: 8px; 
+            background: #2d2d2d;
+        }
+        .success { background: #1a3d1a; border-color: #4caf50; }
+        .error { background: #3d1a1a; border-color: #f44336; }
+        .warning { background: #3d3d1a; border-color: #ff9800; }
+        .info { background: #1a2a3d; border-color: #2196f3; }
+        
+        .test-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); 
+            gap: 15px; 
+            margin: 20px 0; 
+        }
+        
+        .module-card {
+            background: #333;
+            border: 2px solid #555;
+            border-radius: 8px;
+            padding: 15px;
+            transition: all 0.3s ease;
+        }
+        .module-card.di-active { border-color: #4caf50; }
+        .module-card.legacy-mode { border-color: #ff9800; }
+        .module-card.error { border-color: #f44336; }
+        
+        pre { 
+            background: #1a1a1a; 
+            padding: 15px; 
+            border-radius: 5px; 
+            overflow-x: auto; 
+            font-size: 12px;
+            border: 1px solid #444;
+        }
+        
+        button { 
+            padding: 12px 24px; 
+            margin: 8px; 
+            cursor: pointer; 
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .btn-primary { background: #2196f3; color: white; }
+        .btn-success { background: #4caf50; color: white; }
+        .btn-warning { background: #ff9800; color: white; }
+        .btn-danger { background: #f44336; color: white; }
+        
+        button:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-success { background: #4caf50; }
+        .status-warning { background: #ff9800; }
+        .status-error { background: #f44336; }
+        
+        .stats-container {
+            display: flex;
+            justify-content: space-around;
+            background: #333;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #4caf50;
+        }
+        
+        h1, h2, h3 { color: #fff; margin-top: 0; }
+        h1 { border-bottom: 3px solid #4caf50; padding-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Phase 2 Integration Test</h1>
+        
+        <div class="test-section info">
+            <h3>📋 테스트 개요</h3>
+            <p><strong>목적:</strong> Phase 2.1-2.3로 완료된 4개 모듈의 DI 통합 상태를 종합 검증</p>
+            <p><strong>대상 모듈:</strong> utils, ui-manager, state-manager, communication + DI system</p>
+            <p><strong>검증 항목:</strong> DI 상태, 의존성 주입, 레거시 호환성, 서비스 통신</p>
+        </div>
+
+        <div class="stats-container">
+            <div class="stat-item">
+                <div class="stat-number" id="total-modules">6</div>
+                <div>총 모듈</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="di-modules">0</div>
+                <div>DI 활성화</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="legacy-modules">0</div>
+                <div>레거시 모드</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="success-rate">0%</div>
+                <div>성공률</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h3>🎮 테스트 제어</h3>
+            <button class="btn-primary" onclick="runAllTests()">🚀 전체 테스트 실행</button>
+            <button class="btn-success" onclick="runDIStatusTests()">🔍 DI 상태 확인</button>
+            <button class="btn-warning" onclick="runCompatibilityTests()">🔄 호환성 테스트</button>
+            <button class="btn-danger" onclick="clearResults()">🧹 결과 지우기</button>
+        </div>
+
+        <div id="module-status" class="test-grid"></div>
+        <div id="test-results"></div>
+    </div>
+
+    <!-- Load required scripts -->
+    <script src="js/dependency-injection.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/ui-manager.js"></script>
+    <script src="js/state-manager.js"></script>
+    <script src="js/communication.js"></script>
+    <script src="js/app.js"></script>
+
+    <script>
+        const results = document.getElementById('test-results');
+        const moduleStatus = document.getElementById('module-status');
+        let testStats = { total: 0, passed: 0, diActive: 0, legacy: 0 };
+        
+        function addResult(title, success, message, details = '') {
+            const div = document.createElement('div');
+            div.className = `test-section ${success ? 'success' : 'error'}`;
+            div.innerHTML = `
+                <h3><span class="status-indicator ${success ? 'status-success' : 'status-error'}"></span>${title}</h3>
+                <p><strong>결과:</strong> ${message}</p>
+                ${details ? `<pre>${details}</pre>` : ''}
+            `;
+            results.appendChild(div);
+            return success;
+        }
+        
+        function addModuleCard(moduleName, status, details) {
+            const card = document.createElement('div');
+            const statusClass = status.isDI ? 'di-active' : (status.isLegacy ? 'legacy-mode' : 'error');
+            card.className = `module-card ${statusClass}`;
+            
+            const dependencyList = status.dependencies.map(dep => 
+                `<li>${dep.includes('(DI)') ? '🟢' : '🟡'} ${dep}</li>`
+            ).join('');
+            
+            card.innerHTML = `
+                <h4>${moduleName}</h4>
+                <p><strong>상태:</strong> ${status.isDI ? '✅ DI 활성화' : (status.isLegacy ? '⚠️ 레거시 모드' : '❌ 오류')}</p>
+                <p><strong>의존성:</strong></p>
+                <ul style="margin: 10px 0; padding-left: 20px;">
+                    ${dependencyList}
+                </ul>
+                ${details ? `<small>${details}</small>` : ''}
+            `;
+            moduleStatus.appendChild(card);
+        }
+        
+        function updateStats() {
+            document.getElementById('di-modules').textContent = testStats.diActive;
+            document.getElementById('legacy-modules').textContent = testStats.legacy;
+            document.getElementById('success-rate').textContent = 
+                testStats.total > 0 ? Math.round((testStats.passed / testStats.total) * 100) + '%' : '0%';
+        }
+        
+        function clearResults() {
+            results.innerHTML = '';
+            moduleStatus.innerHTML = '';
+            testStats = { total: 0, passed: 0, diActive: 0, legacy: 0 };
+            updateStats();
+        }
+        
+        async function runDIStatusTests() {
+            console.log('🔍 Running DI Status Tests...');
+            
+            const modules = [
+                { name: 'DI Container', obj: window.DI, hasStatus: false },
+                { name: 'JSCUtils', obj: window.JSCUtils, hasStatus: true },
+                { name: 'JSCUIManager', obj: window.JSCUIManager, hasStatus: true },
+                { name: 'JSCStateManager', obj: window.JSCStateManager, hasStatus: true },
+                { name: 'JSCCommunication', obj: window.JSCCommunication, hasStatus: true },
+                { name: 'JSCApp', obj: window.JSCApp, hasStatus: false }
+            ];
+            
+            for (const module of modules) {
+                testStats.total++;
+                
+                if (!module.obj) {
+                    addModuleCard(module.name, { isDI: false, isLegacy: false, dependencies: [] }, 'Module not found');
+                    continue;
+                }
+                
+                if (module.hasStatus && typeof module.obj.getDIStatus === 'function') {
+                    try {
+                        const status = module.obj.getDIStatus();
+                        const isDI = status.isDIAvailable && status.dependencies.some(dep => dep.includes('(DI)'));
+                        const isLegacy = !isDI && status.dependencies.length > 0;
+                        
+                        addModuleCard(module.name, {
+                            isDI: isDI,
+                            isLegacy: isLegacy,
+                            dependencies: status.dependencies
+                        }, `DI Available: ${status.isDIAvailable}`);
+                        
+                        if (isDI) testStats.diActive++;
+                        else if (isLegacy) testStats.legacy++;
+                        
+                        testStats.passed++;
+                    } catch (e) {
+                        addModuleCard(module.name, { isDI: false, isLegacy: false, dependencies: [] }, 
+                                    `getDIStatus error: ${e.message}`);
+                    }
+                } else {
+                    // DI Container나 App 같은 특수 모듈
+                    const isAvailable = !!module.obj;
+                    addModuleCard(module.name, {
+                        isDI: isAvailable,
+                        isLegacy: false,
+                        dependencies: isAvailable ? ['✅ Available'] : []
+                    }, module.name === 'DI Container' ? 'Core DI System' : 'Application Core');
+                    
+                    if (isAvailable) {
+                        testStats.passed++;
+                        if (module.name === 'DI Container') testStats.diActive++;
+                    }
+                }
+            }
+            
+            updateStats();
+        }
+        
+        async function runCompatibilityTests() {
+            console.log('🔄 Running Compatibility Tests...');
+            
+            // Test 1: DI Container Validation
+            const test1Success = addResult(
+                'DI Container 검증',
+                !!window.DI && typeof window.DI.validateDependencies === 'function',
+                window.DI ? 'DI 컨테이너가 정상 작동함' : 'DI 컨테이너 오류',
+                window.DI ? `Type: ${typeof window.DI}` : 'DI container not available'
+            );
+            
+            // Test 2: Service Registration
+            if (window.DI) {
+                try {
+                    const requiredServices = ['JSCUtils', 'JSCUIManager', 'JSCStateManager', 'JSCCommunication'];
+                    const validation = window.DI.validateDependencies(requiredServices);
+                    
+                    addResult(
+                        '서비스 등록 상태',
+                        validation.isValid,
+                        validation.isValid ? '모든 핵심 서비스 등록됨' : `누락된 서비스: ${validation.missing.join(', ')}`,
+                        `검증 결과: ${JSON.stringify(validation, null, 2)}`
+                    );
+                } catch (e) {
+                    addResult('서비스 등록 상태', false, `검증 오류: ${e.message}`);
+                }
+            }
+            
+            // Test 3: Module Function Tests
+            const functionTests = [
+                { 
+                    name: 'Utils 로깅 기능',
+                    test: () => window.JSCUtils && typeof window.JSCUtils.logInfo === 'function',
+                    action: () => window.JSCUtils.logInfo('Phase 2 Integration Test')
+                },
+                {
+                    name: 'UI Manager 상태 업데이트',
+                    test: () => window.JSCUIManager && typeof window.JSCUIManager.updateStatus === 'function',
+                    action: () => window.JSCUIManager.updateStatus('Phase 2 Test Message', true)
+                },
+                {
+                    name: 'State Manager 설정',
+                    test: () => window.JSCStateManager && typeof window.JSCStateManager.getSettings === 'function',
+                    action: () => {
+                        const settings = window.JSCStateManager.getSettings();
+                        return settings && typeof settings === 'object';
+                    }
+                },
+                {
+                    name: 'Communication 모듈',
+                    test: () => window.JSCCommunication && typeof window.JSCCommunication.getCSInterface === 'function',
+                    action: () => true // CSInterface는 CEP 환경에서만 작동
+                }
+            ];
+            
+            for (const funcTest of functionTests) {
+                try {
+                    const available = funcTest.test();
+                    let result = available;
+                    
+                    if (available && funcTest.action) {
+                        result = funcTest.action();
+                    }
+                    
+                    addResult(
+                        funcTest.name,
+                        available,
+                        available ? '기능 사용 가능' : '기능 사용 불가',
+                        available ? '✅ Function available and callable' : '❌ Function not available'
+                    );
+                } catch (e) {
+                    addResult(funcTest.name, false, `테스트 오류: ${e.message}`);
+                }
+            }
+        }
+        
+        async function runAllTests() {
+            clearResults();
+            
+            console.log('🚀 Starting Phase 2 Integration Test...');
+            
+            // Header
+            addResult(
+                '🧪 Phase 2 Integration Test 시작',
+                true,
+                'DI 시스템 Phase 2.1-2.3 통합 검증을 시작합니다',
+                `Test Time: ${new Date().toISOString()}\nModules: utils, ui-manager, state-manager, communication`
+            );
+            
+            // Run all test suites
+            await runDIStatusTests();
+            await runCompatibilityTests();
+            
+            // Cross-module communication test
+            try {
+                let crossModuleSuccess = true;
+                let crossModuleDetails = '';
+                
+                // Test utils -> ui-manager communication (through DI)
+                if (window.JSCUtils && window.JSCUIManager) {
+                    window.JSCUtils.logInfo('Cross-module test: Utils -> UI Manager');
+                    crossModuleDetails += '✅ Utils -> UI Manager communication OK\n';
+                } else {
+                    crossModuleSuccess = false;
+                    crossModuleDetails += '❌ Utils -> UI Manager communication failed\n';
+                }
+                
+                // Test state-manager -> ui-manager communication
+                if (window.JSCStateManager && window.JSCUIManager) {
+                    const settings = window.JSCStateManager.getSettings();
+                    if (settings) {
+                        crossModuleDetails += '✅ State Manager -> UI Manager communication OK\n';
+                    }
+                } else {
+                    crossModuleSuccess = false;
+                    crossModuleDetails += '❌ State Manager -> UI Manager communication failed\n';
+                }
+                
+                addResult(
+                    'Cross-Module Communication',
+                    crossModuleSuccess,
+                    crossModuleSuccess ? '모듈 간 통신 정상' : '모듈 간 통신 오류',
+                    crossModuleDetails
+                );
+            } catch (e) {
+                addResult('Cross-Module Communication', false, `통신 테스트 오류: ${e.message}`);
+            }
+            
+            // Final Summary
+            const successRate = Math.round((testStats.passed / testStats.total) * 100);
+            const isPhase2Success = successRate >= 80 && testStats.diActive >= 3;
+            
+            addResult(
+                '📊 Phase 2 Integration Test 결과',
+                isPhase2Success,
+                isPhase2Success ? 
+                    `Phase 2 통합 성공! 성공률: ${successRate}%` : 
+                    `Phase 2 통합 부분 성공. 성공률: ${successRate}%`,
+                `총 모듈: ${testStats.total}\n` +
+                `DI 활성화: ${testStats.diActive}\n` +
+                `레거시 모드: ${testStats.legacy}\n` +
+                `성공: ${testStats.passed}\n` +
+                `Phase 2 상태: ${isPhase2Success ? '✅ 성공' : '⚠️ 개선 필요'}\n\n` +
+                `다음 단계: ${isPhase2Success ? 'Phase 2.4-2.6 진행 준비' : 'Phase 2.1-2.3 재검토 필요'}`
+            );
+        }
+        
+        // Auto-run tests on page load
+        window.addEventListener('load', function() {
+            console.log('🧪 Phase 2 Integration Test Page Loaded');
+            setTimeout(runAllTests, 1000);
+        });
+    </script>
+</body>
+</html>

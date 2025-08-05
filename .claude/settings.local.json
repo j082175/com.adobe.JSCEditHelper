@@ -29,7 +29,23 @@
       "Bash(git revert:*)",
       "Bash(git commit:*)",
       "Bash(git add:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(start test-di-integration.html)",
+      "Bash(start test-phase2-integration.html)",
+      "Bash(start test-phase2-final-integration.html)",
+      "Bash(copy dependency-injection.js di-container.js)",
+      "Bash(del jsevent-manager.js)",
+      "Bash(rm:*)",
+      "Bash(timeout:*)",
+      "Bash(do echo \"$file: $(grep -c \"window.JSC\" \"$file\")\")",
+      "Bash(do echo \"$file: $(grep -c \"window.JSC\" \"$file\")\")",
+      "Bash(start test-final-di-completion.html)",
+      "Bash(start test-system-stability.html)",
+      "Bash(start test-real-functionality.html)",
+      "Bash(start prove-it-works.html)",
+      "Bash(start test-new-feature-added.html)",
+      "Bash(find:*)",
+      "Bash(wc:*)"
     ],
     "deny": []
   }

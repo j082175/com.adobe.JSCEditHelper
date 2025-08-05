@@ -5,15 +5,51 @@
  */
 var JSCStateManager = (function () {
     'use strict';
+    // DI 컨테이너에서 의존성 가져오기 (옵션)
+    var diContainer = null;
+    var utilsService = null;
+    var uiService = null;
+    try {
+        diContainer = window.DI;
+        if (diContainer) {
+            // DI에서 서비스 가져오기 시도
+            utilsService = diContainer.getSafe('JSCUtils');
+            uiService = diContainer.getSafe('JSCUIManager');
+        }
+    }
+    catch (e) {
+        // DI 사용 불가시 레거시 모드로 작동
+    }
+    // 유틸리티 서비스 가져오기 (DI 우선, 레거시 fallback)
+    function getUtils() {
+        return utilsService || window.JSCUtils || {
+            isValidPath: function (path) { return !!path; },
+            logDebug: function (msg) { return console.log(msg); },
+            logInfo: function (msg) { return console.log(msg); },
+            logWarn: function (msg) { return console.warn(msg); },
+            debugLog: function (msg) { return console.log(msg); },
+            loadFromStorage: function (key) { return localStorage.getItem(key); },
+            saveToStorage: function (key, value) { localStorage.setItem(key, value); return true; },
+            removeFromStorage: function (key) { localStorage.removeItem(key); return true; },
+            CONFIG: { SOUND_FOLDER_KEY: 'soundInserter_folder' }
+        };
+    }
+    // UI 서비스 가져오기 (DI 우선, 레거시 fallback)
+    function getUIManager() {
+        return uiService || window.JSCUIManager || {
+            updateFolderPath: function (_path) { }
+        };
+    }
     var currentFolderPath = "";
     // 현재 폴더 경로 설정 (실용적 검증)
     function setCurrentFolderPath(path) {
-        if (window.JSCUtils.isValidPath(path)) {
+        var utils = getUtils();
+        if (utils.isValidPath(path)) {
             currentFolderPath = path.trim();
-            window.JSCUtils.logDebug("Updated currentFolderPath");
+            utils.logDebug("Updated currentFolderPath");
             return true;
         }
-        window.JSCUtils.logWarn("Invalid path provided");
+        utils.logWarn("Invalid path provided");
         return false;
     }
     // 현재 폴더 경로 가져오기
@@ -22,14 +58,15 @@ var JSCStateManager = (function () {
     }
     // 레거시 키에서 데이터 마이그레이션
     function migrateLegacyData() {
+        var utils = getUtils();
         var legacyKeys = ["JSCEditHelper_soundFolder"]; // 이전에 잘못 사용한 키들
         for (var _i = 0, legacyKeys_1 = legacyKeys; _i < legacyKeys_1.length; _i++) {
             var legacyKey = legacyKeys_1[_i];
-            var legacyValue = window.JSCUtils.loadFromStorage(legacyKey);
-            if (legacyValue && window.JSCUtils.isValidPath(legacyValue)) {
-                window.JSCUtils.logInfo("Migrating data from legacy key: " + legacyKey);
-                window.JSCUtils.saveToStorage(window.JSCUtils.CONFIG.SOUND_FOLDER_KEY, legacyValue);
-                window.JSCUtils.removeFromStorage(legacyKey); // 레거시 키 삭제
+            var legacyValue = utils.loadFromStorage(legacyKey);
+            if (legacyValue && utils.isValidPath(legacyValue)) {
+                utils.logInfo("Migrating data from legacy key: " + legacyKey);
+                utils.saveToStorage(utils.CONFIG.SOUND_FOLDER_KEY, legacyValue);
+                utils.removeFromStorage(legacyKey); // 레거시 키 삭제
                 return legacyValue;
             }
         }
@@ -37,46 +74,52 @@ var JSCStateManager = (function () {
     }
     // 폴더 경로 초기화 및 복원
     function initializeFolderPath() {
-        window.JSCUtils.logDebug("Initializing folder path from storage");
+        var utils = getUtils();
+        var uiManager = getUIManager();
+        utils.logDebug("Initializing folder path from storage");
         // 먼저 현재 키에서 시도
-        var savedFolder = window.JSCUtils.loadFromStorage(window.JSCUtils.CONFIG.SOUND_FOLDER_KEY);
+        var savedFolder = utils.loadFromStorage(utils.CONFIG.SOUND_FOLDER_KEY);
         // 현재 키에 값이 없으면 레거시 데이터 마이그레이션 시도
         if (!savedFolder) {
             savedFolder = migrateLegacyData();
         }
         // 기존 방식의 관대한 검증 사용 (초기화 시에는)
-        if (savedFolder && window.JSCUtils.isValidPath(savedFolder)) {
+        if (savedFolder && utils.isValidPath(savedFolder)) {
             currentFolderPath = savedFolder;
-            window.JSCUIManager.updateFolderPath(savedFolder);
-            window.JSCUtils.logInfo("Valid folder path restored from storage: " + savedFolder);
+            uiManager.updateFolderPath(savedFolder);
+            utils.logInfo("Valid folder path restored from storage: " + savedFolder);
             return true;
         }
         else {
             if (savedFolder) {
-                window.JSCUtils.logWarn("Invalid saved folder path detected, clearing storage: " + savedFolder);
-                window.JSCUtils.removeFromStorage(window.JSCUtils.CONFIG.SOUND_FOLDER_KEY);
+                utils.logWarn("Invalid saved folder path detected, clearing storage: " + savedFolder);
+                utils.removeFromStorage(utils.CONFIG.SOUND_FOLDER_KEY);
             }
             currentFolderPath = "";
-            window.JSCUIManager.updateFolderPath("");
-            window.JSCUtils.logDebug("No valid folder path found, initialized to empty");
+            uiManager.updateFolderPath("");
+            utils.logDebug("No valid folder path found, initialized to empty");
             return false;
         }
     }
     // 폴더 경로 저장
     function saveFolderPath(path) {
         if (setCurrentFolderPath(path)) {
-            window.JSCUtils.saveToStorage(window.JSCUtils.CONFIG.SOUND_FOLDER_KEY, path);
-            window.JSCUIManager.updateFolderPath(path);
+            var utils = getUtils();
+            var uiManager = getUIManager();
+            utils.saveToStorage(utils.CONFIG.SOUND_FOLDER_KEY, path);
+            uiManager.updateFolderPath(path);
             return true;
         }
         return false;
     }
     // 폴더 경로 지우기
     function clearFolderPath() {
+        var utils = getUtils();
+        var uiManager = getUIManager();
         currentFolderPath = "";
-        window.JSCUtils.removeFromStorage(window.JSCUtils.CONFIG.SOUND_FOLDER_KEY);
-        window.JSCUIManager.updateFolderPath("");
-        window.JSCUtils.debugLog("Folder path cleared");
+        utils.removeFromStorage(utils.CONFIG.SOUND_FOLDER_KEY);
+        uiManager.updateFolderPath("");
+        utils.debugLog("Folder path cleared");
     }
     // 설정 가져오기
     function getSettings() {
@@ -88,16 +131,33 @@ var JSCStateManager = (function () {
     }
     // 실용적인 상태 검증
     function validateState() {
+        var utils = getUtils();
         var errors = [];
         if (!currentFolderPath) {
             errors.push("효과음 폴더 경로가 설정되지 않았습니다.");
         }
-        else if (!window.JSCUtils.isValidPath(currentFolderPath)) {
+        else if (!utils.isValidPath(currentFolderPath)) {
             errors.push("효과음 폴더 경로가 올바르지 않습니다.");
         }
         return {
             isValid: errors.length === 0,
             errors: errors
+        };
+    }
+    // DI 상태 확인 함수 (디버깅용) - Phase 2.2
+    function getDIStatus() {
+        var dependencies = [];
+        if (utilsService)
+            dependencies.push('JSCUtils (DI)');
+        else if (window.JSCUtils)
+            dependencies.push('JSCUtils (Legacy)');
+        if (uiService)
+            dependencies.push('JSCUIManager (DI)');
+        else if (window.JSCUIManager)
+            dependencies.push('JSCUIManager (Legacy)');
+        return {
+            isDIAvailable: !!diContainer,
+            dependencies: dependencies
         };
     }
     // 공개 API
@@ -108,7 +168,8 @@ var JSCStateManager = (function () {
         saveFolderPath: saveFolderPath,
         clearFolderPath: clearFolderPath,
         getSettings: getSettings,
-        validateState: validateState
+        validateState: validateState,
+        getDIStatus: getDIStatus // Phase 2.2
     };
 })();
 // 전역 접근을 위해 window 객체에 노출

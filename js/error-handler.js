@@ -22,6 +22,48 @@ var ErrorSeverity;
 var JSCErrorHandler = (function () {
     'use strict';
     var _a;
+    // DI 컨테이너에서 의존성 가져오기 (옵션)
+    var diContainer = null;
+    var utilsService = null;
+    var uiService = null;
+    function initializeDIDependencies() {
+        try {
+            diContainer = window.DI;
+            if (diContainer) {
+                // DI에서 서비스 가져오기 시도
+                utilsService = diContainer.getSafe('JSCUtils');
+                uiService = diContainer.getSafe('JSCUIManager');
+            }
+        }
+        catch (e) {
+            // DI 사용 불가시 레거시 모드로 작동
+        }
+    }
+    // 초기화 시도 (즉시 및 지연)
+    initializeDIDependencies();
+    // 앱 초기화 후에 DI 서비스 재시도
+    if (typeof window !== 'undefined') {
+        setTimeout(function () {
+            if (!utilsService || !uiService) {
+                initializeDIDependencies();
+            }
+        }, 100);
+    }
+    // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
+    function getUtils() {
+        return utilsService || window.JSCUtils || {
+            logError: function (msg) { console.error(msg); },
+            logWarn: function (msg) { console.warn(msg); },
+            logInfo: function (msg) { console.log(msg); },
+            CONFIG: { DEBUG_MODE: false }
+        };
+    }
+    function getUIManager() {
+        return uiService || window.JSCUIManager || {
+            updateStatus: function (msg, _success) { console.log('Status:', msg); },
+            toggleDebugButton: function (show) { console.log('Debug button:', show); }
+        };
+    }
     // 사용자 친화적 에러 메시지
     var ERROR_MESSAGES = (_a = {},
         _a[ErrorType.VALIDATION] = {
@@ -88,26 +130,28 @@ var JSCErrorHandler = (function () {
         else {
             errorObj = error;
         }
+        var utils = getUtils();
+        var uiManager = getUIManager();
         // 로깅
         switch (errorObj.severity) {
             case ErrorSeverity.CRITICAL:
             case ErrorSeverity.HIGH:
-                window.JSCUtils.logError(formatErrorForLog(errorObj));
+                utils.logError(formatErrorForLog(errorObj));
                 break;
             case ErrorSeverity.MEDIUM:
-                window.JSCUtils.logWarn(formatErrorForLog(errorObj));
+                utils.logWarn(formatErrorForLog(errorObj));
                 break;
             case ErrorSeverity.LOW:
-                window.JSCUtils.logInfo(formatErrorForLog(errorObj));
+                utils.logInfo(formatErrorForLog(errorObj));
                 break;
         }
         // 사용자에게 표시
         if (showToUser !== false) {
-            window.JSCUIManager.updateStatus(errorObj.message, false);
+            uiManager.updateStatus(errorObj.message, false);
             // 디버그 정보 저장 (개발 모드에서)
-            if (window.JSCUtils.CONFIG.DEBUG_MODE && errorObj.details) {
+            if (utils.CONFIG.DEBUG_MODE && errorObj.details) {
                 window.lastDebugInfo = JSON.stringify(errorObj, null, 2);
-                window.JSCUIManager.toggleDebugButton(true);
+                uiManager.toggleDebugButton(true);
             }
         }
         return errorObj;
@@ -157,6 +201,23 @@ var JSCErrorHandler = (function () {
         var errorObj = createError(ErrorType.SYSTEM, 'ASYNC_ERROR', '비동기 작업 중 오류가 발생했습니다.', { context: context, originalError: error.message });
         return handleError(errorObj);
     }
+    // DI 상태 확인 함수 (디버깅용) - Phase 2.5
+    function getDIStatus() {
+        var dependencies = [];
+        if (utilsService)
+            dependencies.push('JSCUtils (DI)');
+        else if (window.JSCUtils)
+            dependencies.push('JSCUtils (Legacy)');
+        if (uiService)
+            dependencies.push('JSCUIManager (DI)');
+        else if (window.JSCUIManager)
+            dependencies.push('JSCUIManager (Legacy)');
+        return {
+            isDIAvailable: !!diContainer,
+            containerInfo: diContainer ? 'DI Container active' : 'Legacy mode',
+            dependencies: dependencies
+        };
+    }
     // 공개 API
     return {
         ERROR_TYPES: ErrorType,
@@ -168,7 +229,8 @@ var JSCErrorHandler = (function () {
         handleFileSystemError: handleFileSystemError,
         handleUserInputError: handleUserInputError,
         safeExecute: safeExecute,
-        handleAsyncError: handleAsyncError
+        handleAsyncError: handleAsyncError,
+        getDIStatus: getDIStatus // Phase 2.5
     };
 })();
 // 전역 접근을 위해 window 객체에 노출

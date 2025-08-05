@@ -16,6 +16,7 @@ interface SoundEngineResult {
     message: string;
     data?: any;
     debug?: string;
+    debugLog?: string;
     executionTime?: number;
 }
 
@@ -111,7 +112,7 @@ const SoundEngine = (function() {
                 debugInfo += executionResult.debug;
             }
 
-            return {
+            const result: SoundEngineResult = {
                 success: executionResult.success,
                 message: executionResult.success 
                     ? `${insertionPlan.totalInsertions}개의 효과음이 성공적으로 삽입되었습니다.`
@@ -122,9 +123,15 @@ const SoundEngine = (function() {
                     files: audioFiles.length
                 },
                 debug: debugInfo,
-                debugLog: executionResult.debugLog,
                 executionTime
             };
+
+            // debugLog가 존재하는 경우에만 추가
+            if (executionResult.debugLog) {
+                result.debugLog = executionResult.debugLog;
+            }
+
+            return result;
 
         } catch (error) {
             const executionTime = performance.now() - startTime;

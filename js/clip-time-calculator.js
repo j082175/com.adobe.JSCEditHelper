@@ -1,3 +1,4 @@
+"use strict";
 /**
  * Clip Time Calculation Engine
  * 클립 시간 계산, 정렬, 간격 분석을 담당하는 TypeScript 엔진
@@ -301,3 +302,4 @@ var ClipTimeCalculator = (function () {
 if (typeof window !== 'undefined') {
     window.ClipTimeCalculator = ClipTimeCalculator;
 }
+//# sourceMappingURL=clip-time-calculator.js.map

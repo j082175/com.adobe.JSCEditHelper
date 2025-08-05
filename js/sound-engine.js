@@ -57,7 +57,7 @@ var SoundEngine = (function () {
      */
     function executeSoundInsertion(config) {
         return __awaiter(this, void 0, void 0, function () {
-            var startTime, debugInfo, validation, audioResult, audioFiles, clipsResult, clips, audioTrackNumber, insertionPlan, command, executionResult, executionTime, error_1, executionTime;
+            var startTime, debugInfo, validation, audioResult, audioFiles, clipsResult, clips, audioTrackNumber, insertionPlan, command, executionResult, executionTime, result, error_1, executionTime;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
@@ -130,20 +130,24 @@ var SoundEngine = (function () {
                             debugInfo += "\n--- JSX 내부 실행 디버그 ---\n";
                             debugInfo += executionResult.debug;
                         }
-                        return [2 /*return*/, {
-                                success: executionResult.success,
-                                message: executionResult.success
-                                    ? "".concat(insertionPlan.totalInsertions, "\uAC1C\uC758 \uD6A8\uACFC\uC74C\uC774 \uC131\uACF5\uC801\uC73C\uB85C \uC0BD\uC785\uB418\uC5C8\uC2B5\uB2C8\uB2E4.")
-                                    : executionResult.message,
-                                data: {
-                                    insertions: insertionPlan.totalInsertions,
-                                    audioTrack: audioTrackNumber,
-                                    files: audioFiles.length
-                                },
-                                debug: debugInfo,
-                                debugLog: executionResult.debugLog,
-                                executionTime: executionTime
-                            }];
+                        result = {
+                            success: executionResult.success,
+                            message: executionResult.success
+                                ? "".concat(insertionPlan.totalInsertions, "\uAC1C\uC758 \uD6A8\uACFC\uC74C\uC774 \uC131\uACF5\uC801\uC73C\uB85C \uC0BD\uC785\uB418\uC5C8\uC2B5\uB2C8\uB2E4.")
+                                : executionResult.message,
+                            data: {
+                                insertions: insertionPlan.totalInsertions,
+                                audioTrack: audioTrackNumber,
+                                files: audioFiles.length
+                            },
+                            debug: debugInfo,
+                            executionTime: executionTime
+                        };
+                        // debugLog가 존재하는 경우에만 추가
+                        if (executionResult.debugLog) {
+                            result.debugLog = executionResult.debugLog;
+                        }
+                        return [2 /*return*/, result];
                     case 5:
                         error_1 = _a.sent();
                         executionTime = performance.now() - startTime;

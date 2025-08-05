@@ -12,6 +12,14 @@ declare global {
     JSCEventManager?: any;
     JSCErrorHandler?: any;
     JSCApp?: any;
+    
+    // TypeScript 엔진들
+    SoundEngine?: any;
+    ClipTimeCalculator?: any;
+    AudioFileProcessor?: any;
+    
+    // 디버그 및 상태 정보
+    lastDebugInfo?: string;
   }
   
   // 글로벌 CSInterface 타입 선언

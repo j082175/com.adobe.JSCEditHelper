@@ -37,6 +37,7 @@
   ],
   "files": [
     "types/cep.d.ts",
-    "types/extendscript.d.ts"
+    "types/extendscript.d.ts",
+    "types/globals.d.ts"
   ]
 }

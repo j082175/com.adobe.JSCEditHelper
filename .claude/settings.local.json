@@ -45,7 +45,10 @@
       "Bash(start prove-it-works.html)",
       "Bash(start test-new-feature-added.html)",
       "Bash(find:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:hyperbrew.co)"
     ],
     "deny": []
   }

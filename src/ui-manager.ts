@@ -121,6 +121,28 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
         }
     }
     
+    // 개별 효과음 버튼에 미리보기 이벤트 추가
+    function setupAudioPreviewEvent(button: HTMLElement, filePath: string): void {
+        // 오른쪽 클릭으로 미리보기 재생
+        button.addEventListener('contextmenu', async function(event: MouseEvent) {
+            event.preventDefault(); // 기본 컨텍스트 메뉴 방지
+            
+            try {
+                const audioPreview = (window as any).AudioPreviewManager;
+                if (audioPreview) {
+                    await audioPreview.playPreview(filePath, button);
+                } else {
+                    updateStatus('오디오 미리보기 기능을 사용할 수 없습니다.', false);
+                }
+            } catch (error) {
+                updateStatus(`미리보기 오류: ${(error as Error).message}`, false);
+            }
+        });
+        
+        // 미리보기 툴팁 추가
+        button.title = `좌클릭: 효과음 삽입\n우클릭: 미리보기 재생`;
+    }
+
     // 개별 효과음 버튼 업데이트
     function updateSoundButtons(soundFiles: SoundFile[], currentFolderPath: string): void {
         const container = document.getElementById("individualSoundButtonsContainer");
@@ -141,6 +163,8 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
                     const button = document.createElement("button");
                     button.textContent = soundFile.name;
                     button.setAttribute("data-fsname", soundFile.fsName);
+                    
+                    // 기존 클릭 이벤트 (효과음 삽입)
                     button.addEventListener("click", function(event: Event) {
                         // 이벤트는 나중에 event-manager에서 처리하도록 위임
                         const eventManager = getEventManager();
@@ -148,10 +172,14 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
                             eventManager.handleSoundFileButtonClick(event);
                         }
                     });
+                    
+                    // 미리보기 이벤트 추가
+                    setupAudioPreviewEvent(button, soundFile.fsName);
+                    
                     container.appendChild(button);
                 }
             });
-            updateStatus(soundFiles.length + "개의 효과음 파일을 폴더에서 로드했습니다.", true);
+            updateStatus(soundFiles.length + "개의 효과음 파일을 폴더에서 로드했습니다. (우클릭으로 미리보기 가능)", true);
         } else {
             updateStatus("선택된 폴더에 오디오 파일이 없습니다.", false);
         }

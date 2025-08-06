@@ -48,7 +48,8 @@
       "Bash(wc:*)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "WebFetch(domain:hyperbrew.co)"
+      "WebFetch(domain:hyperbrew.co)",
+      "Bash(start:*)"
     ],
     "deny": []
   }

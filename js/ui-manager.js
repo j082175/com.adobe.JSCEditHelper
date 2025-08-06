@@ -127,7 +127,7 @@ var JSCUIManager = (function () {
     }
     // 개별 효과음 버튼에 미리보기 이벤트 추가
     function setupAudioPreviewEvent(button, filePath) {
-        // 오른쪽 클릭으로 미리보기 재생
+        // 오른쪽 클릭으로 미리보기 재생/정지 토글
         button.addEventListener('contextmenu', function (event) {
             return __awaiter(this, void 0, void 0, function () {
                 var audioPreview, error_1;
@@ -137,28 +137,45 @@ var JSCUIManager = (function () {
                             event.preventDefault(); // 기본 컨텍스트 메뉴 방지
                             _a.label = 1;
                         case 1:
-                            _a.trys.push([1, 5, , 6]);
+                            _a.trys.push([1, 10, , 11]);
                             audioPreview = window.AudioPreviewManager;
-                            if (!audioPreview) return [3 /*break*/, 3];
-                            return [4 /*yield*/, audioPreview.playPreview(filePath, button)];
-                        case 2:
-                            _a.sent();
+                            if (!audioPreview) return [3 /*break*/, 8];
+                            if (!audioPreview.isPlaying()) return [3 /*break*/, 5];
+                            if (!audioPreview.isCurrentButton(button)) return [3 /*break*/, 2];
+                            // 같은 버튼이면 정지
+                            audioPreview.stopCurrentPreviewImmediately();
                             return [3 /*break*/, 4];
+                        case 2: 
+                        // 다른 버튼이면 새로운 미리보기 재생 (기존 것은 자동으로 정지됨)
+                        return [4 /*yield*/, audioPreview.playPreview(filePath, button)];
                         case 3:
-                            updateStatus('오디오 미리보기 기능을 사용할 수 없습니다.', false);
+                            // 다른 버튼이면 새로운 미리보기 재생 (기존 것은 자동으로 정지됨)
+                            _a.sent();
                             _a.label = 4;
-                        case 4: return [3 /*break*/, 6];
-                        case 5:
+                        case 4: return [3 /*break*/, 7];
+                        case 5: 
+                        // 정지 중이면 재생
+                        return [4 /*yield*/, audioPreview.playPreview(filePath, button)];
+                        case 6:
+                            // 정지 중이면 재생
+                            _a.sent();
+                            _a.label = 7;
+                        case 7: return [3 /*break*/, 9];
+                        case 8:
+                            updateStatus('오디오 미리보기 기능을 사용할 수 없습니다.', false);
+                            _a.label = 9;
+                        case 9: return [3 /*break*/, 11];
+                        case 10:
                             error_1 = _a.sent();
                             updateStatus("\uBBF8\uB9AC\uBCF4\uAE30 \uC624\uB958: ".concat(error_1.message), false);
-                            return [3 /*break*/, 6];
-                        case 6: return [2 /*return*/];
+                            return [3 /*break*/, 11];
+                        case 11: return [2 /*return*/];
                     }
                 });
             });
         });
-        // 미리보기 툴팁 추가
-        button.title = "\uC88C\uD074\uB9AD: \uD6A8\uACFC\uC74C \uC0BD\uC785\n\uC6B0\uD074\uB9AD: \uBBF8\uB9AC\uBCF4\uAE30 \uC7AC\uC0DD";
+        // 미리보기 툴팁 업데이트
+        button.title = "\uC88C\uD074\uB9AD: \uD6A8\uACFC\uC74C \uC0BD\uC785\n\uC6B0\uD074\uB9AD: \uBBF8\uB9AC\uBCF4\uAE30 \uC7AC\uC0DD/\uC815\uC9C0";
     }
     // 개별 효과음 버튼 업데이트
     function updateSoundButtons(soundFiles, currentFolderPath) {

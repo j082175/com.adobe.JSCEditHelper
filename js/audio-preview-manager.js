@@ -118,8 +118,8 @@ var AudioPreviewManager = (function () {
             return __generator(this, function (_a) {
                 try {
                     getUtils().logDebug("\uBBF8\uB9AC\uBCF4\uAE30 \uC7AC\uC0DD \uC2DC\uB3C4: ".concat(filePath));
-                    // 현재 재생 중인 오디오 정지
-                    stopCurrentPreview();
+                    // 현재 재생 중인 오디오 즉시 정지
+                    stopCurrentPreviewImmediately();
                     // 파일 경로 검증
                     if (!filePath || typeof filePath !== 'string') {
                         return [2 /*return*/, {
@@ -261,6 +261,35 @@ var AudioPreviewManager = (function () {
         }
     }
     /**
+     * 현재 재생 중인 미리보기 즉시 정지 (페이드아웃 없음)
+     */
+    function stopCurrentPreviewImmediately() {
+        try {
+            // 페이드 인터벌 정리
+            if (fadeInterval) {
+                clearInterval(fadeInterval);
+                fadeInterval = null;
+            }
+            // 오디오 즉시 정지
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio = null;
+            }
+            // 버튼 상태 복원
+            if (currentButton) {
+                currentButton.style.backgroundColor = '';
+                currentButton.style.transform = '';
+                currentButton = null;
+            }
+            // UI 상태 업데이트
+            getUIManager().updateStatus('🔇 미리보기 즉시 정지됨', true);
+        }
+        catch (error) {
+            getUtils().logWarn("\uBBF8\uB9AC\uBCF4\uAE30 \uC989\uC2DC \uC815\uC9C0 \uC911 \uC624\uB958: ".concat(error.message));
+        }
+    }
+    /**
      * 페이드인 효과
      */
     function startFadeIn() {
@@ -317,6 +346,12 @@ var AudioPreviewManager = (function () {
      */
     function isPlaying() {
         return currentAudio !== null && !currentAudio.paused;
+    }
+    /**
+     * 현재 재생 중인 버튼인지 확인
+     */
+    function isCurrentButton(button) {
+        return currentButton === button;
     }
     /**
      * 볼륨 설정
@@ -392,7 +427,9 @@ var AudioPreviewManager = (function () {
     return {
         playPreview: playPreview,
         stopCurrentPreview: stopCurrentPreview,
+        stopCurrentPreviewImmediately: stopCurrentPreviewImmediately,
         isPlaying: isPlaying,
+        isCurrentButton: isCurrentButton,
         setVolume: setVolume,
         updateConfig: updateConfig,
         getSupportedFormats: getSupportedFormats,

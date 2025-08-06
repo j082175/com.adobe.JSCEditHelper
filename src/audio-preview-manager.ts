@@ -94,8 +94,8 @@ const AudioPreviewManager = (function() {
         try {
             getUtils().logDebug(`미리보기 재생 시도: ${filePath}`);
             
-            // 현재 재생 중인 오디오 정지
-            stopCurrentPreview();
+            // 현재 재생 중인 오디오 즉시 정지
+            stopCurrentPreviewImmediately();
             
             // 파일 경로 검증
             if (!filePath || typeof filePath !== 'string') {
@@ -259,6 +259,39 @@ const AudioPreviewManager = (function() {
     }
     
     /**
+     * 현재 재생 중인 미리보기 즉시 정지 (페이드아웃 없음)
+     */
+    function stopCurrentPreviewImmediately(): void {
+        try {
+            // 페이드 인터벌 정리
+            if (fadeInterval) {
+                clearInterval(fadeInterval);
+                fadeInterval = null;
+            }
+            
+            // 오디오 즉시 정지
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+                currentAudio = null;
+            }
+            
+            // 버튼 상태 복원
+            if (currentButton) {
+                currentButton.style.backgroundColor = '';
+                currentButton.style.transform = '';
+                currentButton = null;
+            }
+            
+            // UI 상태 업데이트
+            getUIManager().updateStatus('🔇 미리보기 즉시 정지됨', true);
+            
+        } catch (error) {
+            getUtils().logWarn(`미리보기 즉시 정지 중 오류: ${(error as Error).message}`);
+        }
+    }
+    
+    /**
      * 페이드인 효과
      */
     function startFadeIn(): void {
@@ -320,6 +353,13 @@ const AudioPreviewManager = (function() {
      */
     function isPlaying(): boolean {
         return currentAudio !== null && !currentAudio.paused;
+    }
+    
+    /**
+     * 현재 재생 중인 버튼인지 확인
+     */
+    function isCurrentButton(button: HTMLElement): boolean {
+        return currentButton === button;
     }
     
     /**
@@ -409,7 +449,9 @@ const AudioPreviewManager = (function() {
     return {
         playPreview,
         stopCurrentPreview,
+        stopCurrentPreviewImmediately,
         isPlaying,
+        isCurrentButton,
         setVolume,
         updateConfig,
         getSupportedFormats,

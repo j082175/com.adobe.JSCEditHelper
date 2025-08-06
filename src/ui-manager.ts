@@ -123,14 +123,27 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
     
     // 개별 효과음 버튼에 미리보기 이벤트 추가
     function setupAudioPreviewEvent(button: HTMLElement, filePath: string): void {
-        // 오른쪽 클릭으로 미리보기 재생
+        // 오른쪽 클릭으로 미리보기 재생/정지 토글
         button.addEventListener('contextmenu', async function(event: MouseEvent) {
             event.preventDefault(); // 기본 컨텍스트 메뉴 방지
             
             try {
                 const audioPreview = (window as any).AudioPreviewManager;
                 if (audioPreview) {
-                    await audioPreview.playPreview(filePath, button);
+                    // 현재 재생 중인지 확인
+                    if (audioPreview.isPlaying()) {
+                        // 현재 버튼과 같은 버튼인지 확인
+                        if (audioPreview.isCurrentButton(button)) {
+                            // 같은 버튼이면 정지
+                            audioPreview.stopCurrentPreviewImmediately();
+                        } else {
+                            // 다른 버튼이면 새로운 미리보기 재생 (기존 것은 자동으로 정지됨)
+                            await audioPreview.playPreview(filePath, button);
+                        }
+                    } else {
+                        // 정지 중이면 재생
+                        await audioPreview.playPreview(filePath, button);
+                    }
                 } else {
                     updateStatus('오디오 미리보기 기능을 사용할 수 없습니다.', false);
                 }
@@ -139,8 +152,8 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
             }
         });
         
-        // 미리보기 툴팁 추가
-        button.title = `좌클릭: 효과음 삽입\n우클릭: 미리보기 재생`;
+        // 미리보기 툴팁 업데이트
+        button.title = `좌클릭: 효과음 삽입\n우클릭: 미리보기 재생/정지`;
     }
 
     // 개별 효과음 버튼 업데이트

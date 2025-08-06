@@ -7,87 +7,119 @@
 </head>
 <body>
     <div id="content">
-        <h1>JSCEditHelper</h1>
-        <div class="description">
-            <p>Premiere Pro 편집을 위한 다목적 도구입니다.</p>
-        </div>
+        <!-- 헤더 섹션 -->
+        <header class="app-header">
+            <h1>🎬 JSCEditHelper</h1>
+            <p class="app-subtitle">Premiere Pro 편집 효율성 도구</p>
+        </header>
 
-        <div class="magnet-section">
-            <h2>클립 정리 도구</h2>
-            <div class="magnet-controls">
-                <p>활성 시퀀스의 모든 클립 사이 빈 공간을 제거합니다 (캡컷 자동 마그넷과 유사)</p>
-                <button id="magnetClips" class="magnet-btn">🧲 클립 자동 정렬</button>
-                <div id="magnetStatus" class="magnet-status"></div>
+        <!-- 퀵 액션 카드 -->
+        <div class="quick-actions">
+            <div class="action-card primary-card">
+                <div class="card-header">
+                    <h2>🧲 클립 자동 정렬</h2>
+                    <span class="shortcut-badge">Ctrl+Shift+M</span>
+                </div>
+                <p class="card-description">클립 사이 빈 공간 제거</p>
+                <button id="magnetClips" class="btn-primary">정렬 실행</button>
+                <div id="magnetStatus" class="status-indicator"></div>
             </div>
         </div>
         
-        <div class="form-section">
-            <h2>효과음 폴더 설정</h2>
-            <div class="form-group">
-                <label for="sound-folder">효과음 폴더 경로:</label>
-                <input type="text" id="sound-folder" placeholder="예: C:/My Sounds">
-                <div class="control-group">
-                    <button id="browseFolder">폴더 찾아보기</button>
-                    <button id="refreshSounds" disabled>새로고침</button>
+        <!-- 효과음 관리 섹션 -->
+        <div class="workflow-section">
+            <div class="section-header">
+                <h2>🎵 효과음 워크플로우</h2>
+                <button class="btn-collapse" data-target="sound-workflow">
+                    <span class="collapse-icon">−</span>
+                </button>
+            </div>
+            
+            <div id="sound-workflow" class="workflow-content">
+                <!-- 폴더 설정 카드 -->
+                <div class="action-card">
+                    <div class="card-header">
+                        <h3>📁 폴더 설정</h3>
+                        <span class="shortcut-badge">Ctrl+Shift+B</span>
+                    </div>
+                    <div class="input-group">
+                        <input type="text" id="sound-folder" placeholder="효과음 폴더를 선택하세요..." readonly>
+                        <button id="browseFolder" class="btn-secondary">찾아보기</button>
+                    </div>
+                    <button id="refreshSounds" class="btn-text" disabled>🔄 새로고침</button>
+                </div>
+
+                <!-- 효과음 삽입 카드 -->
+                <div class="action-card">
+                    <div class="card-header">
+                        <h3>🎵 효과음 삽입</h3>
+                        <span class="shortcut-badge">Ctrl+Shift+I</span>
+                    </div>
+                    <div class="form-group compact">
+                        <label for="audio-track">삽입 트랙</label>
+                        <select id="audio-track" class="select-modern">
+                            <option value="auto">자동 선택</option>
+                            <option value="1">오디오 트랙 1</option>
+                            <option value="2">오디오 트랙 2</option>
+                            <option value="3">오디오 트랙 3</option>
+                        </select>
+                    </div>
+                    <button id="insert-sounds" class="btn-primary">효과음 삽입</button>
                 </div>
             </div>
         </div>
-        
-        <div class="insert-section">
-            <h2>효과음 삽입</h2>
-            <div class="debug-controls">
-                <button id="test-sound-engine" style="background: #007acc; color: white; margin-bottom: 10px;">🔧 SoundEngine 테스트</button>
+
+        <!-- 개별 효과음 라이브러리 -->
+        <div class="workflow-section">
+            <div class="section-header">
+                <h2>🎼 효과음 라이브러리</h2>
+                <button class="btn-collapse" data-target="sound-library">
+                    <span class="collapse-icon">−</span>
+                </button>
             </div>
-            <div class="options">
-                <!-- "삽입 위치" 옵션 제거
-                <div class="form-group">
-                    <label for="sound-position">삽입 위치:</label>
-                    <select id="sound-position">
-                        <option value="between">클립 사이</option>
-                        <option value="before">클립 시작점 앞</option>
-                        <option value="after">클립 끝점 뒤</option>
-                    </select>
+            
+            <div id="sound-library" class="workflow-content">
+                <div class="library-status">
+                    <span class="status-label">현재 폴더:</span>
+                    <span id="folderPathSpan" class="folder-path">폴더가 선택되지 않음</span>
                 </div>
-                -->
-                <div class="form-group">
-                    <label for="audio-track">오디오 트랙:</label>
-                    <select id="audio-track">
-                        <option value="auto">자동 선택</option>
-                        <option value="1">트랙 1</option>
-                        <option value="2">트랙 2</option>
-                        <option value="3">트랙 3</option>
-                    </select>
+                
+                <div id="individualSoundButtonsContainer" class="sound-grid">
+                    <div id="soundButtonPlaceholder" class="empty-state">
+                        <div class="empty-icon">🎵</div>
+                        <h3>효과음 라이브러리</h3>
+                        <p>폴더를 선택하면 효과음이 표시됩니다</p>
+                        <button class="btn-cta" onclick="document.getElementById('browseFolder').click()">
+                            📁 폴더 선택하기
+                        </button>
+                    </div>
                 </div>
             </div>
-            <button id="insert-sounds" class="primary-btn">효과음 삽입하기</button>
         </div>
 
-        <div class="section" id="replace-by-individual-sound-section">
-            <h2>개별 효과음으로 대체:</h2>
-            <p>현재 폴더: <span id="folderPathSpan">폴더가 선택되지 않음</span></p>
-            <div id="individualSoundButtonsContainer" class="button-container">
-                <p id="soundButtonPlaceholder">효과음 폴더를 선택하면 사용 가능한 효과음 버튼이 표시됩니다.</p>
+        <!-- 상태 및 결과 섹션 -->
+        <div class="status-section">
+            <div class="status-card">
+                <div id="result-info" class="status-display">
+                    <div id="status-message" class="status-text">시작할 준비가 되었습니다</div>
+                    <div class="status-indicator-dot ready"></div>
+                </div>
+                <div id="sound-list" class="result-list"></div>
             </div>
         </div>
-        
-        <div class="result-section">
-            <h3>결과</h3>
-            <div id="result-info" class="result-info">
-                <p id="status-message">클립을 선택하고 효과음 삽입하기 버튼을 클릭하세요.</p>
+
+        <!-- 개발자 도구 (접혀진 상태) -->
+        <details class="developer-tools">
+            <summary class="dev-tools-header">
+                <span>🛠️ 개발자 도구</span>
+            </summary>
+            <div class="dev-tools-content">
+                <button id="test-sound-engine" class="btn-dev">🔧 SoundEngine 테스트</button>
+                <button id="debug-button" class="btn-dev">📋 디버그 정보</button>
+                <button id="close-debug-button" class="btn-dev" style="display: none;">❌ 디버그 닫기</button>
+                <pre id="debug-info" class="debug-output"></pre>
             </div>
-            <div id="sound-list" class="sound-list"></div>
-        </div>
-
-        <!-- 디버그 정보 섹션 -->
-        <div class="debug-section">
-            <button id="debug-button">디버그 정보 보기</button>
-            <button id="close-debug-button">디버그 정보 닫기</button>
-            <pre id="debug-info" class="debug-info">여기에 디버그 정보가 표시됩니다...</pre>
-        </div>
-
-        <div class="footer">
-            <p>© 2024 JSCEditHelper Extension</p>
-        </div>
+        </details>
     </div>
     
     <script src="lib/CSInterface.js"></script>
@@ -106,5 +138,27 @@
     
     <script src="js/event-manager.js"></script>
     <script src="js/app.js"></script>
+    
+    <!-- UI 인터랙션 스크립트 -->
+    <script>
+        // 접기/펴기 기능
+        document.addEventListener('DOMContentLoaded', function() {
+            const collapseButtons = document.querySelectorAll('.btn-collapse');
+            
+            collapseButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const targetId = button.dataset.target;
+                    const target = document.getElementById(targetId);
+                    const icon = button.querySelector('.collapse-icon');
+                    
+                    if (target) {
+                        const isVisible = target.style.display !== 'none';
+                        target.style.display = isVisible ? 'none' : 'block';
+                        icon.textContent = isVisible ? '+' : '−';
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 </html> 

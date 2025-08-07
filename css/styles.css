@@ -643,3 +643,30 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: #666;
 }
+
+/* ================================
+   Inline Controls Layout
+   ================================ */
+.inline-controls {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: center;
+    width: 100%;
+}
+
+.flex-item {
+    flex: 1;
+    margin: 0;
+}
+
+/* 드롭다운과 버튼을 동일한 높이로 맞춤 */
+.inline-controls .select-modern {
+    height: 36px;
+    font-size: 13px;
+}
+
+.inline-controls .btn-primary {
+    height: 36px;
+    font-size: 13px;
+    padding: 0 16px;
+}

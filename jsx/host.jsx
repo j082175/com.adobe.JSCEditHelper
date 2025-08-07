@@ -323,7 +323,78 @@ function getAllClipsCommand() {
         var allClips = [];
         var videoTracks = seq.videoTracks;
         
+        // 활성화된 트랙 찾기
+        var activeTrackIndex = -1;
+        var debugLog = "=== 클립 자동 정렬 - 활성 트랙 검색 ===\n";
+        
+        // 방법 1: 선택된 클립이 있는 트랙 찾기
+        debugLog += "선택된 클립으로 활성 트랙 검색 중...\n";
         for (var trackIndex = 0; trackIndex < videoTracks.numTracks; trackIndex++) {
+            var track = videoTracks[trackIndex];
+            var clips = track.clips;
+            
+            for (var clipIndex = 0; clipIndex < clips.numItems; clipIndex++) {
+                var clip = clips[clipIndex];
+                if (clip.isSelected()) {
+                    activeTrackIndex = trackIndex;
+                    debugLog += "✅ 선택된 클립 발견 - 트랙 " + (trackIndex + 1) + " 활성으로 설정\n";
+                    break;
+                }
+            }
+            if (activeTrackIndex >= 0) break;
+        }
+        
+        // 방법 2: 선택된 클립이 없으면 track targeting (파란색 불)이 활성화된 트랙 검색
+        if (activeTrackIndex < 0) {
+            debugLog += "선택된 클립 없음 - track targeting 활성화된 트랙 검색 중...\n";
+            for (var trackIndex = 0; trackIndex < videoTracks.numTracks; trackIndex++) {
+                var track = videoTracks[trackIndex];
+                try {
+                    // track targeting 상태 확인 (파란색 불)
+                    if (track.isTargeted && track.isTargeted()) {
+                        activeTrackIndex = trackIndex;
+                        debugLog += "✅ Track targeting 활성화된 트랙 발견 - 트랙 " + (trackIndex + 1) + " 활성으로 설정\n";
+                        break;
+                    }
+                } catch (e) {
+                    debugLog += "⚠️ 트랙 " + (trackIndex + 1) + " targeting 상태 확인 실패: " + e.message + "\n";
+                }
+            }
+            
+            // track targeting이 없으면 첫 번째 비어있지 않은 트랙으로 fallback
+            if (activeTrackIndex < 0) {
+                debugLog += "Track targeting 트랙 없음 - 첫 번째 비어있지 않은 트랙으로 fallback...\n";
+                for (var trackIndex = 0; trackIndex < videoTracks.numTracks; trackIndex++) {
+                    var track = videoTracks[trackIndex];
+                    if (track.clips.numItems > 0) {
+                        activeTrackIndex = trackIndex;
+                        debugLog += "✅ 첫 번째 비어있지 않은 트랙 발견 - 트랙 " + (trackIndex + 1) + " 활성으로 설정 (fallback)\n";
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // 활성화된 트랙이 없으면 모든 트랙 처리 (기존 방식)
+        var tracksToProcess = [];
+        if (activeTrackIndex >= 0) {
+            tracksToProcess.push(activeTrackIndex);
+            debugLog += "📍 활성 트랙 " + (activeTrackIndex + 1) + "만 처리 예정\n";
+            debugWriteln("클립 자동 정렬: 활성 트랙 " + (activeTrackIndex + 1) + "만 처리");
+        } else {
+            // 모든 트랙 처리 (fallback)
+            for (var i = 0; i < videoTracks.numTracks; i++) {
+                tracksToProcess.push(i);
+            }
+            debugLog += "⚠️ 활성 트랙 없음 - 모든 트랙 " + videoTracks.numTracks + "개 처리 예정\n";
+            debugWriteln("클립 자동 정렬: 활성 트랙 없음, 모든 트랙 처리");
+        }
+        
+        debugWriteln(debugLog);
+        
+        // 지정된 트랙들의 클립만 처리
+        for (var i = 0; i < tracksToProcess.length; i++) {
+            var trackIndex = tracksToProcess[i];
             var track = videoTracks[trackIndex];
             var clips = track.clips;
             
@@ -351,11 +422,20 @@ function getAllClipsCommand() {
             }
         }
         
-        debugWriteln("전체 클립: " + allClips.length + "개");
+        var summaryMessage;
+        if (tracksToProcess.length === 1) {
+            summaryMessage = "활성 트랙 " + (tracksToProcess[0] + 1) + "에서 " + allClips.length + "개의 클립을 발견했습니다.";
+        } else {
+            summaryMessage = "모든 트랙(" + tracksToProcess.length + "개)에서 " + allClips.length + "개의 클립을 발견했습니다.";
+        }
+        
+        debugWriteln("전체 클립: " + allClips.length + "개 (처리된 트랙: " + tracksToProcess.length + "개)");
         return JSON.stringify({
             success: true,
-            message: allClips.length + "개의 클립을 발견했습니다.",
-            data: allClips
+            message: summaryMessage,
+            data: allClips,
+            processedTracks: tracksToProcess.length,
+            activeTrackIndex: activeTrackIndex >= 0 ? activeTrackIndex : null
         });
         
     } catch (e) {

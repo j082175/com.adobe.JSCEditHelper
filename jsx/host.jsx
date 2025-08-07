@@ -517,30 +517,16 @@ function executeInsertionPlanCommand(data) {
             }
             
             if (!foundEmptyTrack) {
-                // 빈 트랙이 없으면 첫 번째 사용 가능한 트랙 사용
-                debugLog += "빈 트랙을 찾지 못함, 사용 가능한 트랙 검색 중...\n";
+                // 빈 트랙이 없으면 경고 메시지와 함께 중단
+                debugLog += "❌ 빈 오디오 트랙을 찾을 수 없습니다.\n";
+                debugLog += "모든 오디오 트랙이 사용 중이거나 잠겨있습니다.\n";
+                debugLog += "빈 트랙을 만들거나 기존 트랙을 비워주세요.\n";
                 
-                for (var tk = 0; tk < audioTracks.numTracks; tk++) {
-                    debugLog += "  대체 트랙 검사 - 인덱스 " + tk + "\n";
-                    
-                    try {
-                        var currentTrack = audioTracks[tk];
-                        if (currentTrack) {
-                            var isLocked = currentTrack.isLocked();
-                            debugLog += "  트랙 " + (tk + 1) + " 잠김 상태: " + isLocked + "\n";
-                            
-                            if (!isLocked) {
-                                targetAudioTrackIndex = tk;
-                                debugLog += "⚠️ 빈 트랙 없음, 첫 번째 사용 가능한 트랙 사용: 트랙 " + (tk + 1) + " (인덱스: " + tk + ")\n";
-                                break;
-                            }
-                        } else {
-                            debugLog += "  트랙 " + (tk + 1) + "이 null\n";
-                        }
-                    } catch (fallbackError) {
-                        debugLog += "  대체 트랙 검사 오류: " + fallbackError.toString() + "\n";
-                    }
-                }
+                return JSON.stringify({
+                    success: false,
+                    message: "빈 오디오 트랙을 찾을 수 없습니다. 모든 트랙이 사용 중이거나 잠겨있습니다. 빈 트랙을 만들거나 기존 트랙을 비워주세요.",
+                    debug: debugLog
+                });
             }
         } else {
             // 명시적 트랙 번호 지정
@@ -1595,6 +1581,77 @@ function replaceSelectedAudioClipsInternal(soundFilePath) {
  */
 function simpleTest() {
     return "HELLO_FROM_EXTENDSCRIPT";
+}
+
+/**
+ * 비디오 클립에 대한 최적의 오디오 트랙 찾기
+ * 빈 공간이 있는 트랙을 우선적으로 검색하고, 없으면 경고 반환
+ */
+function findBestTrackForAudio(videoClip, audioProjectItem, soundFilePath) {
+    try {
+        debugWriteln("=== 최적 오디오 트랙 검색 시작 ===");
+        
+        var seq = app.project.activeSequence;
+        if (!seq) {
+            return {
+                success: false,
+                error: "활성화된 시퀀스가 없습니다."
+            };
+        }
+        
+        var audioTracks = seq.audioTracks;
+        var clipStartTime = videoClip.start.seconds;
+        var clipDuration = videoClip.duration.seconds;
+        
+        debugWriteln("클립 시작 시간: " + clipStartTime + "s, 지속 시간: " + clipDuration + "s");
+        debugWriteln("사용 가능한 오디오 트랙 수: " + audioTracks.numTracks);
+        
+        // 1단계: 빈 공간이 있는 트랙 찾기
+        for (var trackIndex = 0; trackIndex < audioTracks.numTracks; trackIndex++) {
+            try {
+                var track = audioTracks[trackIndex];
+                if (!track) {
+                    debugWriteln("트랙 " + (trackIndex + 1) + ": null 또는 undefined");
+                    continue;
+                }
+                
+                var isLocked = track.isLocked();
+                if (isLocked) {
+                    debugWriteln("트랙 " + (trackIndex + 1) + ": 잠겨있음, 건너뜀");
+                    continue;
+                }
+                
+                // 해당 시간대에 빈 공간이 있는지 확인
+                if (hasEmptySpace(track, clipStartTime, clipDuration)) {
+                    debugWriteln("✅ 트랙 " + (trackIndex + 1) + ": 빈 공간 있음");
+                    return {
+                        success: true,
+                        trackIndex: trackIndex,
+                        reason: "빈 공간 있는 트랙"
+                    };
+                }
+                
+                debugWriteln("트랙 " + (trackIndex + 1) + ": 빈 공간 없음");
+                
+            } catch (trackError) {
+                debugWriteln("트랙 " + (trackIndex + 1) + " 검사 오류: " + trackError.toString());
+            }
+        }
+        
+        // 2단계: 빈 공간이 있는 트랙이 없으면 경고 반환
+        debugWriteln("❌ 모든 트랙에 빈 공간이 없습니다.");
+        return {
+            success: false,
+            error: "빈 오디오 트랙을 찾을 수 없습니다. 모든 트랙이 사용 중이거나 잠겨있습니다. 빈 트랙을 만들거나 기존 트랙을 비워주세요."
+        };
+        
+    } catch (e) {
+        debugWriteln("최적 트랙 검색 중 오류: " + e.toString());
+        return {
+            success: false,
+            error: "트랙 검색 중 오류가 발생했습니다: " + e.message
+        };
+    }
 }
 
 /**

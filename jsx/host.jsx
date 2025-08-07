@@ -1655,6 +1655,65 @@ function findBestTrackForAudio(videoClip, audioProjectItem, soundFilePath) {
 }
 
 /**
+ * 오디오 트랙의 특정 시간 범위에 빈 공간이 있는지 확인
+ * @param {AudioTrack} audioTrack - 확인할 오디오 트랙
+ * @param {number} startTime - 시작 시간 (초)
+ * @param {number} duration - 지속 시간 (초)
+ * @return {boolean} 빈 공간이 있으면 true, 겹치면 false
+ */
+function hasEmptySpace(audioTrack, startTime, duration) {
+    try {
+        var endTime = startTime + duration;
+        
+        debugWriteln("빈 공간 검사: " + startTime.toFixed(3) + "s ~ " + endTime.toFixed(3) + "s (지속: " + duration.toFixed(3) + "s)");
+        
+        if (!audioTrack || !audioTrack.clips) {
+            debugWriteln("트랙 또는 클립 정보가 없음");
+            return true; // 트랙이 없으면 빈 공간으로 간주
+        }
+        
+        for (var clipIdx = 0; clipIdx < audioTrack.clips.numItems; clipIdx++) {
+            var clip = audioTrack.clips[clipIdx];
+            if (!clip) continue;
+            
+            var clipStart = clip.start.seconds;
+            var clipEnd = clip.end.seconds;
+            
+            debugWriteln("  기존 클립 " + (clipIdx + 1) + ": " + clipStart.toFixed(3) + "s ~ " + clipEnd.toFixed(3) + "s");
+            
+            // 겹침 검사: 새로운 클립이 기존 클립과 겹치는지 확인
+            // 부동소수점 허용 오차 (약 0.001초 = 1ms)
+            var tolerance = 0.001;
+            
+            // 겹침 조건: (새로운 시작 < 기존 끝 - 허용오차) && (새로운 끝 > 기존 시작 + 허용오차)
+            var hasOverlap = (startTime < (clipEnd - tolerance)) && (endTime > (clipStart + tolerance));
+            
+            if (hasOverlap) {
+                debugWriteln("    ❌ 겹침 발생!");
+                debugWriteln("    새로운: " + startTime.toFixed(3) + "s ~ " + endTime.toFixed(3) + "s");
+                debugWriteln("    기존:   " + clipStart.toFixed(3) + "s ~ " + clipEnd.toFixed(3) + "s");
+                debugWriteln("    허용오차: " + tolerance + "s 적용됨");
+                return false; // 겹침 있음
+            } else {
+                // 딱 맞게 붙어있는 경우 디버그 정보 표시
+                var gap1 = startTime - clipEnd; // 새로운 시작과 기존 끝의 간격
+                var gap2 = clipStart - endTime; // 기존 시작과 새로운 끝의 간격
+                if (Math.abs(gap1) < 0.01 || Math.abs(gap2) < 0.01) {
+                    debugWriteln("    ✅ 딱 맞게 붙어있음 (간격1: " + gap1.toFixed(3) + "s, 간격2: " + gap2.toFixed(3) + "s)");
+                }
+            }
+        }
+        
+        debugWriteln("  ✅ 빈 공간 확인됨");
+        return true; // 겹침 없음
+        
+    } catch (e) {
+        debugWriteln("빈 공간 검사 중 오류: " + e.toString());
+        return false; // 오류 시 안전하게 false 반환
+    }
+}
+
+/**
  * 생성된 클립(타이틀/그래픽/컬러매트)에 효과음 추가
  */
 function addAudioToGeneratedClip(generatedClip, audioProjectItem, soundFilePath) {

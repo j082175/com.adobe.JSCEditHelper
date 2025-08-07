@@ -139,17 +139,27 @@ var JSCApp = (function () {
             setupDebugUI();
             // DI 서비스 가져오기 (DI 우선, fallback으로 window)
             var communication = ((_a = window.DI) === null || _a === void 0 ? void 0 : _a.get('JSCCommunication')) || window.JSCCommunication;
-            var uiManager = ((_b = window.DI) === null || _b === void 0 ? void 0 : _b.get('JSCUIManager')) || window.JSCUIManager;
-            var stateManager = ((_c = window.DI) === null || _c === void 0 ? void 0 : _c.get('JSCStateManager')) || window.JSCStateManager;
-            var eventManager = ((_d = window.DI) === null || _d === void 0 ? void 0 : _d.get('JSCEventManager')) || window.JSCEventManager;
+            var uiManager_1 = ((_b = window.DI) === null || _b === void 0 ? void 0 : _b.get('JSCUIManager')) || window.JSCUIManager;
+            var stateManager_1 = ((_c = window.DI) === null || _c === void 0 ? void 0 : _c.get('JSCStateManager')) || window.JSCStateManager;
+            var eventManager_1 = ((_d = window.DI) === null || _d === void 0 ? void 0 : _d.get('JSCEventManager')) || window.JSCEventManager;
             // 통신 모듈 초기화
             var csInterface = communication.initialize();
             // 테마 설정
-            uiManager.updateThemeWithAppSkinInfo(csInterface);
+            uiManager_1.updateThemeWithAppSkinInfo(csInterface);
             // 상태 초기화
-            stateManager.initializeFolderPath();
+            stateManager_1.initializeFolderPath();
             // 이벤트 리스너 설정
-            eventManager.setupEventListeners();
+            eventManager_1.setupEventListeners();
+            // 폴더 경로가 설정되어 있으면 자동으로 효과음 목록 로드
+            setTimeout(function () {
+                var currentPath = stateManager_1.getCurrentFolderPath();
+                if (currentPath && window.JSCUtils && window.JSCUtils.isValidPath(currentPath)) {
+                    console.log("Auto-loading sound files from: " + currentPath);
+                    uiManager_1.updateStatus("저장된 폴더에서 효과음 목록을 불러오는 중...", true);
+                    // 자동 새로고침 실행
+                    eventManager_1.refreshSoundButtons();
+                }
+            }, 500); // UI가 완전히 준비된 후 실행
             // 엔진 상태 확인 및 디버그 정보 표시
             checkEngineStatus();
             console.log("JSCEditHelper initialized successfully");

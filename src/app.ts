@@ -174,6 +174,17 @@ const JSCApp = (function(): JSCAppInterface {
             // 이벤트 리스너 설정
             eventManager.setupEventListeners();
             
+            // 폴더 경로가 설정되어 있으면 자동으로 효과음 목록 로드
+            setTimeout(() => {
+                const currentPath = stateManager.getCurrentFolderPath();
+                if (currentPath && (window as any).JSCUtils && (window as any).JSCUtils.isValidPath(currentPath)) {
+                    console.log("Auto-loading sound files from: " + currentPath);
+                    uiManager.updateStatus("저장된 폴더에서 효과음 목록을 불러오는 중...", true);
+                    // 자동 새로고침 실행
+                    eventManager.refreshSoundButtons();
+                }
+            }, 500); // UI가 완전히 준비된 후 실행
+            
             // 엔진 상태 확인 및 디버그 정보 표시
             checkEngineStatus();
             

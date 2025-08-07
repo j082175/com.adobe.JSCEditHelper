@@ -453,17 +453,25 @@ var JSCEventManager = (function () {
                 console.log("Browse folder result: " + result);
                 var utils = getUtils();
                 var stateManager = getStateManager();
+                var uiManager = getUIManager();
                 if (result && result !== "undefined" && result !== "" &&
                     utils && utils.isValidPath(result)) {
                     if (stateManager) {
                         stateManager.saveFolderPath(result);
                         console.log("Valid path set: " + result);
+                        // 폴더 선택 성공 후 자동으로 효과음 라이브러리 새로고침
+                        if (uiManager) {
+                            uiManager.updateStatus("폴더가 설정되었습니다. 효과음 목록을 불러오는 중...", true);
+                        }
+                        // 잠시 후 새로고침 실행 (UI 업데이트 완료 후)
+                        setTimeout(function () {
+                            refreshSoundButtons();
+                        }, 100);
                     }
                 }
                 else {
                     if (result && result !== "undefined" && result !== "") {
                         console.warn("Invalid path received from ExtendScript: " + result);
-                        var uiManager = getUIManager();
                         if (uiManager) {
                             uiManager.updateStatus("올바른 폴더를 선택해주세요.", false);
                         }
@@ -770,6 +778,7 @@ var JSCEventManager = (function () {
     return {
         setupEventListeners: setupEventListeners,
         handleSoundFileButtonClick: handleSoundFileButtonClick,
+        refreshSoundButtons: refreshSoundButtons, // 자동 새로고침을 위해 공개
         getDIStatus: getDIStatus // DI 패턴 적용
     };
 })();

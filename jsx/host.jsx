@@ -1163,10 +1163,12 @@ function replaceSelectedAudioClipsInternal(soundFilePath) {
                                             var audioExtensions = ['.wav', '.mp3', '.aif', '.aiff', '.m4a', '.flac'];
                                             var videoExtensions = ['.mp4', '.mov', '.avi', '.mxf', '.prores'];
                                             var imageExtensions = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.psd'];
+                                            var graphicExtensions = ['.ai', '.eps', '.svg', '.pdf']; // 그래픽 파일 확장자 추가
                                             
                                             var isAudio = false;
                                             var isVideo = false;
                                             var isImage = false;
+                                            var isGraphic = false;
                                             
                                             for (var j = 0; j < audioExtensions.length; j++) {
                                                 if (extension === audioExtensions[j]) {
@@ -1189,10 +1191,18 @@ function replaceSelectedAudioClipsInternal(soundFilePath) {
                                                 }
                                             }
                                             
+                                            for (var g = 0; g < graphicExtensions.length; g++) {
+                                                if (extension === graphicExtensions[g]) {
+                                                    isGraphic = true;
+                                                    break;
+                                                }
+                                            }
+                                            
                                             debugInfo += "  - 미디어 분류: ";
                                             if (isAudio) debugInfo += "오디오";
                                             else if (isVideo) debugInfo += "비디오";
                                             else if (isImage) debugInfo += "이미지";
+                                            else if (isGraphic) debugInfo += "그래픽";
                                             else debugInfo += "알 수 없음";
                                             debugInfo += "\n";
                                         }
@@ -1340,8 +1350,24 @@ function replaceSelectedAudioClipsInternal(soundFilePath) {
             }
             
             if (!clip.projectItem) {
-                debugInfo += "  ERROR: projectItem이 null\n";
-                continue;
+                debugInfo += "  ⚠️ projectItem이 null - 생성된 클립(타이틀/그래픽/컬러매트) 감지됨\n";
+                debugInfo += "  클립 타입: 생성된 클립으로 추정\n";
+                debugInfo += "  생성된 클립에 효과음 추가 모드로 전환합니다.\n";
+                
+                try {
+                    // projectItem이 없는 클립(타이틀, 그래픽 등)에 대해서도 효과음 추가
+                    var addResult = addAudioToGeneratedClip(clip, projectItem, soundFilePath);
+                    if (addResult.success) {
+                        debugInfo += "  SUCCESS: 생성된 클립에 효과음 추가 성공\n";
+                        debugInfo += "  " + addResult.message + "\n";
+                        replacedCount++; // 성공한 경우 카운트 증가
+                    } else {
+                        debugInfo += "  FAILED: 생성된 클립 효과음 추가 실패 - " + addResult.error + "\n";
+                    }
+                } catch (addError) {
+                    debugInfo += "  ERROR: 생성된 클립 효과음 추가 중 오류 - " + addError.toString() + "\n";
+                }
+                continue; // 다음 클립으로 넘어감
             }
             
             debugInfo += "  기존 미디어: " + File.decode(clip.projectItem.name) + "\n";
@@ -1359,6 +1385,7 @@ function replaceSelectedAudioClipsInternal(soundFilePath) {
                     var audioExts = ['.wav', '.mp3', '.aif', '.aiff', '.m4a', '.flac'];
                     var videoExts = ['.mp4', '.mov', '.avi', '.mxf', '.prores'];
                     var imageExts = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.psd'];
+                    var graphicExts = ['.ai', '.eps', '.svg', '.pdf'];
                     
                     var isSourceAudio = false;
                     for (var a = 0; a < audioExts.length; a++) {
@@ -1382,6 +1409,12 @@ function replaceSelectedAudioClipsInternal(soundFilePath) {
                                 break;
                             }
                         }
+                        for (var gr = 0; gr < graphicExts.length; gr++) {
+                            if (sourceExtension === graphicExts[gr]) {
+                                sourceMediaType = "그래픽";
+                                break;
+                            }
+                        }
                     }
                 }
             } catch (typeCheckError) {
@@ -1391,9 +1424,9 @@ function replaceSelectedAudioClipsInternal(soundFilePath) {
             debugInfo += "  원본 미디어 타입: " + sourceMediaType + "\n";
             debugInfo += "  대상 미디어 타입: " + targetMediaType + "\n";
             
-            // 비디오/이미지 클립인 경우: A2 트랙에 오디오 추가 (교체 아님)
-            if (sourceMediaType === "비디오" || sourceMediaType === "이미지") {
-                debugInfo += "  " + sourceMediaType + " 클립 감지됨. A2 트랙에 오디오 추가 모드로 전환합니다.\n";
+            // 비디오/이미지/그래픽 클립인 경우: 오디오 트랙에 효과음 추가 (교체 아님)
+            if (sourceMediaType === "비디오" || sourceMediaType === "이미지" || sourceMediaType === "그래픽") {
+                debugInfo += "  " + sourceMediaType + " 클립 감지됨. 오디오 트랙에 효과음 추가 모드로 전환합니다.\n";
                 
                 try {
                     var addResult = addAudioToA2Track(clip, projectItem, soundFilePath);
@@ -1485,52 +1518,145 @@ function simpleTest() {
 }
 
 /**
- * 비디오/이미지 클립에 대해 A2 트랙에 오디오 추가
+ * 생성된 클립(타이틀/그래픽/컬러매트)에 효과음 추가
+ */
+function addAudioToGeneratedClip(generatedClip, audioProjectItem, soundFilePath) {
+    try {
+        debugWriteln("생성된 클립 효과음 추가 시작: " + (generatedClip.name || "이름 없는 클립"));
+        
+        // 1. 최적의 트랙 찾기 (빈 공간 우선 검색)
+        var trackSelection = findBestTrackForAudio(generatedClip, audioProjectItem, soundFilePath);
+        
+        if (!trackSelection.success) {
+            return {
+                success: false,
+                error: trackSelection.error
+            };
+        }
+        
+        var targetTrackIndex = trackSelection.trackIndex;
+        var selectionReason = trackSelection.reason;
+        
+        debugWriteln("선택된 트랙: A" + (targetTrackIndex + 1) + " (" + selectionReason + ")");
+        
+        // 2. 현재 시퀀스 및 선택된 트랙 확인
+        var seq = app.project.activeSequence;
+        var targetAudioTrack = seq.audioTracks[targetTrackIndex];
+        var clipStartTime = generatedClip.start.seconds;
+        var clipDuration = generatedClip.duration.seconds;
+        
+        // 3. 삽입 전 프로젝트 아이템 사전 트림 시도
+        debugWriteln("=== 삽입 전 사전 트림 시도 ===");
+        var preTrimSuccess = false;
+        try {
+            if (audioProjectItem.setInPoint && audioProjectItem.setOutPoint) {
+                debugWriteln("프로젝트 아이템에 인/아웃 포인트 설정 시도");
+                
+                // 프로젝트 아이템 레벨에서 인/아웃 포인트 설정
+                audioProjectItem.setInPoint(0, 4); // 0초부터 시작
+                audioProjectItem.setOutPoint(clipDuration, 4); // 클립 길이만큼
+                
+                debugWriteln("프로젝트 아이템 인/아웃 포인트 설정 완료: 0s ~ " + clipDuration.toFixed(2) + "s");
+                preTrimSuccess = true;
+            } else {
+                debugWriteln("프로젝트 아이템에 setInPoint/setOutPoint 메서드 없음");
+            }
+        } catch (preTrimError) {
+            debugWriteln("사전 트림 실패: " + preTrimError.toString());
+        }
+        
+        // 4. 오디오 클립을 트랙에 추가
+        try {
+            // insertClip 메서드 사용
+            if (targetAudioTrack.insertClip) {
+                var insertTime = clipStartTime;
+                debugWriteln("A" + (targetTrackIndex + 1) + " 트랙에 오디오 삽입 시도 - 시간: " + insertTime + "s");
+                debugWriteln("사전 트림 적용됨: " + (preTrimSuccess ? "YES" : "NO"));
+                
+                var insertResult = targetAudioTrack.insertClip(audioProjectItem, insertTime);
+                if (insertResult) {
+                    debugWriteln("오디오 클립 삽입 성공");
+                    
+                    // 삽입된 클립 검증
+                    var insertedClip = null;
+                    for (var clipIdx = targetAudioTrack.clips.numItems - 1; clipIdx >= 0; clipIdx--) {
+                        var clip = targetAudioTrack.clips[clipIdx];
+                        if (clip && Math.abs(clip.start.seconds - insertTime) < 0.01) {
+                            insertedClip = clip;
+                            debugWriteln("삽입된 클립 발견: 인덱스 " + clipIdx + ", 시작: " + clip.start.seconds + "s");
+                            break;
+                        }
+                    }
+                    
+                    if (insertedClip) {
+                        var actualDuration = insertedClip.duration.seconds;
+                        debugWriteln("최종 삽입된 클립 길이: " + actualDuration.toFixed(2) + "s (목표: " + clipDuration.toFixed(2) + "s)");
+                        
+                        return {
+                            success: true,
+                            message: "A" + (targetTrackIndex + 1) + " 트랙에 효과음을 추가했습니다 (" + selectionReason + ", 시간: " + insertTime.toFixed(2) + "s, 길이: " + actualDuration.toFixed(2) + "s)"
+                        };
+                    } else {
+                        debugWriteln("삽입된 클립을 찾을 수 없음");
+                        return {
+                            success: true,
+                            message: "A" + (targetTrackIndex + 1) + " 트랙에 효과음을 추가했습니다 (" + selectionReason + ", 클립 검증 실패)"
+                        };
+                    }
+                } else {
+                    return {
+                        success: false,
+                        error: "insertClip 메서드가 false를 반환했습니다."
+                    };
+                }
+            } else {
+                return {
+                    success: false,
+                    error: "insertClip 메서드를 사용할 수 없습니다."
+                };
+            }
+        } catch (insertError) {
+            return {
+                success: false,
+                error: "클립 삽입 중 오류: " + insertError.toString()
+            };
+        }
+        
+    } catch (e) {
+        return {
+            success: false,
+            error: "생성된 클립 효과음 추가 중 오류: " + e.toString()
+        };
+    }
+}
+
+/**
+ * 비디오/이미지/그래픽 클립에 대해 최적 오디오 트랙에 효과음 추가
  */
 function addAudioToA2Track(videoClip, audioProjectItem, soundFilePath) {
     try {
-        debugWriteln("A2 트랙 오디오 추가 시작: " + File.decode(videoClip.projectItem.name));
+        debugWriteln("오디오 트랙 효과음 추가 시작: " + File.decode(videoClip.projectItem.name));
         
-        // 1. 비디오 클립 정보 추출
+        // 1. 최적의 트랙 찾기 (빈 공간 우선 검색) - 모든 클립에 적용
+        var trackSelection = findBestTrackForAudio(videoClip, audioProjectItem, soundFilePath);
+        
+        if (!trackSelection.success) {
+            return {
+                success: false,
+                error: trackSelection.error
+            };
+        }
+        
+        var targetTrackIndex = trackSelection.trackIndex;
+        var selectionReason = trackSelection.reason;
+        
+        debugWriteln("선택된 트랙: A" + (targetTrackIndex + 1) + " (" + selectionReason + ")");
+        
+        // 2. 현재 시퀀스 및 선택된 트랙 확인
+        var seq = app.project.activeSequence;
+        var targetAudioTrack = seq.audioTracks[targetTrackIndex];
         var videoClipStartTime = videoClip.start.seconds;
         var videoClipDuration = videoClip.duration.seconds;
-        
-        // 2. 현재 시퀀스 확인
-        var seq = app.project.activeSequence;
-        if (!seq) {
-            return {
-                success: false,
-                error: "활성 시퀀스를 찾을 수 없습니다."
-            };
-        }
-        
-        // 3. A2 트랙 (인덱스 1) 확인
-        var targetTrackIndex = 1; // A2 트랙 (0-based 인덱스)
-        var targetAudioTrack = null;
-        
-        if (seq.audioTracks.numTracks > targetTrackIndex) {
-            targetAudioTrack = seq.audioTracks[targetTrackIndex];
-            debugWriteln("A2 트랙 확인 - 잠김: " + targetAudioTrack.isLocked() + ", 음소거: " + targetAudioTrack.isMuted());
-        } else {
-            return {
-                success: false,
-                error: "A2 트랙이 존재하지 않습니다. 총 오디오 트랙 수: " + seq.audioTracks.numTracks
-            };
-        }
-        
-        // 4. A2 트랙이 잠겨있으면 다른 트랙 찾기
-        if (!targetAudioTrack || targetAudioTrack.isLocked()) {
-            debugWriteln("A2 트랙 사용 불가, 다른 트랙 검색 중...");
-            for (var trackIdx = 0; trackIdx < seq.audioTracks.numTracks; trackIdx++) {
-                var audioTrack = seq.audioTracks[trackIdx];
-                if (audioTrack && !audioTrack.isLocked()) {
-                    targetAudioTrack = audioTrack;
-                    targetTrackIndex = trackIdx;
-                    debugWriteln("대체 트랙 선택: Audio " + (trackIdx + 1) + " (인덱스: " + trackIdx + ")");
-                    break;
-                }
-            }
-        }
         
         if (!targetAudioTrack) {
             return {
@@ -1539,7 +1665,7 @@ function addAudioToA2Track(videoClip, audioProjectItem, soundFilePath) {
             };
         }
         
-        // 5. 삽입 전 프로젝트 아이템 사전 트림 시도
+        // 3. 삽입 전 프로젝트 아이템 사전 트림 시도
         debugWriteln("=== 삽입 전 사전 트림 시도 ===");
         var preTrimSuccess = false;
         try {
@@ -1559,7 +1685,7 @@ function addAudioToA2Track(videoClip, audioProjectItem, soundFilePath) {
             debugWriteln("사전 트림 실패: " + preTrimError.toString());
         }
         
-        // 6. 오디오 클립을 트랙에 추가
+        // 4. 오디오 클립을 트랙에 추가
         try {
             // insertClip 메서드 사용
             if (targetAudioTrack.insertClip) {
@@ -1591,7 +1717,7 @@ function addAudioToA2Track(videoClip, audioProjectItem, soundFilePath) {
                                 debugWriteln("사전 트림 성공! 추가 길이 조정 불필요");
                                 return {
                                     success: true,
-                                    message: "A" + (targetTrackIndex + 1) + " 트랙에 오디오 클립을 추가했습니다 (사전 트림 적용, 시간: " + insertTime.toFixed(2) + "s, 길이: " + preTrimmedduration.toFixed(2) + "s)"
+                                    message: "A" + (targetTrackIndex + 1) + " 트랙에 오디오 클립을 추가했습니다 (" + selectionReason + ", 사전 트림 적용, 시간: " + insertTime.toFixed(2) + "s, 길이: " + preTrimmedduration.toFixed(2) + "s)"
                                 };
                             } else {
                                 debugWriteln("사전 트림 부분적 성공, 추가 조정 필요");
@@ -1618,13 +1744,13 @@ function addAudioToA2Track(videoClip, audioProjectItem, soundFilePath) {
                         
                         return {
                             success: true,
-                            message: "A" + (targetTrackIndex + 1) + " 트랙에 오디오 클립을 추가했습니다 (사전 트림 적용, 시간: " + insertTime.toFixed(2) + "s, 길이: " + actualDuration.toFixed(2) + "s)"
+                            message: "A" + (targetTrackIndex + 1) + " 트랙에 오디오 클립을 추가했습니다 (" + selectionReason + ", 사전 트림 적용, 시간: " + insertTime.toFixed(2) + "s, 길이: " + actualDuration.toFixed(2) + "s)"
                         };
                     } else {
                         debugWriteln("삽입된 클립을 찾을 수 없음");
                         return {
                             success: true,
-                            message: "A" + (targetTrackIndex + 1) + " 트랙에 오디오 클립을 추가했습니다 (클립 검증 실패)"
+                            message: "A" + (targetTrackIndex + 1) + " 트랙에 오디오 클립을 추가했습니다 (" + selectionReason + ", 클립 검증 실패)"
                         };
                     }
                 } else {
@@ -1649,7 +1775,7 @@ function addAudioToA2Track(videoClip, audioProjectItem, soundFilePath) {
     } catch (e) {
         return {
             success: false,
-            error: "A2 트랙 오디오 추가 중 오류: " + e.toString()
+            error: "최적 트랙 오디오 추가 중 오류: " + e.toString()
         };
     }
 }

@@ -406,14 +406,14 @@ const SoundEngine = (function() {
     /**
      * 오디오 트랙 번호 파싱
      */
-    function parseAudioTrack(audioTrack: string | number): number {
+    function parseAudioTrack(audioTrack: string | number): string | number {
         if (typeof audioTrack === 'number') {
             return Math.max(1, Math.floor(audioTrack));
         }
 
         if (typeof audioTrack === 'string') {
             if (audioTrack.toLowerCase() === 'auto') {
-                return 1; // 기본값
+                return 'auto'; // 자동 선택을 JSX에서 처리하도록 전달
             }
             
             const parsed = parseInt(audioTrack, 10);

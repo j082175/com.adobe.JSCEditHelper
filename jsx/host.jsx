@@ -391,22 +391,93 @@ function executeInsertionPlanCommand(data) {
         var insertions = data.insertions;
         var audioTrack = data.audioTrack;
         var successCount = 0;
+        var targetAudioTrackIndex = 0; // 실제 사용될 트랙 인덱스
         
         debugLog += "삽입 계획 수: " + insertions.length + "개\n";
-        debugLog += "대상 오디오 트랙: " + audioTrack + "\n";
+        debugLog += "요청된 오디오 트랙: " + audioTrack + "\n";
         
-        // 오디오 트랙 존재 확인
+        // 오디오 트랙 존재 확인 및 자동 선택 처리
         var audioTracks = seq.audioTracks;
         debugLog += "사용 가능한 오디오 트랙 수: " + audioTracks.numTracks + "\n";
         
-        if (audioTracks.numTracks < audioTrack) {
-            debugLog += "❌ 대상 오디오 트랙이 존재하지 않음\n";
-            return JSON.stringify({
-                success: false,
-                message: "오디오 트랙 " + audioTrack + "이(가) 존재하지 않습니다.",
-                debug: debugLog
-            });
+        if (audioTrack === "auto") {
+            debugLog += "자동 선택 모드: 빈 오디오 트랙 찾기 시작\n";
+            var foundEmptyTrack = false;
+            
+            // 모든 오디오 트랙을 순차적으로 검사
+            debugLog += "전체 오디오 트랙 검사 시작 (총 " + audioTracks.numTracks + "개)\n";
+            
+            for (var tk = 0; tk < audioTracks.numTracks; tk++) {
+                debugLog += "트랙 인덱스 " + tk + " 검사 중...\n";
+                
+                try {
+                    var currentTrack = audioTracks[tk];
+                    debugLog += "  트랙 " + (tk + 1) + " 객체 존재: " + (currentTrack ? "YES" : "NO") + "\n";
+                    
+                    if (currentTrack) {
+                        var isLocked = currentTrack.isLocked();
+                        var isMuted = currentTrack.isMuted();
+                        var isEmpty = currentTrack.clips.numItems === 0;
+                        
+                        debugLog += "  트랙 " + (tk + 1) + " 상태 - 잠김: " + isLocked + ", 음소거: " + isMuted + ", 비어있음: " + isEmpty + ", 클립수: " + currentTrack.clips.numItems + "\n";
+                        
+                        // 잠겨있지 않고 비어있으면 선택 (음소거 상태는 무시)
+                        if (!isLocked && isEmpty) {
+                            targetAudioTrackIndex = tk;
+                            foundEmptyTrack = true;
+                            debugLog += "✅ 빈 오디오 트랙 발견: 트랙 " + (tk + 1) + " (인덱스: " + tk + ")" + (isMuted ? " [음소거 상태지만 삽입 가능]" : "") + "\n";
+                            break;
+                        }
+                    } else {
+                        debugLog += "  ⚠️ 트랙 " + (tk + 1) + "이 null 또는 undefined\n";
+                    }
+                } catch (trackError) {
+                    debugLog += "  ❌ 트랙 " + (tk + 1) + " 검사 중 오류: " + trackError.toString() + "\n";
+                }
+            }
+            
+            if (!foundEmptyTrack) {
+                // 빈 트랙이 없으면 첫 번째 사용 가능한 트랙 사용
+                debugLog += "빈 트랙을 찾지 못함, 사용 가능한 트랙 검색 중...\n";
+                
+                for (var tk = 0; tk < audioTracks.numTracks; tk++) {
+                    debugLog += "  대체 트랙 검사 - 인덱스 " + tk + "\n";
+                    
+                    try {
+                        var currentTrack = audioTracks[tk];
+                        if (currentTrack) {
+                            var isLocked = currentTrack.isLocked();
+                            debugLog += "  트랙 " + (tk + 1) + " 잠김 상태: " + isLocked + "\n";
+                            
+                            if (!isLocked) {
+                                targetAudioTrackIndex = tk;
+                                debugLog += "⚠️ 빈 트랙 없음, 첫 번째 사용 가능한 트랙 사용: 트랙 " + (tk + 1) + " (인덱스: " + tk + ")\n";
+                                break;
+                            }
+                        } else {
+                            debugLog += "  트랙 " + (tk + 1) + "이 null\n";
+                        }
+                    } catch (fallbackError) {
+                        debugLog += "  대체 트랙 검사 오류: " + fallbackError.toString() + "\n";
+                    }
+                }
+            }
+        } else {
+            // 명시적 트랙 번호 지정
+            var specifiedTrack = parseInt(audioTrack);
+            if (isNaN(specifiedTrack) || specifiedTrack < 1 || specifiedTrack > audioTracks.numTracks) {
+                debugLog += "❌ 유효하지 않은 트랙 번호: " + audioTrack + "\n";
+                return JSON.stringify({
+                    success: false,
+                    message: "유효하지 않은 오디오 트랙 번호: " + audioTrack + " (사용 가능: 1-" + audioTracks.numTracks + ")",
+                    debug: debugLog
+                });
+            }
+            targetAudioTrackIndex = specifiedTrack - 1; // 1-based를 0-based로 변환
+            debugLog += "✅ 명시적 트랙 선택: 트랙 " + specifiedTrack + " (인덱스: " + targetAudioTrackIndex + ")\n";
         }
+        
+        debugLog += "최종 사용할 오디오 트랙: " + (targetAudioTrackIndex + 1) + " (인덱스: " + targetAudioTrackIndex + ")\n";
         
         for (var i = 0; i < insertions.length; i++) {
             var insertion = insertions[i];
@@ -572,12 +643,21 @@ function executeInsertionPlanCommand(data) {
                     }
                 }
                 
-                // 오디오 트랙에 삽입
-                var targetTrackIndex = insertion.targetTrack || audioTrack;
-                var targetTrack = audioTracks[targetTrackIndex - 1];
+                // 오디오 트랙에 삽입 (계산된 targetAudioTrackIndex 사용)
+                var targetTrack = audioTracks[targetAudioTrackIndex];
                 var insertTime = insertion.position.seconds;
                 
-                debugLog += "트랙 삽입 시도: Track " + targetTrackIndex + " at " + insertTime + "s\n";
+                debugLog += "트랙 삽입 시도: Track " + (targetAudioTrackIndex + 1) + " (인덱스: " + targetAudioTrackIndex + ") at " + insertTime + "s\n";
+                
+                if (!targetTrack) {
+                    debugLog += "❌ 대상 트랙이 존재하지 않음 (인덱스: " + targetAudioTrackIndex + ")\n";
+                    continue;
+                }
+                
+                if (targetTrack.isLocked && targetTrack.isLocked()) {
+                    debugLog += "❌ 대상 트랙이 잠겨있음\n";
+                    continue;
+                }
                 
                 // insertClip 메서드 시도
                 var insertSuccess = false;

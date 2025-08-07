@@ -439,7 +439,7 @@ var SoundEngine = (function () {
         }
         if (typeof audioTrack === 'string') {
             if (audioTrack.toLowerCase() === 'auto') {
-                return 1; // 기본값
+                return 'auto'; // 자동 선택을 JSX에서 처리하도록 전달
             }
             var parsed = parseInt(audioTrack, 10);
             if (!isNaN(parsed)) {

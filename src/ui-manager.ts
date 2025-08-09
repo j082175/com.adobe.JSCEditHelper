@@ -186,6 +186,15 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
                         }
                     });
                     
+                    // 키보드 이벤트 차단 (스페이스바로 인한 의도치 않은 활성화 방지)
+                    button.addEventListener("keydown", function(event: KeyboardEvent) {
+                        if (event.code === "Space" || event.key === " ") {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            console.log("효과음 버튼 스페이스바 이벤트 차단됨");
+                        }
+                    });
+                    
                     // 미리보기 이벤트 추가
                     setupAudioPreviewEvent(button, soundFile.fsName);
                     

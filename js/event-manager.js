@@ -717,6 +717,78 @@ var JSCEventManager = (function () {
                                         // 디버그 정보 저장
                                         window.lastDebugInfo = debugInfo;
                                         uiManager_7.toggleDebugButton(true);
+                                        // 효과음 삽입 완료 후 타임라인으로 포커스 이동
+                                        setTimeout(function () {
+                                            try {
+                                                var focusDebug_1 = "\n--- 포커스 디버그 정보 ---\n";
+                                                var currentElement = document.activeElement;
+                                                focusDebug_1 += "시작 - 현재 활성 요소: " + (currentElement ? (currentElement.tagName + (currentElement.id ? "#" + currentElement.id : "") + (currentElement.textContent ? " (" + currentElement.textContent.substring(0, 20) + ")" : "")) : "없음") + "\n";
+                                                // CEP 패널에서 포커스 제거
+                                                if (document.activeElement && document.activeElement.blur) {
+                                                    document.activeElement.blur();
+                                                    focusDebug_1 += "현재 요소 blur 완료\n";
+                                                }
+                                                // 패널의 포커스를 완전히 제거 시도
+                                                var bodyElement = document.body;
+                                                if (bodyElement) {
+                                                    bodyElement.focus();
+                                                    bodyElement.blur();
+                                                    // 추가: 모든 포커스 가능한 요소들을 blur
+                                                    var focusableElements = document.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])');
+                                                    focusableElements.forEach(function (el) {
+                                                        try {
+                                                            el.blur();
+                                                        }
+                                                        catch (e) { /* ignore */ }
+                                                    });
+                                                    // 최종적으로 document에서 activeElement 제거 시도
+                                                    try {
+                                                        if (document.activeElement && document.activeElement.blur) {
+                                                            document.activeElement.blur();
+                                                        }
+                                                        // 강제로 포커스를 제거하기 위해 임시 요소 생성 후 제거
+                                                        var tempInput = document.createElement('input');
+                                                        tempInput.style.position = 'absolute';
+                                                        tempInput.style.left = '-9999px';
+                                                        tempInput.style.opacity = '0';
+                                                        document.body.appendChild(tempInput);
+                                                        tempInput.focus();
+                                                        tempInput.blur();
+                                                        document.body.removeChild(tempInput);
+                                                    }
+                                                    catch (e) { /* ignore */ }
+                                                    focusDebug_1 += "완전한 포커스 제거 시도 완료\n";
+                                                }
+                                                var finalElement = document.activeElement;
+                                                focusDebug_1 += "blur 후 - 최종 활성 요소: " + (finalElement ? (finalElement.tagName + (finalElement.id ? "#" + finalElement.id : "") + (finalElement.textContent ? " (" + finalElement.textContent.substring(0, 20) + ")" : "")) : "없음") + "\n";
+                                                // UI에 포커스 정보 표시
+                                                uiManager_7.updateStatus("효과음 삽입 완료 - 포커스 상태 확인", true);
+                                                // Adobe 앱으로 포커스 이동 (타임라인 활성화)
+                                                var communication_2 = getCommunication();
+                                                if (communication_2) {
+                                                    // ExtendScript로 타임라인 포커스 명령 전송
+                                                    communication_2.callExtendScript("focusTimeline();", function (focusResult) {
+                                                        focusDebug_1 += "타임라인 포커스 이동 결과: " + focusResult + "\n";
+                                                        // 최종 결과를 UI에 표시
+                                                        var veryFinalElement = document.activeElement;
+                                                        focusDebug_1 += "최종 - 활성 요소: " + (veryFinalElement ? (veryFinalElement.tagName + (veryFinalElement.id ? "#" + veryFinalElement.id : "")) : "없음") + "\n";
+                                                        // 디버그 정보에 포커스 정보 추가
+                                                        window.lastDebugInfo = (window.lastDebugInfo || "") + focusDebug_1;
+                                                        console.log("포커스 디버그:", focusDebug_1);
+                                                    });
+                                                }
+                                                else {
+                                                    focusDebug_1 += "Communication 객체 없음\n";
+                                                    window.lastDebugInfo = (window.lastDebugInfo || "") + focusDebug_1;
+                                                    console.log("포커스 디버그:", focusDebug_1);
+                                                }
+                                            }
+                                            catch (focusError) {
+                                                var errorMsg = "포커스 이동 중 오류: " + focusError;
+                                                uiManager_7.updateStatus(errorMsg, false);
+                                                console.log(errorMsg);
+                                            }
+                                        }, 100); // 100ms 후 실행
                                     });
                                 }
                                 else {

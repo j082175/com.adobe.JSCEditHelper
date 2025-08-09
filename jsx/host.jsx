@@ -1518,7 +1518,7 @@ function replaceSelectedAudioClipsInternal(soundFilePath) {
                     
                     var audioExts = ['.wav', '.mp3', '.aif', '.aiff', '.m4a', '.flac'];
                     var videoExts = ['.mp4', '.mov', '.avi', '.mxf', '.prores'];
-                    var imageExts = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.psd'];
+                    var imageExts = ['.jpg', '.jpeg', '.png', '.tif', '.tiff', '.psd', '.gif', '.bmp', '.webp'];
                     var graphicExts = ['.ai', '.eps', '.svg', '.pdf'];
                     
                     var isSourceAudio = false;
@@ -1558,9 +1558,10 @@ function replaceSelectedAudioClipsInternal(soundFilePath) {
             debugInfo += "  원본 미디어 타입: " + sourceMediaType + "\n";
             debugInfo += "  대상 미디어 타입: " + targetMediaType + "\n";
             
-            // 비디오/이미지/그래픽 클립인 경우: 오디오 트랙에 효과음 추가 (교체 아님)
-            if (sourceMediaType === "비디오" || sourceMediaType === "이미지" || sourceMediaType === "그래픽") {
-                debugInfo += "  " + sourceMediaType + " 클립 감지됨. 오디오 트랙에 효과음 추가 모드로 전환합니다.\n";
+            // 오디오가 아닌 모든 클립에 효과음 추가 (비디오/이미지/그래픽/컬러매트/시퀀스/네스트 등)
+            if (sourceMediaType !== "오디오") {
+                var clipTypeDesc = sourceMediaType === "알 수 없음" ? "생성된 클립(컬러매트/시퀀스/네스트 등)" : sourceMediaType + " 클립";
+                debugInfo += "  " + clipTypeDesc + " 감지됨. 오디오 트랙에 효과음 추가 모드로 전환합니다.\n";
                 
                 try {
                     var addResult = addAudioToA2Track(clip, projectItem, soundFilePath);
@@ -1577,10 +1578,8 @@ function replaceSelectedAudioClipsInternal(soundFilePath) {
                 continue; // 다음 클립으로 넘어감 (교체 로직 실행하지 않음)
             }
             
-            // 오디오 클립인 경우에만 교체 로직 실행
-            if (sourceMediaType !== "오디오" && sourceMediaType !== "알 수 없음") {
-                debugInfo += "  경고: " + sourceMediaType + " 클립을 오디오로 교체하면 미디어 타입 불일치 경고가 발생할 수 있습니다.\n";
-            }
+            // 여기까지 오면 오디오 클립이므로 교체 로직 실행
+            debugInfo += "  오디오 클립 감지됨. 클립 교체 모드로 전환합니다.\n";
             
             try {
                 // 단순히 기존 프로젝트 아이템으로 교체 (중복 임포트 방지)

@@ -1201,12 +1201,14 @@ function replaceSelectedAudioClipsInternal(soundFilePath) {
                 });
             }
             
-            debugInfo += "현재 인디케이터 위치: " + currentTime.toFixed(3) + "초\n";
+            // Time 객체를 초 단위 숫자로 변환
+            var currentTimeInSeconds = typeof currentTime.seconds !== 'undefined' ? currentTime.seconds : currentTime;
+            debugInfo += "현재 인디케이터 위치: " + currentTimeInSeconds + "초\n";
             
             // 2. 1.67초 길이의 가상 클립 생성 (기존 삽입 함수 재활용을 위해)
             var virtualClip = {
-                start: { seconds: currentTime },
-                end: { seconds: currentTime + 1.67 },
+                start: { seconds: currentTimeInSeconds },
+                end: { seconds: currentTimeInSeconds + 1.67 },
                 duration: { seconds: 1.67 },
                 projectItem: null, // 가상 클립이므로 null
                 name: "가상 클립 (인디케이터 위치)"
@@ -2159,6 +2161,26 @@ function focusTimeline() {
     } catch (e) {
         debugWriteln("focusTimeline 오류: " + e.toString());
         return "ERROR: " + e.toString();
+    }
+}
+
+/**
+ * 현재 인디케이터(플레이헤드) 위치를 가져오는 함수
+ */
+function getCurrentIndicatorPosition() {
+    try {
+        if (!app || !app.project || !app.project.activeSequence) {
+            debugWriteln("getCurrentIndicatorPosition: 활성 시퀀스가 없음");
+            return null;
+        }
+        
+        var sequence = app.project.activeSequence;
+        var currentTime = sequence.getPlayerPosition();
+        debugWriteln("getCurrentIndicatorPosition: 현재 위치 = " + currentTime.toString());
+        return currentTime;
+    } catch (e) {
+        debugWriteln("getCurrentIndicatorPosition 오류: " + e.toString());
+        return null;
     }
 }
 

@@ -546,77 +546,89 @@ var JSCEventManager = (function () {
             });
         });
     }
-    // 새로고침 처리
+    // 새로고침 처리 (async/await로 리팩토링)
     function refreshSoundButtons() {
-        var stateManager = getStateManager();
-        var utils = getUtils();
-        var uiManager = getUIManager();
-        var communication = getCommunication();
-        var currentPath = stateManager.getCurrentFolderPath();
-        utils.debugLog("refreshSoundButtons() called. currentFolderPath: " + currentPath);
-        if (currentPath && utils.isValidPath(currentPath)) {
-            uiManager.updateSoundButtons([], currentPath); // 기존 버튼 비우기
-            uiManager.updateStatus("'" + utils.getShortPath(currentPath) + "' 폴더의 효과음 목록을 새로고침합니다...", true);
-            var pathArg_1 = JSON.stringify(currentPath);
-            utils.debugLog("Calling getFilesForPathCS with pathArg: " + pathArg_1);
-            communication.callExtendScript("getFilesForPathCS(" + pathArg_1 + ")", function (result) {
-                utils.debugLog("refreshSoundButtons: evalScript callback result: " + result);
-                // 디버그 정보 생성
-                var debugInfo = "=== Refresh Sound Buttons Debug ===\n";
-                debugInfo += "시간: " + new Date().toISOString() + "\n";
-                debugInfo += "폴더 경로: " + currentPath + "\n";
-                debugInfo += "JSX 결과: " + result + "\n";
-                debugInfo += "결과 타입: " + typeof result + "\n";
-                if (typeof result === "string" && result.indexOf("error:") === 0) {
-                    debugInfo += "오류 발생: " + result.substring(6) + "\n";
-                    uiManager.updateStatus("폴더 새로고침 중 오류가 발생했습니다: " + result.substring(6), false);
-                }
-                else if (result === "success") {
-                    debugInfo += "성공적으로 완료됨\n";
-                    debugInfo += "콜백 방식으로 파일 목록 가져오기 시도...\n";
-                    // 콜백 방식으로 직접 파일 목록 가져오기
-                    communication.callExtendScript("getFilesForPathWithCallback(" + pathArg_1 + ")", function (callbackResult) {
-                        debugInfo += "콜백 결과: " + callbackResult + "\n";
-                        try {
-                            var parsedResult = utils.safeJSONParse(callbackResult);
-                            if (parsedResult && parsedResult.success && parsedResult.soundFiles) {
-                                debugInfo += "파일 " + parsedResult.soundFiles.length + "개 발견\n";
-                                uiManager.updateSoundButtons(parsedResult.soundFiles, parsedResult.folderPath);
-                                uiManager.updateStatus("폴더 새로고침이 완료되었습니다. " + parsedResult.soundFiles.length + "개 파일 발견.", true);
+        return __awaiter(this, void 0, void 0, function () {
+            var stateManager, utils, uiManager, communication, currentPath, debugInfo, pathArg, result, callbackResult, parsedResult, error_2;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        stateManager = getStateManager();
+                        utils = getUtils();
+                        uiManager = getUIManager();
+                        communication = getCommunication();
+                        currentPath = stateManager.getCurrentFolderPath();
+                        utils.debugLog("refreshSoundButtons() called. currentFolderPath: " + currentPath);
+                        // 경로 유효성 검증
+                        if (!currentPath || !utils.isValidPath(currentPath)) {
+                            if (currentPath) {
+                                utils.logWarn("currentFolderPath is invalid, clearing it: " + currentPath);
+                                stateManager.clearFolderPath();
+                                uiManager.updateStatus("폴더 경로가 올바르지 않습니다. 다시 선택해주세요.", false);
                             }
                             else {
-                                debugInfo += "파일 목록 처리 실패\n";
-                                uiManager.updateStatus("파일 목록을 가져올 수 없습니다.", false);
+                                utils.logWarn("currentFolderPath is empty or invalid. Aborting refresh.");
+                                uiManager.updateStatus("먼저 '폴더 찾아보기'를 통해 효과음 폴더를 선택해주세요.", false);
                             }
+                            return [2 /*return*/];
                         }
-                        catch (parseError) {
-                            debugInfo += "JSON 파싱 오류: " + parseError.message + "\n";
-                            uiManager.updateStatus("파일 목록 데이터 처리 중 오류가 발생했습니다.", false);
+                        if (!communication || !communication.callExtendScriptAsync) {
+                            utils.logError("Communication service not available");
+                            return [2 /*return*/];
                         }
+                        debugInfo = "=== Refresh Sound Buttons Debug ===\n";
+                        debugInfo += "시간: " + new Date().toISOString() + "\n";
+                        debugInfo += "폴더 경로: " + currentPath + "\n";
+                        _a.label = 1;
+                    case 1:
+                        _a.trys.push([1, 6, 7, 8]);
+                        uiManager.updateSoundButtons([], currentPath); // 기존 버튼 비우기
+                        uiManager.updateStatus("'" + utils.getShortPath(currentPath) + "' 폴더의 효과음 목록을 새로고침합니다...", true);
+                        pathArg = JSON.stringify(currentPath);
+                        utils.debugLog("Calling getFilesForPathCS with pathArg: " + pathArg);
+                        return [4 /*yield*/, communication.callExtendScriptAsync("getFilesForPathCS(" + pathArg + ")")];
+                    case 2:
+                        result = _a.sent();
+                        debugInfo += "JSX 결과: " + result + "\n";
+                        debugInfo += "결과 타입: " + typeof result + "\n";
+                        if (!(result === "success")) return [3 /*break*/, 4];
+                        debugInfo += "성공적으로 완료됨\n";
+                        debugInfo += "파일 목록 가져오기 시도...\n";
+                        return [4 /*yield*/, communication.callExtendScriptAsync("getFilesForPathWithCallback(" + pathArg + ")")];
+                    case 3:
+                        callbackResult = _a.sent();
+                        debugInfo += "콜백 결과: " + callbackResult + "\n";
+                        parsedResult = utils.safeJSONParse(callbackResult);
+                        if (parsedResult && parsedResult.success && parsedResult.soundFiles) {
+                            debugInfo += "파일 " + parsedResult.soundFiles.length + "개 발견\n";
+                            uiManager.updateSoundButtons(parsedResult.soundFiles, parsedResult.folderPath);
+                            uiManager.updateStatus("폴더 새로고침이 완료되었습니다. " + parsedResult.soundFiles.length + "개 파일 발견.", true);
+                        }
+                        else {
+                            debugInfo += "파일 목록 처리 실패\n";
+                            uiManager.updateStatus("파일 목록을 가져올 수 없습니다.", false);
+                        }
+                        return [3 /*break*/, 5];
+                    case 4:
+                        debugInfo += "예상치 못한 결과: " + result + "\n";
+                        uiManager.updateStatus("폴더 새로고침 결과를 처리하는 중입니다...", true);
+                        _a.label = 5;
+                    case 5: return [3 /*break*/, 8];
+                    case 6:
+                        error_2 = _a.sent();
+                        debugInfo += "오류 발생: " + error_2.message + "\n";
+                        utils.logError("Failed to refresh sound buttons:", error_2.message);
+                        uiManager.updateStatus("폴더 새로고침 중 오류가 발생했습니다: " + error_2.message, false);
+                        return [3 /*break*/, 8];
+                    case 7:
+                        // 디버그 정보 저장
                         window.lastDebugInfo = debugInfo;
                         uiManager.toggleDebugButton(true);
-                    });
+                        return [7 /*endfinally*/];
+                    case 8: return [2 /*return*/];
                 }
-                else {
-                    debugInfo += "예상치 못한 결과: " + result + "\n";
-                    uiManager.updateStatus("폴더 새로고침 결과를 처리하는 중입니다...", true);
-                }
-                // 디버그 정보 저장
-                window.lastDebugInfo = debugInfo;
-                uiManager.toggleDebugButton(true);
             });
-        }
-        else {
-            if (currentPath && !utils.isValidPath(currentPath)) {
-                utils.logWarn("currentFolderPath is invalid, clearing it: " + currentPath);
-                stateManager.clearFolderPath();
-                uiManager.updateStatus("폴더 경로가 올바르지 않습니다. 다시 선택해주세요.", false);
-            }
-            else {
-                utils.logWarn("currentFolderPath is empty or invalid. Aborting refresh.");
-                uiManager.updateStatus("먼저 '폴더 찾아보기'를 통해 효과음 폴더를 선택해주세요.", false);
-            }
-        }
+        });
     }
     // 클립 자동 정렬 처리 (새로운 SoundEngine 사용)
     function magnetClips() {

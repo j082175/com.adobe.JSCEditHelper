@@ -14,14 +14,14 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
 };
 var JSCApp = (function () {
     'use strict';
-    // 서비스 가져오기 (Phase 2: DI + fallback)
+    // DIHelpers 사용 - 반복 코드 제거!
+    var DIHelpers = window.DIHelpers;
+    // 서비스 가져오기
     function getUtils() {
-        var DI = window.DI;
-        if (DI) {
-            var svc = DI.getSafe('JSCUtils');
-            if (svc)
-                return svc;
+        if (DIHelpers && DIHelpers.getUtils) {
+            return DIHelpers.getUtils('App');
         }
+        // Fallback
         var fallback = {
             debugLog: function (msg) {
                 var args = [];

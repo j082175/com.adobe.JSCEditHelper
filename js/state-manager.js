@@ -5,23 +5,14 @@
  */
 var JSCStateManager = (function () {
     'use strict';
-    // DI 컨테이너에서 의존성 가져오기 (옵션)
-    var diContainer = null;
-    var utilsService = null;
-    var uiService = null;
-    try {
-        diContainer = window.DI;
-        if (diContainer) {
-            // DI에서 서비스 가져오기 시도
-            utilsService = diContainer.getSafe('JSCUtils');
-            uiService = diContainer.getSafe('JSCUIManager');
-        }
-    }
-    catch (e) {
-        // DI 사용 불가시 레거시 모드로 작동
-    }
-    // 유틸리티 서비스 가져오기 (DI 우선, 레거시 fallback)
+    // DIHelpers 사용 - 반복 코드 제거!
+    var DIHelpers = window.DIHelpers;
+    // 유틸리티 서비스 가져오기
     function getUtils() {
+        if (DIHelpers && DIHelpers.getUtils) {
+            return DIHelpers.getUtils('StateManager');
+        }
+        // Fallback
         var fallback = {
             debugLog: function (msg) {
                 var _args = [];
@@ -81,11 +72,15 @@ var JSCStateManager = (function () {
             log: function () { },
             getDIStatus: function () { return ({ isDIAvailable: false, containerInfo: 'Fallback mode' }); }
         };
-        return utilsService || window.JSCUtils || fallback;
+        return (window.JSCUtils || fallback);
     }
-    // UI 서비스 가져오기 (DI 우선, 레거시 fallback)
+    // UI 서비스 가져오기
     function getUIManager() {
-        return uiService || window.JSCUIManager || {
+        if (DIHelpers && DIHelpers.getUIManager) {
+            return DIHelpers.getUIManager('StateManager');
+        }
+        // Fallback
+        return window.JSCUIManager || {
             updateFolderPath: function (_path) { }
         };
     }
@@ -196,16 +191,20 @@ var JSCStateManager = (function () {
     // DI 상태 확인 함수 (디버깅용) - Phase 2.2
     function getDIStatus() {
         var dependencies = [];
-        if (utilsService)
-            dependencies.push('JSCUtils (DI)');
-        else if (window.JSCUtils)
-            dependencies.push('JSCUtils (Legacy)');
-        if (uiService)
-            dependencies.push('JSCUIManager (DI)');
-        else if (window.JSCUIManager)
-            dependencies.push('JSCUIManager (Legacy)');
+        if (DIHelpers)
+            dependencies.push('DIHelpers (Available)');
+        else
+            dependencies.push('DIHelpers (Not loaded)');
+        if (window.JSCUtils)
+            dependencies.push('JSCUtils (Available)');
+        else
+            dependencies.push('JSCUtils (Missing)');
+        if (window.JSCUIManager)
+            dependencies.push('JSCUIManager (Available)');
+        else
+            dependencies.push('JSCUIManager (Missing)');
         return {
-            isDIAvailable: !!diContainer,
+            isDIAvailable: !!DIHelpers,
             dependencies: dependencies
         };
     }

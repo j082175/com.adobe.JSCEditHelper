@@ -11,13 +11,15 @@ interface JSCAppInterface {
 const JSCApp = (function(): JSCAppInterface {
     'use strict';
 
-    // 서비스 가져오기 (Phase 2: DI + fallback)
+    // DIHelpers 사용 - 반복 코드 제거!
+    const DIHelpers = (window as any).DIHelpers;
+
+    // 서비스 가져오기
     function getUtils(): JSCUtilsInterface {
-        const DI = (window as any).DI;
-        if (DI) {
-            const svc = DI.getSafe('JSCUtils');
-            if (svc) return svc;
+        if (DIHelpers && DIHelpers.getUtils) {
+            return DIHelpers.getUtils('App');
         }
+        // Fallback
         const fallback: JSCUtilsInterface = {
             debugLog: (msg: string, ...args: any[]) => console.log('[App]', msg, ...args),
             logDebug: (msg: string, ...args: any[]) => console.log('[App]', msg, ...args),

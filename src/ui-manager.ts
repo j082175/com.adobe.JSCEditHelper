@@ -25,25 +25,16 @@ interface JSCUIManagerInterface {
 
 const JSCUIManager = (function(): JSCUIManagerInterface {
     'use strict';
-    
-    // DI 컨테이너에서 의존성 가져오기 (옵션)
-    let diContainer: any = null;
-    let utilsService: any = null;
-    let eventService: any = null;
-    
-    try {
-        diContainer = (window as any).DI;
-        if (diContainer) {
-            // DI에서 서비스 가져오기 시도
-            utilsService = diContainer.getSafe('JSCUtils');
-            eventService = diContainer.getSafe('JSCEventManager');
-        }
-    } catch (e) {
-        // DI 사용 불가시 레거시 모드로 작동
-    }
-    
-    // 유틸리티 서비스 가져오기 (DI 우선, 레거시 fallback)
+
+    // DIHelpers 사용 - 반복 코드 제거!
+    const DIHelpers = (window as any).DIHelpers;
+
+    // 유틸리티 서비스 가져오기
     function getUtils(): JSCUtilsInterface {
+        if (DIHelpers && DIHelpers.getUtils) {
+            return DIHelpers.getUtils('UIManager');
+        }
+        // Fallback
         const fallback: JSCUtilsInterface = {
             debugLog: (msg: string, ..._args: any[]) => console.log('[UIManager]', msg),
             logDebug: (msg: string, ..._args: any[]) => console.log('[UIManager]', msg),
@@ -69,12 +60,12 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
             log: () => {},
             getDIStatus: () => ({ isDIAvailable: false, containerInfo: 'Fallback mode' })
         };
-        return utilsService || window.JSCUtils || fallback;
+        return (window.JSCUtils || fallback) as JSCUtilsInterface;
     }
-    
-    // 이벤트 서비스 가져오기 (DI 우선, 레거시 fallback)
+
+    // 이벤트 서비스 가져오기
     function getEventManager(): any {
-        return eventService || window.JSCEventManager || null;
+        return window.JSCEventManager || null;
     }
     
     // 상태 메시지 업데이트
@@ -315,15 +306,18 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
     // DI 상태 확인 함수 (디버깅용) - Phase 2.1
     function getDIStatus(): { isDIAvailable: boolean; dependencies: string[] } {
         const dependencies: string[] = [];
-        
-        if (utilsService) dependencies.push('JSCUtils (DI)');
-        else if (window.JSCUtils) dependencies.push('JSCUtils (Legacy)');
-        
-        if (eventService) dependencies.push('JSCEventManager (DI)');
-        else if (window.JSCEventManager) dependencies.push('JSCEventManager (Legacy)');
-        
+
+        if (DIHelpers) dependencies.push('DIHelpers (Available)');
+        else dependencies.push('DIHelpers (Not loaded)');
+
+        if (window.JSCUtils) dependencies.push('JSCUtils (Available)');
+        else dependencies.push('JSCUtils (Missing)');
+
+        if (window.JSCEventManager) dependencies.push('JSCEventManager (Available)');
+        else dependencies.push('JSCEventManager (Missing)');
+
         return {
-            isDIAvailable: !!diContainer,
+            isDIAvailable: !!DIHelpers,
             dependencies: dependencies
         };
     }

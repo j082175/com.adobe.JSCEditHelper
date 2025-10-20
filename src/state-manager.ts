@@ -26,25 +26,16 @@ interface JSCStateManagerInterface {
 
 const JSCStateManager = (function(): JSCStateManagerInterface {
     'use strict';
-    
-    // DI 컨테이너에서 의존성 가져오기 (옵션)
-    let diContainer: any = null;
-    let utilsService: any = null;
-    let uiService: any = null;
-    
-    try {
-        diContainer = (window as any).DI;
-        if (diContainer) {
-            // DI에서 서비스 가져오기 시도
-            utilsService = diContainer.getSafe('JSCUtils');
-            uiService = diContainer.getSafe('JSCUIManager');
-        }
-    } catch (e) {
-        // DI 사용 불가시 레거시 모드로 작동
-    }
-    
-    // 유틸리티 서비스 가져오기 (DI 우선, 레거시 fallback)
+
+    // DIHelpers 사용 - 반복 코드 제거!
+    const DIHelpers = (window as any).DIHelpers;
+
+    // 유틸리티 서비스 가져오기
     function getUtils(): JSCUtilsInterface {
+        if (DIHelpers && DIHelpers.getUtils) {
+            return DIHelpers.getUtils('StateManager');
+        }
+        // Fallback
         const fallback: JSCUtilsInterface = {
             debugLog: (msg: string, ..._args: any[]) => console.log('[StateManager]', msg),
             logDebug: (msg: string, ..._args: any[]) => console.log('[StateManager]', msg),
@@ -70,12 +61,16 @@ const JSCStateManager = (function(): JSCStateManagerInterface {
             log: () => {},
             getDIStatus: () => ({ isDIAvailable: false, containerInfo: 'Fallback mode' })
         };
-        return utilsService || window.JSCUtils || fallback;
+        return (window.JSCUtils || fallback) as JSCUtilsInterface;
     }
-    
-    // UI 서비스 가져오기 (DI 우선, 레거시 fallback)
+
+    // UI 서비스 가져오기
     function getUIManager(): any {
-        return uiService || window.JSCUIManager || {
+        if (DIHelpers && DIHelpers.getUIManager) {
+            return DIHelpers.getUIManager('StateManager');
+        }
+        // Fallback
+        return window.JSCUIManager || {
             updateFolderPath: (_path: string) => { /* no-op fallback */ }
         };
     }
@@ -203,15 +198,18 @@ const JSCStateManager = (function(): JSCStateManagerInterface {
     // DI 상태 확인 함수 (디버깅용) - Phase 2.2
     function getDIStatus(): { isDIAvailable: boolean; dependencies: string[] } {
         const dependencies: string[] = [];
-        
-        if (utilsService) dependencies.push('JSCUtils (DI)');
-        else if (window.JSCUtils) dependencies.push('JSCUtils (Legacy)');
-        
-        if (uiService) dependencies.push('JSCUIManager (DI)');
-        else if (window.JSCUIManager) dependencies.push('JSCUIManager (Legacy)');
-        
+
+        if (DIHelpers) dependencies.push('DIHelpers (Available)');
+        else dependencies.push('DIHelpers (Not loaded)');
+
+        if (window.JSCUtils) dependencies.push('JSCUtils (Available)');
+        else dependencies.push('JSCUtils (Missing)');
+
+        if (window.JSCUIManager) dependencies.push('JSCUIManager (Available)');
+        else dependencies.push('JSCUIManager (Missing)');
+
         return {
-            isDIAvailable: !!diContainer,
+            isDIAvailable: !!DIHelpers,
             dependencies: dependencies
         };
     }

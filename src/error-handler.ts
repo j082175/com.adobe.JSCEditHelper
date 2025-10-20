@@ -77,40 +77,16 @@ interface JSCErrorHandlerInterface {
 
 const JSCErrorHandler = (function(): JSCErrorHandlerInterface {
     'use strict';
-    
-    // DI 컨테이너에서 의존성 가져오기 (옵션)
-    let diContainer: any = null;
-    let utilsService: any = null;
-    let uiService: any = null;
-    
-    function initializeDIDependencies() {
-        try {
-            diContainer = (window as any).DI;
-            if (diContainer) {
-                // DI에서 서비스 가져오기 시도
-                utilsService = diContainer.getSafe('JSCUtils');
-                uiService = diContainer.getSafe('JSCUIManager');
-            }
-        }
-        catch (e) {
-            // DI 사용 불가시 레거시 모드로 작동
-        }
-    }
-    
-    // 초기화 시도 (즉시 및 지연)
-    initializeDIDependencies();
-    
-    // 앱 초기화 후에 DI 서비스 재시도
-    if (typeof window !== 'undefined') {
-        setTimeout(() => {
-            if (!utilsService || !uiService) {
-                initializeDIDependencies();
-            }
-        }, 100);
-    }
-    
-    // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
+
+    // DIHelpers 사용 - 반복 코드 제거!
+    const DIHelpers = (window as any).DIHelpers;
+
+    // 서비스 가져오기 헬퍼 함수들
     function getUtils(): JSCUtilsInterface {
+        if (DIHelpers && DIHelpers.getUtils) {
+            return DIHelpers.getUtils('ErrorHandler');
+        }
+        // Fallback
         const fallback: JSCUtilsInterface = {
             debugLog: (msg: string, ..._args: any[]) => console.log('[ErrorHandler]', msg),
             logDebug: (msg: string, ..._args: any[]) => console.log('[ErrorHandler]', msg),
@@ -136,11 +112,15 @@ const JSCErrorHandler = (function(): JSCErrorHandlerInterface {
             log: () => {},
             getDIStatus: () => ({ isDIAvailable: false, containerInfo: 'Fallback mode' })
         };
-        return utilsService || window.JSCUtils || fallback;
+        return (window.JSCUtils || fallback) as JSCUtilsInterface;
     }
-    
+
     function getUIManager() {
-        return uiService || (window as any).JSCUIManager || {
+        if (DIHelpers && DIHelpers.getUIManager) {
+            return DIHelpers.getUIManager('ErrorHandler');
+        }
+        // Fallback
+        return (window as any).JSCUIManager || {
             updateStatus: (msg: string, _success: boolean) => { console.log('Status:', msg); },
             toggleDebugButton: (show: boolean) => { console.log('Debug button:', show); }
         };
@@ -311,19 +291,23 @@ const JSCErrorHandler = (function(): JSCErrorHandlerInterface {
     // DI 상태 확인 함수 (디버깅용) - Phase 2.5
     function getDIStatus() {
         const dependencies: string[] = [];
-        if (utilsService) 
-            dependencies.push('JSCUtils (DI)');
-        else if ((window as any).JSCUtils)
-            dependencies.push('JSCUtils (Legacy)');
-        
-        if (uiService)
-            dependencies.push('JSCUIManager (DI)');  
-        else if ((window as any).JSCUIManager)
-            dependencies.push('JSCUIManager (Legacy)');
-            
+
+        if (DIHelpers) dependencies.push('DIHelpers (Available)');
+        else dependencies.push('DIHelpers (Not loaded)');
+
+        if ((window as any).JSCUtils)
+            dependencies.push('JSCUtils (Available)');
+        else
+            dependencies.push('JSCUtils (Missing)');
+
+        if ((window as any).JSCUIManager)
+            dependencies.push('JSCUIManager (Available)');
+        else
+            dependencies.push('JSCUIManager (Missing)');
+
         return {
-            isDIAvailable: !!diContainer,
-            containerInfo: diContainer ? 'DI Container active' : 'Legacy mode',
+            isDIAvailable: !!DIHelpers,
+            containerInfo: DIHelpers ? 'DIHelpers active' : 'Fallback mode',
             dependencies: dependencies
         };
     }

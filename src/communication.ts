@@ -32,29 +32,16 @@ interface JSCCommunicationInterface {
 
 const JSCCommunication = (function(): JSCCommunicationInterface {
     'use strict';
-    
-    // DI 컨테이너에서 의존성 가져오기 (옵션)
-    let diContainer: any = null;
-    let utilsService: any = null;
-    let uiService: any = null;
-    let errorService: any = null;
-    let stateService: any = null;
-    
-    try {
-        diContainer = (window as any).DI;
-        if (diContainer) {
-            // DI에서 서비스 가져오기 시도
-            utilsService = diContainer.getSafe('JSCUtils');
-            uiService = diContainer.getSafe('JSCUIManager');
-            errorService = diContainer.getSafe('JSCErrorHandler');
-            stateService = diContainer.getSafe('JSCStateManager');
-        }
-    } catch (e) {
-        // DI 사용 불가시 레거시 모드로 작동
-    }
-    
-    // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
+
+    // DIHelpers 사용 - 반복 코드 제거!
+    const DIHelpers = (window as any).DIHelpers;
+
+    // 서비스 가져오기 헬퍼 함수들 (DIHelpers 우선, 레거시 fallback)
     function getUtils(): JSCUtilsInterface {
+        if (DIHelpers && DIHelpers.getUtils) {
+            return DIHelpers.getUtils('Communication');
+        }
+        // Fallback
         const fallback: JSCUtilsInterface = {
             debugLog: (msg: string, ..._args: any[]) => console.log('[Communication]', msg),
             logDebug: (msg: string, ..._args: any[]) => console.log('[Communication]', msg),
@@ -80,11 +67,15 @@ const JSCCommunication = (function(): JSCCommunicationInterface {
             log: () => {},
             getDIStatus: () => ({ isDIAvailable: false, containerInfo: 'Fallback mode' })
         };
-        return utilsService || window.JSCUtils || fallback;
+        return (window.JSCUtils || fallback) as JSCUtilsInterface;
     }
-    
+
     function getUIManager(): any {
-        return uiService || window.JSCUIManager || {
+        if (DIHelpers && DIHelpers.getUIManager) {
+            return DIHelpers.getUIManager('Communication');
+        }
+        // Fallback
+        return window.JSCUIManager || {
             updateStatus: (msg: string, success?: boolean) => console.log(`Status: ${msg} (${success})`),
             toggleDebugButton: (_show: boolean) => { /* no-op */ },
             displaySoundList: (list: string[]) => console.log('Sound list:', list),
@@ -93,18 +84,26 @@ const JSCCommunication = (function(): JSCCommunicationInterface {
             updateSoundButtons: (_files: any[], _path: string) => { /* no-op */ }
         };
     }
-    
+
     function getErrorHandler(): any {
-        return errorService || window.JSCErrorHandler || {
+        if (DIHelpers && DIHelpers.getErrorHandler) {
+            return DIHelpers.getErrorHandler();
+        }
+        // Fallback
+        return window.JSCErrorHandler || {
             handleCommunicationError: (type: string, msg: string, data?: any) => console.error(`[${type}] ${msg}`, data),
             handleError: (error: any) => console.error('Error:', error),
             createError: (type: any, code: string, msg: string, data?: any) => ({ type, code, msg, data }),
             ERROR_TYPES: { COMMUNICATION: 'COMMUNICATION' }
         };
     }
-    
+
     function getStateManager(): any {
-        return stateService || window.JSCStateManager || {
+        if (DIHelpers && DIHelpers.getStateManager) {
+            return DIHelpers.getStateManager();
+        }
+        // Fallback
+        return window.JSCStateManager || {
             setCurrentFolderPath: (_path: string) => { /* no-op */ return true; }
         };
     }
@@ -334,21 +333,24 @@ const JSCCommunication = (function(): JSCCommunicationInterface {
     // DI 상태 확인 함수 (디버깅용) - Phase 2.3
     function getDIStatus(): { isDIAvailable: boolean; dependencies: string[] } {
         const dependencies: string[] = [];
-        
-        if (utilsService) dependencies.push('JSCUtils (DI)');
-        else if (window.JSCUtils) dependencies.push('JSCUtils (Legacy)');
-        
-        if (uiService) dependencies.push('JSCUIManager (DI)');
-        else if (window.JSCUIManager) dependencies.push('JSCUIManager (Legacy)');
-        
-        if (errorService) dependencies.push('JSCErrorHandler (DI)');
-        else if (window.JSCErrorHandler) dependencies.push('JSCErrorHandler (Legacy)');
-        
-        if (stateService) dependencies.push('JSCStateManager (DI)');
-        else if (window.JSCStateManager) dependencies.push('JSCStateManager (Legacy)');
-        
+
+        if (DIHelpers) dependencies.push('DIHelpers (Available)');
+        else dependencies.push('DIHelpers (Not loaded)');
+
+        if (window.JSCUtils) dependencies.push('JSCUtils (Available)');
+        else dependencies.push('JSCUtils (Missing)');
+
+        if (window.JSCUIManager) dependencies.push('JSCUIManager (Available)');
+        else dependencies.push('JSCUIManager (Missing)');
+
+        if (window.JSCErrorHandler) dependencies.push('JSCErrorHandler (Available)');
+        else dependencies.push('JSCErrorHandler (Missing)');
+
+        if (window.JSCStateManager) dependencies.push('JSCStateManager (Available)');
+        else dependencies.push('JSCStateManager (Missing)');
+
         return {
-            isDIAvailable: !!diContainer,
+            isDIAvailable: !!DIHelpers,
             dependencies: dependencies
         };
     }

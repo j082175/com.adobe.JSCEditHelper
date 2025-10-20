@@ -12,48 +12,18 @@ interface JSCEventManagerInterface {
 
 const JSCEventManager = (function(): JSCEventManagerInterface {
     'use strict';
-    
-    // DI 컨테이너에서 의존성 가져오기 (옵션)
-    let diContainer: any = null;
-    let utilsService: any = null;
-    let uiService: any = null;
-    let stateService: any = null;
-    let communicationService: any = null;
-    let soundEngineService: any = null;
-    let clipCalculatorService: any = null;
-    
-    function initializeDIDependencies() {
-        try {
-            diContainer = (window as any).DI;
-            if (diContainer) {
-                // DI에서 서비스 가져오기 시도
-                utilsService = diContainer.getSafe('JSCUtils');
-                uiService = diContainer.getSafe('JSCUIManager');
-                stateService = diContainer.getSafe('JSCStateManager');
-                communicationService = diContainer.getSafe('JSCCommunication');
-                soundEngineService = diContainer.getSafe('SoundEngine');
-                clipCalculatorService = diContainer.getSafe('ClipTimeCalculator');
-            }
-        }
-        catch (e) {
-            // DI 사용 불가시 레거시 모드로 작동
-        }
-    }
-    
-    // 초기화 시도 (즉시 및 지연)
-    initializeDIDependencies();
-    
-    // 앱 초기화 후에 DI 서비스 재시도
-    if (typeof window !== 'undefined') {
-        setTimeout(() => {
-            if (!utilsService || !uiService || !stateService || !communicationService || !soundEngineService || !clipCalculatorService) {
-                initializeDIDependencies();
-            }
-        }, 100);
-    }
-    
+
+    // DIHelpers 사용 - 반복 코드 제거!
+    // di-helpers.ts에서 제공하는 공통 헬퍼 사용
+    const DIHelpers = (window as any).DIHelpers;
+
     // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
+    // DIHelpers가 로드되어 있으면 사용, 아니면 직접 fallback 사용
     function getUtils(): JSCUtilsInterface {
+        if (DIHelpers && DIHelpers.getUtils) {
+            return DIHelpers.getUtils('EventManager');
+        }
+        // Fallback (DIHelpers 로드 안됨)
         const fallback: JSCUtilsInterface = {
             debugLog: (msg: string, ..._args: any[]) => console.log('[EventManager]', msg),
             logDebug: (msg: string, ..._args: any[]) => console.log('[EventManager]', msg),
@@ -79,26 +49,34 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             log: () => {},
             getDIStatus: () => ({ isDIAvailable: false, containerInfo: 'Fallback mode' })
         };
-        return utilsService || window.JSCUtils || fallback;
+        return (window.JSCUtils || fallback) as JSCUtilsInterface;
     }
-    
+
     function getUIManager() {
+        if (DIHelpers && DIHelpers.getUIManager) {
+            return DIHelpers.getUIManager('EventManager');
+        }
+        // Fallback
         const utils = getUtils();
-        return uiService || (window as any).JSCUIManager || {
+        return (window as any).JSCUIManager || {
             updateStatus: (msg: string, _success?: boolean) => { console.log('Status:', msg); },
             displaySoundList: (_files: any[]) => { console.log('Display sound list'); },
             resetDebugUI: () => { console.log('Reset debug UI'); },
             updateSoundButtons: (_files: any[], _path?: string) => { console.log('Update sound buttons'); },
             showDebugInfo: () => { console.log('Show debug info'); },
             toggleDebugButton: (_show: boolean) => { console.log('Toggle debug button'); },
-            updateMagnetStatus: (_success: boolean, _moved?: number, _removed?: number) => { 
-                utils.logDebug('Update magnet status'); 
+            updateMagnetStatus: (_success: boolean, _moved?: number, _removed?: number) => {
+                utils.logDebug('Update magnet status');
             }
         };
     }
-    
+
     function getStateManager() {
-        return stateService || (window as any).JSCStateManager || {
+        if (DIHelpers && DIHelpers.getStateManager) {
+            return DIHelpers.getStateManager();
+        }
+        // Fallback
+        return (window as any).JSCStateManager || {
             saveFolderPath: (_path: string) => { console.log('Save folder path'); },
             getCurrentFolderPath: () => { return ''; },
             clearFolderPath: () => { console.log('Clear folder path'); },
@@ -106,22 +84,30 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             getSettings: () => { return { folderPath: '', audioTrack: 1 }; }
         };
     }
-    
+
     function getCommunication() {
-        return communicationService || (window as any).JSCCommunication || {
-            callExtendScript: (_script: string, callback: (result: string) => void) => { 
-                callback('error: Communication service not available'); 
+        if (DIHelpers && DIHelpers.getCommunication) {
+            return DIHelpers.getCommunication();
+        }
+        // Fallback
+        return (window as any).JSCCommunication || {
+            callExtendScript: (_script: string, callback: (result: string) => void) => {
+                callback('error: Communication service not available');
+            },
+            callExtendScriptAsync: (_script: string) => {
+                return Promise.reject(new Error('Communication service not available'));
             }
         };
     }
-    
+
     function getSoundEngine() {
-        return soundEngineService || (window as any).SoundEngine || {
-            executeSoundInsertion: (_config: any) => { 
-                return Promise.resolve({ success: false, message: 'SoundEngine not available' }); 
+        // No DI helper for SoundEngine yet, use direct window access
+        return (window as any).SoundEngine || {
+            executeSoundInsertion: (_config: any) => {
+                return Promise.resolve({ success: false, message: 'SoundEngine not available' });
             },
-            executeMagnetClips: () => { 
-                return Promise.resolve({ success: false, message: 'SoundEngine not available' }); 
+            executeMagnetClips: () => {
+                return Promise.resolve({ success: false, message: 'SoundEngine not available' });
             },
             getEngineStatus: () => { return { isReady: false, dependencies: [] }; }
         };
@@ -269,7 +255,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         try {
             // 1. SoundEngine 존재 확인
             const soundEngine = getSoundEngine();
-            if (!soundEngine || (!soundEngineService && !(window as any).SoundEngine)) {
+            if (!soundEngine || !(window as any).SoundEngine) {
                 debugInfo += "❌ SoundEngine이 로드되지 않았습니다\n";
                 const uiManager = getUIManager();
                 uiManager.updateStatus("SoundEngine이 로드되지 않았습니다", false);
@@ -289,7 +275,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             // 3. 기본 모듈들 확인
             const stateManager = getStateManager();
             debugInfo += `JSCStateManager: ${stateManager && stateManager !== getStateManager() ? "✅" : "❌"}\n`;
-            debugInfo += `ClipTimeCalculator: ${(clipCalculatorService || (window as any).ClipTimeCalculator) ? "✅" : "❌"}\n`;
+            debugInfo += `ClipTimeCalculator: ${(window as any).ClipTimeCalculator ? "✅" : "❌"}\n`;
             const communication = getCommunication();
             debugInfo += `JSCCommunication: ${communication && communication !== getCommunication() ? "✅" : "❌"}\n`;
             
@@ -669,253 +655,282 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         }
     }
     
-    // 개별 효과음 버튼 클릭 처리
-    function handleSoundFileButtonClick(event: Event): void {
+    // 포커스 제거 헬퍼 함수
+    function removeFocusFromPanel(): string {
+        let focusDebug = "\n--- 포커스 디버그 정보 ---\n";
+
+        try {
+            const currentElement = document.activeElement;
+            focusDebug += "시작 - 현재 활성 요소: " + (currentElement ? currentElement.tagName : "없음") + "\n";
+
+            // CEP 패널에서 포커스 제거
+            if (document.activeElement && (document.activeElement as HTMLElement).blur) {
+                (document.activeElement as HTMLElement).blur();
+                focusDebug += "현재 요소 blur 완료\n";
+            }
+
+            // 모든 포커스 가능한 요소들을 blur
+            const focusableElements = document.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])');
+            focusableElements.forEach(el => {
+                try { (el as HTMLElement).blur(); } catch(e) { /* ignore */ }
+            });
+
+            // 강제로 포커스 제거를 위한 임시 요소
+            const tempInput = document.createElement('input');
+            tempInput.style.position = 'absolute';
+            tempInput.style.left = '-9999px';
+            tempInput.style.opacity = '0';
+            document.body.appendChild(tempInput);
+            tempInput.focus();
+            tempInput.blur();
+            document.body.removeChild(tempInput);
+
+            focusDebug += "완전한 포커스 제거 시도 완료\n";
+        } catch (e) {
+            focusDebug += "포커스 제거 중 오류: " + (e as Error).message + "\n";
+        }
+
+        return focusDebug;
+    }
+
+    // 개별 효과음 버튼 클릭 처리 (async/await로 완전히 리팩토링)
+    async function handleSoundFileButtonClick(event: Event): Promise<void> {
         const utils = getUtils();
+        const uiManager = getUIManager();
+        const communication = getCommunication();
+
         const target = event.target as HTMLElement;
         const soundFsName = target.getAttribute("data-fsname");
         const soundDisplayName = target.textContent;
 
-        if (soundFsName) {
-            utils.logDebug("Replacing with sound file: " + soundFsName);
-            const uiManager = getUIManager();
-            const communication = getCommunication();
-            
-            if (uiManager) {
-                uiManager.updateStatus("클립을 '" + soundDisplayName + "' (으)로 대체 중...", true);
-            }
-            
-            if (communication) {
-                // 단계별 테스트: 가장 간단한 함수부터 시작
-                utils.logDebug("Testing simplest ExtendScript function first...");
-                communication.callExtendScript("simpleTest()", function(simpleResult: string) {
-                    utils.logDebug("Simple test result: " + simpleResult);
-                    
-                    let debugInfo = "=== Sound File Button Click Debug ===\n";
-                    debugInfo += "시간: " + new Date().toISOString() + "\n";
-                    debugInfo += "파일 경로: " + soundFsName + "\n";
-                    debugInfo += "파일명: " + soundDisplayName + "\n";
-                    debugInfo += "\n--- 단순 테스트 결과 ---\n";
-                    debugInfo += "simpleTest(): " + simpleResult + "\n";
-                    
-                    if (simpleResult === "HELLO_FROM_EXTENDSCRIPT") {
-                        debugInfo += "✓ ExtendScript 기본 실행 성공\n";
-                        
-                        // 다음 단계: 중복 임포트 테스트
-                        communication.callExtendScript("testDuplicateImport(" + JSON.stringify(soundFsName) + ")", function(duplicateResult: string) {
-                            debugInfo += "\n--- 중복 임포트 테스트 결과 ---\n";
-                            debugInfo += duplicateResult + "\n";
-                            
-                            // 기본 정보 테스트 (JSON 없이)
-                            communication.callExtendScript("basicInfo()", function(basicResult: string) {
-                                debugInfo += "\n--- 기본 정보 테스트 결과 ---\n";
-                                debugInfo += "basicInfo(): " + basicResult + "\n";
-                                
-                                if (basicResult && basicResult.indexOf("ERROR:") !== 0) {
-                                    debugInfo += "✓ 기본 정보 수집 성공\n";
-                                    
-                                    // 마지막 단계: 실제 클립 교체 시도
-                                    debugInfo += "\n환경 테스트 통과, 클립 교체 시도...\n";
-                                    communication.callExtendScript(
-                                        "replaceSelectedAudioClips(" + JSON.stringify(soundFsName) + ")",
-                                        function(result: string) {
-                                        utils.logDebug("replaceSelectedAudioClips call result: " + result);
-                                        
-                                        debugInfo += "\n--- 클립 교체 결과 ---\n";
-                                        debugInfo += "원본 결과: " + result + "\n";
-                                        
-                                        // JSON 파싱 시도
-                                        try {
-                                            const parsedResult = utils.safeJSONParse(result);
-                                            debugInfo += "JSON 파싱: SUCCESS\n";
-                                            
-                                            if (parsedResult) {
-                                                debugInfo += "파싱된 결과:\n";
-                                                debugInfo += "  - success: " + parsedResult.success + "\n";
-                                                debugInfo += "  - message: " + parsedResult.message + "\n";
-                                                if (parsedResult.data) {
-                                                    debugInfo += "  - replacedCount: " + parsedResult.data.replacedCount + "\n";
-                                                    debugInfo += "  - totalSelected: " + parsedResult.data.totalSelected + "\n";
-                                                }
-                                                
-                                                // 상태 메시지 업데이트
-                                                if (parsedResult.success) {
-                                                    uiManager.updateStatus("클립 교체 완료: " + parsedResult.message, true);
-                                                } else {
-                                                    uiManager.updateStatus("클립 교체 실패: " + parsedResult.message, false);
-                                                }
-                                                
-                                                // ExtendScript 디버그 정보 추가
-                                                if (parsedResult.debug) {
-                                                    debugInfo += "\n--- ExtendScript 디버그 정보 ---\n";
-                                                    debugInfo += parsedResult.debug;
-                                                }
-                                            }
-                                        } catch (parseError) {
-                                            debugInfo += "JSON 파싱 실패: " + (parseError as Error).message + "\n";
-                                            
-                                            // 기존 문자열 처리 방식 사용
-                                            if (typeof result === "string") {
-                                                if (result.indexOf("success:") === 0) {
-                                                    const message = result.substring(8);
-                                                    uiManager.updateStatus("클립 교체 완료: " + message, true);
-                                                } else if (result.indexOf("error:") === 0) {
-                                                    const errorMessage = result.substring(6);
-                                                    uiManager.updateStatus("클립 교체 실패: " + errorMessage, false);
-                                                } else {
-                                                    uiManager.updateStatus("클립 교체 결과: " + result, true);
-                                                }
-                                            }
-                                        }
-                                        
-                                            // 디버그 정보 저장
-                                            (window as any).lastDebugInfo = debugInfo;
-                                            uiManager.toggleDebugButton(true);
-                                            
-                                            // 효과음 삽입 완료 후 타임라인으로 포커스 이동
-                                            setTimeout(() => {
-                                                try {
-                                                    let focusDebug = "\n--- 포커스 디버그 정보 ---\n";
-                                                    
-                                                    const currentElement = document.activeElement;
-                                                    focusDebug += "시작 - 현재 활성 요소: " + (currentElement ? (currentElement.tagName + (currentElement.id ? "#" + currentElement.id : "") + (currentElement.textContent ? " (" + currentElement.textContent.substring(0, 20) + ")" : "")) : "없음") + "\n";
-                                                    
-                                                    // CEP 패널에서 포커스 제거
-                                                    if (document.activeElement && (document.activeElement as HTMLElement).blur) {
-                                                        (document.activeElement as HTMLElement).blur();
-                                                        focusDebug += "현재 요소 blur 완료\n";
-                                                    }
-                                                    
-                                                    // 패널의 포커스를 완전히 제거 시도
-                                                    const bodyElement = document.body;
-                                                    if (bodyElement) {
-                                                        bodyElement.focus();
-                                                        bodyElement.blur();
-                                                        
-                                                        // 추가: 모든 포커스 가능한 요소들을 blur
-                                                        const focusableElements = document.querySelectorAll('button, input, select, textarea, [tabindex]:not([tabindex="-1"])');
-                                                        focusableElements.forEach(el => {
-                                                            try {
-                                                                (el as HTMLElement).blur();
-                                                            } catch(e) { /* ignore */ }
-                                                        });
-                                                        
-                                                        // 최종적으로 document에서 activeElement 제거 시도
-                                                        try {
-                                                            if (document.activeElement && (document.activeElement as HTMLElement).blur) {
-                                                                (document.activeElement as HTMLElement).blur();
-                                                            }
-                                                            // 강제로 포커스를 제거하기 위해 임시 요소 생성 후 제거
-                                                            const tempInput = document.createElement('input');
-                                                            tempInput.style.position = 'absolute';
-                                                            tempInput.style.left = '-9999px';
-                                                            tempInput.style.opacity = '0';
-                                                            document.body.appendChild(tempInput);
-                                                            tempInput.focus();
-                                                            tempInput.blur();
-                                                            document.body.removeChild(tempInput);
-                                                        } catch(e) { /* ignore */ }
-                                                        
-                                                        focusDebug += "완전한 포커스 제거 시도 완료\n";
-                                                    }
-                                                    
-                                                    const finalElement = document.activeElement;
-                                                    focusDebug += "blur 후 - 최종 활성 요소: " + (finalElement ? (finalElement.tagName + (finalElement.id ? "#" + finalElement.id : "") + (finalElement.textContent ? " (" + finalElement.textContent.substring(0, 20) + ")" : "")) : "없음") + "\n";
-                                                    
-                                                    // UI에 포커스 정보 표시
-                                                    uiManager.updateStatus("효과음 삽입 완료 - 포커스 상태 확인", true);
-                                                    
-                                                    // Adobe 앱으로 포커스 이동 (타임라인 활성화)
-                                                    const communication = getCommunication();
-                                                    if (communication) {
-                                                        // ExtendScript로 타임라인 포커스 명령 전송
-                                                        communication.callExtendScript("focusTimeline();", function(focusResult: string) {
-                                                            focusDebug += "타임라인 포커스 이동 결과: " + focusResult + "\n";
-                                                            
-                                                            // 최종 결과를 UI에 표시
-                                                            const veryFinalElement = document.activeElement;
-                                                            focusDebug += "최종 - 활성 요소: " + (veryFinalElement ? (veryFinalElement.tagName + (veryFinalElement.id ? "#" + veryFinalElement.id : "")) : "없음") + "\n";
-
-                                                            // 디버그 정보에 포커스 정보 추가
-                                                            (window as any).lastDebugInfo = ((window as any).lastDebugInfo || "") + focusDebug;
-
-                                                            const utils = getUtils();
-                                                            utils.logDebug("포커스 디버그:", focusDebug);
-                                                        });
-                                                    } else {
-                                                        focusDebug += "Communication 객체 없음\n";
-                                                        (window as any).lastDebugInfo = ((window as any).lastDebugInfo || "") + focusDebug;
-                                                        const utils = getUtils();
-                                                        utils.logDebug("포커스 디버그:", focusDebug);
-                                                    }
-                                                    
-                                                } catch (focusError) {
-                                                    const utils = getUtils();
-                                                    const uiManager = getUIManager();
-                                                    const errorMsg = "포커스 이동 중 오류: " + focusError;
-                                                    uiManager.updateStatus(errorMsg, false);
-                                                    utils.logDebug(errorMsg);
-                                                }
-                                            }, 100); // 100ms 후 실행
-                                        }
-                                    );
-                                } else {
-                                    debugInfo += "✗ 기본 정보 수집 실패: " + basicResult + "\n";
-                                    uiManager.updateStatus("ExtendScript 기본 정보 수집 실패", false);
-                                    (window as any).lastDebugInfo = debugInfo;
-                                    uiManager.toggleDebugButton(true);
-                                }
-                            });
-                        });
-                    } else {
-                        debugInfo += "✗ ExtendScript 기본 실행 실패: " + simpleResult + "\n";
-                        uiManager.updateStatus("ExtendScript 실행 환경에 문제가 있습니다", false);
-                        (window as any).lastDebugInfo = debugInfo;
-                        uiManager.toggleDebugButton(true);
-                    }
-                });
-            }
-        } else {
-            const utils = getUtils();
-            const uiManager = getUIManager();
+        // Early validation
+        if (!soundFsName) {
             utils.logError("Sound file path (fsName) not found on button.");
-            if (uiManager) {
-                uiManager.updateStatus("효과음 파일 경로를 찾을 수 없습니다.", false);
-            }
+            uiManager.updateStatus("효과음 파일 경로를 찾을 수 없습니다.", false);
+            return;
         }
+
+        if (!communication || !communication.callExtendScriptAsync) {
+            utils.logError("Communication service or async method not available");
+            uiManager.updateStatus("통신 서비스를 사용할 수 없습니다.", false);
+            return;
+        }
+
+        utils.logDebug("Replacing with sound file: " + soundFsName);
+        uiManager.updateStatus("클립을 '" + soundDisplayName + "' (으)로 대체 중...", true);
+
+        let debugInfo = "=== Sound File Button Click Debug ===\n";
+        debugInfo += "시간: " + new Date().toISOString() + "\n";
+        debugInfo += "파일 경로: " + soundFsName + "\n";
+        debugInfo += "파일명: " + soundDisplayName + "\n";
+
+        try {
+            // Step 1: 가장 간단한 ExtendScript 테스트
+            utils.logDebug("Testing simplest ExtendScript function first...");
+            debugInfo += "\n--- 단순 테스트 결과 ---\n";
+
+            const simpleResult = await communication.callExtendScriptAsync("simpleTest()");
+            utils.logDebug("Simple test result: " + simpleResult);
+            debugInfo += "simpleTest(): " + simpleResult + "\n";
+
+            if (simpleResult !== "HELLO_FROM_EXTENDSCRIPT") {
+                debugInfo += "✗ ExtendScript 기본 실행 실패: " + simpleResult + "\n";
+                uiManager.updateStatus("ExtendScript 실행 환경에 문제가 있습니다", false);
+                (window as any).lastDebugInfo = debugInfo;
+                uiManager.toggleDebugButton(true);
+                return;
+            }
+
+            debugInfo += "✓ ExtendScript 기본 실행 성공\n";
+
+            // Step 2: 중복 임포트 테스트
+            debugInfo += "\n--- 중복 임포트 테스트 결과 ---\n";
+            const duplicateResult = await communication.callExtendScriptAsync(
+                "testDuplicateImport(" + JSON.stringify(soundFsName) + ")"
+            );
+            debugInfo += duplicateResult + "\n";
+
+            // Step 3: 기본 정보 테스트
+            debugInfo += "\n--- 기본 정보 테스트 결과 ---\n";
+            const basicResult = await communication.callExtendScriptAsync("basicInfo()");
+            debugInfo += "basicInfo(): " + basicResult + "\n";
+
+            if (!basicResult || basicResult.indexOf("ERROR:") === 0) {
+                debugInfo += "✗ 기본 정보 수집 실패: " + basicResult + "\n";
+                uiManager.updateStatus("ExtendScript 기본 정보 수집 실패", false);
+                (window as any).lastDebugInfo = debugInfo;
+                uiManager.toggleDebugButton(true);
+                return;
+            }
+
+            debugInfo += "✓ 기본 정보 수집 성공\n";
+
+            // Step 4: 실제 클립 교체
+            debugInfo += "\n환경 테스트 통과, 클립 교체 시도...\n";
+            const result = await communication.callExtendScriptAsync(
+                "replaceSelectedAudioClips(" + JSON.stringify(soundFsName) + ")"
+            );
+
+            utils.logDebug("replaceSelectedAudioClips call result: " + result);
+            debugInfo += "\n--- 클립 교체 결과 ---\n";
+            debugInfo += "원본 결과: " + result + "\n";
+
+            // JSON 파싱 및 결과 처리
+            const parsedResult = utils.safeJSONParse(result);
+
+            if (parsedResult) {
+                debugInfo += "JSON 파싱: SUCCESS\n";
+                debugInfo += "파싱된 결과:\n";
+                debugInfo += "  - success: " + parsedResult.success + "\n";
+                debugInfo += "  - message: " + parsedResult.message + "\n";
+
+                if (parsedResult.data) {
+                    debugInfo += "  - replacedCount: " + parsedResult.data.replacedCount + "\n";
+                    debugInfo += "  - totalSelected: " + parsedResult.data.totalSelected + "\n";
+                }
+
+                // 상태 메시지 업데이트
+                if (parsedResult.success) {
+                    uiManager.updateStatus("클립 교체 완료: " + parsedResult.message, true);
+                } else {
+                    uiManager.updateStatus("클립 교체 실패: " + parsedResult.message, false);
+                }
+
+                // ExtendScript 디버그 정보 추가
+                if (parsedResult.debug) {
+                    debugInfo += "\n--- ExtendScript 디버그 정보 ---\n";
+                    debugInfo += parsedResult.debug;
+                }
+            } else {
+                debugInfo += "JSON 파싱 실패, 문자열로 처리\n";
+
+                // 기존 문자열 처리 방식 사용
+                if (typeof result === "string") {
+                    if (result.indexOf("success:") === 0) {
+                        const message = result.substring(8);
+                        uiManager.updateStatus("클립 교체 완료: " + message, true);
+                    } else if (result.indexOf("error:") === 0) {
+                        const errorMessage = result.substring(6);
+                        uiManager.updateStatus("클립 교체 실패: " + errorMessage, false);
+                    } else {
+                        uiManager.updateStatus("클립 교체 결과: " + result, true);
+                    }
+                }
+            }
+
+            // 디버그 정보 저장
+            (window as any).lastDebugInfo = debugInfo;
+            uiManager.toggleDebugButton(true);
+
+            // 포커스 처리를 비동기로 처리
+            await handleFocusRemovalAfterInsertion(debugInfo);
+
+        } catch (error) {
+            debugInfo += "\n\n오류 발생: " + (error as Error).message + "\n";
+            debugInfo += "Stack trace: " + (error as Error).stack + "\n";
+
+            utils.logError("Sound file button click failed:", (error as Error).message);
+            uiManager.updateStatus("클립 교체 중 오류가 발생했습니다: " + (error as Error).message, false);
+
+            (window as any).lastDebugInfo = debugInfo;
+            uiManager.toggleDebugButton(true);
+        }
+    }
+
+    // 포커스 제거 및 타임라인 활성화 처리 (헬퍼 함수)
+    async function handleFocusRemovalAfterInsertion(debugInfo: string): Promise<void> {
+        return new Promise((resolve) => {
+            setTimeout(async () => {
+                const utils = getUtils();
+                const uiManager = getUIManager();
+                const communication = getCommunication();
+
+                try {
+                    // 포커스 제거 헬퍼 사용
+                    const focusDebug = removeFocusFromPanel();
+
+                    const finalElement = document.activeElement;
+                    let fullFocusDebug = focusDebug;
+                    fullFocusDebug += "blur 후 - 최종 활성 요소: " +
+                        (finalElement ? (finalElement.tagName +
+                        (finalElement.id ? "#" + finalElement.id : "") +
+                        (finalElement.textContent ? " (" + finalElement.textContent.substring(0, 20) + ")" : "")) : "없음") + "\n";
+
+                    // UI에 포커스 정보 표시
+                    uiManager.updateStatus("효과음 삽입 완료 - 포커스 상태 확인", true);
+
+                    // Adobe 앱으로 포커스 이동 (타임라인 활성화)
+                    if (communication && communication.callExtendScriptAsync) {
+                        try {
+                            const focusResult = await communication.callExtendScriptAsync("focusTimeline();");
+                            fullFocusDebug += "타임라인 포커스 이동 결과: " + focusResult + "\n";
+
+                            const veryFinalElement = document.activeElement;
+                            fullFocusDebug += "최종 - 활성 요소: " +
+                                (veryFinalElement ? (veryFinalElement.tagName + (veryFinalElement.id ? "#" + veryFinalElement.id : "")) : "없음") + "\n";
+                        } catch (focusError) {
+                            fullFocusDebug += "타임라인 포커스 이동 실패: " + (focusError as Error).message + "\n";
+                        }
+                    } else {
+                        fullFocusDebug += "Communication 객체 없음\n";
+                    }
+
+                    // 디버그 정보에 포커스 정보 추가
+                    (window as any).lastDebugInfo = ((window as any).lastDebugInfo || debugInfo) + fullFocusDebug;
+                    utils.logDebug("포커스 디버그:", fullFocusDebug);
+
+                } catch (focusError) {
+                    const errorMsg = "포커스 이동 중 오류: " + (focusError as Error).message;
+                    uiManager.updateStatus(errorMsg, false);
+                    utils.logDebug(errorMsg);
+                }
+
+                resolve();
+            }, 100);
+        });
     }
     
     // DI 상태 확인 함수 (디버깅용)
     function getDIStatus() {
         const dependencies: string[] = [];
-        if (utilsService) 
-            dependencies.push('JSCUtils (DI)');
-        else if ((window as any).JSCUtils)
-            dependencies.push('JSCUtils (Legacy)');
-        
-        if (uiService)
-            dependencies.push('JSCUIManager (DI)');  
-        else if ((window as any).JSCUIManager)
-            dependencies.push('JSCUIManager (Legacy)');
-            
-        if (stateService)
-            dependencies.push('JSCStateManager (DI)');
-        else if ((window as any).JSCStateManager)
-            dependencies.push('JSCStateManager (Legacy)');
-            
-        if (communicationService)
-            dependencies.push('JSCCommunication (DI)');
-        else if ((window as any).JSCCommunication)
-            dependencies.push('JSCCommunication (Legacy)');
-            
-        if (soundEngineService)
-            dependencies.push('SoundEngine (DI)');
-        else if ((window as any).SoundEngine)
-            dependencies.push('SoundEngine (Legacy)');
-            
+
+        // DIHelpers 상태 확인
+        if (DIHelpers) {
+            dependencies.push('DIHelpers (Available)');
+        } else {
+            dependencies.push('DIHelpers (Not loaded)');
+        }
+
+        // 서비스 availability 체크
+        if ((window as any).JSCUtils)
+            dependencies.push('JSCUtils (Available)');
+        else
+            dependencies.push('JSCUtils (Missing)');
+
+        if ((window as any).JSCUIManager)
+            dependencies.push('JSCUIManager (Available)');
+        else
+            dependencies.push('JSCUIManager (Missing)');
+
+        if ((window as any).JSCStateManager)
+            dependencies.push('JSCStateManager (Available)');
+        else
+            dependencies.push('JSCStateManager (Missing)');
+
+        if ((window as any).JSCCommunication)
+            dependencies.push('JSCCommunication (Available)');
+        else
+            dependencies.push('JSCCommunication (Missing)');
+
+
+        if ((window as any).SoundEngine)
+            dependencies.push('SoundEngine (Available)');
+        else
+            dependencies.push('SoundEngine (Missing)');
+
         return {
-            isDIAvailable: !!diContainer,
-            containerInfo: diContainer ? 'DI Container active' : 'Legacy mode',
+            isDIAvailable: !!DIHelpers,
+            containerInfo: DIHelpers ? 'DIHelpers active' : 'Fallback mode',
             dependencies: dependencies
         };
     }

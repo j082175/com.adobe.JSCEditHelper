@@ -233,32 +233,16 @@ var JSCApp = (function () {
             stateManager_1.initializeFolderPath();
             // 이벤트 리스너 설정
             eventManager_1.setupEventListeners();
-            // 안전한 워크스페이스 이벤트 리스너 설정
-            setupSafeWorkspaceListener(csInterface, uiManager_1, stateManager_1, eventManager_1);
-            // 안전한 복원 상태 체크 및 자동 로드
+            // 워크스페이스 리스너 제거 - Premiere Pro가 완전히 관리하도록 함
+            // setupSafeWorkspaceListener(csInterface, uiManager, stateManager, eventManager);
+            // 저장된 폴더에서 자동 로드
             setTimeout(function () {
-                // 안전한 복원으로 인한 상태 복원 체크
-                var safeRestorePath = localStorage.getItem('jscedithelper_safe_restore_path');
-                if (safeRestorePath) {
-                    utils.logDebug("🔄 Detected safe workspace restore, recovering path:", safeRestorePath);
-                    localStorage.removeItem('jscedithelper_safe_restore_path'); // 일회성 사용 후 제거
-                    // 안전하게 복원된 경로로 설정
-                    stateManager_1.saveFolderPath(safeRestorePath);
-                    uiManager_1.updateStatus("워크스페이스 변경 후 안전하게 복원되었습니다.", true);
-                    // 효과음 목록 자동 로드
-                    setTimeout(function () {
-                        eventManager_1.refreshSoundButtons();
-                    }, 200);
-                }
-                else {
-                    // 기존 로직: 일반적인 앱 시작 시
-                    var currentPath = stateManager_1.getCurrentFolderPath();
-                    if (currentPath && window.JSCUtils && window.JSCUtils.isValidPath(currentPath)) {
-                        utils.logDebug("Auto-loading sound files from: " + currentPath);
-                        uiManager_1.updateStatus("저장된 폴더에서 효과음 목록을 불러오는 중...", true);
-                        // 자동 새로고침 실행
-                        eventManager_1.refreshSoundButtons();
-                    }
+                var currentPath = stateManager_1.getCurrentFolderPath();
+                if (currentPath && window.JSCUtils && window.JSCUtils.isValidPath(currentPath)) {
+                    utils.logDebug("Auto-loading sound files from: " + currentPath);
+                    uiManager_1.updateStatus("저장된 폴더에서 효과음 목록을 불러오는 중...", true);
+                    // 자동 새로고침 실행
+                    eventManager_1.refreshSoundButtons();
                 }
             }, 500); // UI가 완전히 준비된 후 실행
             // 엔진 상태 확인 및 디버그 정보 표시
@@ -273,134 +257,46 @@ var JSCApp = (function () {
             return false;
         }
     }
-    // 안전한 워크스페이스 이벤트 리스너 (Phase 1-3 통합)
-    function setupSafeWorkspaceListener(csInterface, uiManager, stateManager, eventManager) {
-        var utils = getUtils();
+    // 워크스페이스 리스너 완전 제거 - Premiere Pro가 관리하도록 함
+    // 이전에는 워크스페이스 변경 시 UI 복원을 시도했으나, 이것이 다른 확장과 충돌을 일으킴
+    // Premiere Pro의 워크스페이스 시스템에 완전히 위임
+    /*
+    function setupSafeWorkspaceListener(csInterface: any, _uiManager: any, stateManager: any, _eventManager: any): void {
+        const utils = getUtils();
         try {
-            utils.logDebug("🛡️ Setting up SAFE workspace change listener...");
-            // 복원 실행 중인지 추적 (무한 루프 방지)
-            var isRestoring_1 = false;
-            var lastWorkspaceChange_1 = 0;
-            csInterface.addEventListener("com.adobe.csxs.events.WorkspaceChanged", function () {
-                var now = Date.now();
+            utils.logDebug("🛡️ Setting up minimal workspace change listener (state-only)...");
+
+            let lastWorkspaceChange = 0;
+
+            csInterface.addEventListener("com.adobe.csxs.events.WorkspaceChanged", function() {
+                const now = Date.now();
+
                 // 너무 빈번한 호출 방지 (1초 내 중복 호출 무시)
-                if (now - lastWorkspaceChange_1 < 1000) {
-                    utils.logDebug("🛡️ Workspace change too frequent, ignoring...");
+                if (now - lastWorkspaceChange < 1000) {
                     return;
                 }
-                lastWorkspaceChange_1 = now;
-                utils.logDebug("🔄 Workspace changed detected - starting SAFE monitoring...");
-                // 즉시 DOM 보호 시도
-                var quickCheck = document.getElementById("content");
-                if (!quickCheck || quickCheck.children.length === 0) {
-                    utils.logDebug("🚨 DOM already compromised, immediate protection!");
-                    window.location.reload();
-                    return;
+                lastWorkspaceChange = now;
+
+                utils.logDebug("🔄 Workspace changed - state maintained, no restoration");
+
+                // 상태만 확인 (복원 시도 없음)
+                try {
+                    const currentPath = stateManager.getCurrentFolderPath();
+                    if (currentPath) {
+                        utils.logDebug("✅ State preserved:", currentPath);
+                    }
+                } catch (error) {
+                    utils.logDebug("State check error:", error);
                 }
-                // Phase 1: 1초 대기로 단축 (UI 보호 우선)
-                setTimeout(function () {
-                    if (isRestoring_1) {
-                        utils.logDebug("🛡️ Already restoring, skipping...");
-                        return;
-                    }
-                    try {
-                        // Phase 2: 비침입적 상태 체크
-                        var healthCheck = performHealthCheck_1();
-                        utils.logDebug("🔍 Health check result:", healthCheck);
-                        if (healthCheck.isHealthy) {
-                            utils.logDebug("✅ UI is healthy, no restoration needed");
-                            return;
-                        }
-                        // Phase 3: 충돌 위험 체크
-                        var conflictRisk = detectConflictRisk_1();
-                        if (conflictRisk.hasRisk) {
-                            utils.logDebug("⚠️ Conflict risk detected, skipping restoration:", conflictRisk.reason);
-                            showSafetyMessage_1(uiManager, "워크스페이스 충돌 위험으로 자동 복원을 건너뜁니다.");
-                            return;
-                        }
-                        // Phase 4: 공격적 복원 실행 (UI 보호 우선)
-                        executeAggressiveRestoration_1(healthCheck, uiManager, stateManager, eventManager);
-                    }
-                    catch (error) {
-                        utils.logError("🚨 Error during safe workspace handling:", error);
-                        showSafetyMessage_1(uiManager, "워크스페이스 복원 중 오류가 발생했습니다.");
-                    }
-                }, 1000); // 1초로 단축 (UI 보호 우선)
             });
-            // 헬스 체크 함수
-            var performHealthCheck_1 = function () {
-                var contentDiv = document.getElementById("content");
-                var hasContent = contentDiv && contentDiv.children.length > 0;
-                var hasButtons = document.querySelectorAll('button').length > 0;
-                var hasCSS = window.getComputedStyle(document.body).backgroundColor !== 'rgba(0, 0, 0, 0)';
-                return {
-                    isHealthy: hasContent && hasButtons && hasCSS,
-                    issues: {
-                        missingContent: !hasContent,
-                        missingButtons: !hasButtons,
-                        missingCSS: !hasCSS
-                    }
-                };
-            };
-            // 충돌 위험 감지 함수
-            var detectConflictRisk_1 = function () {
-                // 다른 CEP 확장들이 복원 중인지 감지
-                var otherExtensions = document.querySelectorAll('[id*="Premiere"], [id*="composer"], [class*="premiere"]');
-                var recentErrors = performance.getEntriesByType ? performance.getEntriesByType('navigation').length > 1 : false;
-                if (otherExtensions.length > 0) {
-                    return { hasRisk: true, reason: "Other Premiere extensions detected" };
-                }
-                if (recentErrors) {
-                    return { hasRisk: true, reason: "Recent navigation errors detected" };
-                }
-                return { hasRisk: false, reason: "Safe to proceed" };
-            };
-            // 공격적 복원 실행 함수 (UI 보호 우선)
-            var executeAggressiveRestoration_1 = function (healthCheck, uiManager, stateManager, _eventManager) {
-                isRestoring_1 = true;
-                utils.logDebug("🔧 Executing SAFE restoration...");
-                try {
-                    // 문제가 있으면 즉시 새로고침 (UI 보호 우선)
-                    if (!healthCheck.isHealthy) {
-                        utils.logDebug("🚨 UI compromised, immediate reload to protect visibility!");
-                        // 상태 저장
-                        var currentPath = stateManager.getCurrentFolderPath();
-                        if (currentPath) {
-                            localStorage.setItem('jscedithelper_safe_restore_path', currentPath);
-                            utils.logDebug("💾 Saved path for restoration:", currentPath);
-                        }
-                        // 즉시 새로고침
-                        window.location.reload();
-                        return;
-                    }
-                    uiManager.updateStatus("워크스페이스 상태가 복원되었습니다.", true);
-                }
-                catch (error) {
-                    utils.logError("🚨 Safe restoration failed:", error);
-                    showSafetyMessage_1(uiManager, "복원 실패: 수동으로 플러그인을 다시 열어주세요.");
-                }
-                finally {
-                    // 복원 플래그 해제 (5초 후)
-                    setTimeout(function () {
-                        isRestoring_1 = false;
-                    }, 5000);
-                }
-            };
-            // 안전 메시지 표시 함수
-            var showSafetyMessage_1 = function (uiManager, message) {
-                try {
-                    uiManager.updateStatus(message, false);
-                }
-                catch (e) {
-                    utils.logDebug("Safety message:", message);
-                }
-            };
-            utils.logDebug("✅ Safe workspace listener registered successfully");
-        }
-        catch (error) {
-            utils.logError("🚨 Failed to setup safe workspace listener:", error);
+
+            utils.logDebug("✅ Minimal workspace listener registered");
+
+        } catch (error) {
+            utils.logError("Failed to setup workspace listener:", error);
         }
     }
+    */
     // 엔진 상태 확인 함수
     function checkEngineStatus() {
         var utils = getUtils();

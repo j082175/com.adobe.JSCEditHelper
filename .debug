@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ExtensionList>
-    <Extension Id="com.adobe.SoundInserter">
+    <Extension Id="com.adobe.JSCEditHelper">
         <HostList>
             <Host Name="PPRO" Port="8001"/>
             <Host Name="PPRO" Port="8002"/>

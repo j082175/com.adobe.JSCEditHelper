@@ -37,8 +37,34 @@ function getUtilsHelper(moduleName: string = 'Module'): JSCUtilsInterface {
         debugLog: (msg: string, ..._args: any[]) => console.log(`[${moduleName}]`, msg),
         logDebug: (msg: string, ..._args: any[]) => console.log(`[${moduleName}]`, msg),
         logInfo: (msg: string, ..._args: any[]) => console.info(`[${moduleName}]`, msg),
-        logWarn: (msg: string, ..._args: any[]) => console.warn(`[${moduleName}]`, msg),
-        logError: (msg: string, ..._args: any[]) => console.error(`[${moduleName}]`, msg),
+        logWarn: (msg: string, ..._args: any[]) => {
+            console.warn(`[${moduleName}]`, msg);
+            // WARN은 UI에도 표시
+            try {
+                const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+                const warnLog = `[${timestamp}] WARN [${moduleName}]: ${msg}\n`;
+                if (typeof window !== 'undefined') {
+                    (window as any).lastDebugInfo = ((window as any).lastDebugInfo || '') + warnLog;
+                    if ((window as any).JSCUIManager) {
+                        (window as any).JSCUIManager.toggleDebugButton(true);
+                    }
+                }
+            } catch (e) { /* ignore */ }
+        },
+        logError: (msg: string, ..._args: any[]) => {
+            console.error(`[${moduleName}]`, msg);
+            // ERROR는 UI에도 표시
+            try {
+                const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+                const errorLog = `[${timestamp}] ERROR [${moduleName}]: ${msg}\n`;
+                if (typeof window !== 'undefined') {
+                    (window as any).lastDebugInfo = ((window as any).lastDebugInfo || '') + errorLog;
+                    if ((window as any).JSCUIManager) {
+                        (window as any).JSCUIManager.toggleDebugButton(true);
+                    }
+                }
+            } catch (e) { /* ignore */ }
+        },
         isValidPath: (path: string) => !!path,
         getShortPath: (path: string) => path,
         safeJSONParse: (str: string) => {

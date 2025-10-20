@@ -100,21 +100,57 @@ const JSCUtils = (function(): JSCUtilsInterface {
         }
     }
     
-    // 편의 함수들
+    // 편의 함수들 (하이브리드 로깅: ERROR/WARN은 UI에도 표시)
     function logError(message: string, ..._args: any[]): void {
         log(LogLevel.ERROR, message);
+
+        // ERROR는 UI에도 표시
+        try {
+            const timestamp = new Date().toISOString().split('T')[1].split('.')[0]; // HH:MM:SS
+            const errorLog = `[${timestamp}] ERROR: ${message}\n`;
+
+            // lastDebugInfo에 누적 (기존 로그 유지)
+            if (typeof window !== 'undefined') {
+                (window as any).lastDebugInfo = ((window as any).lastDebugInfo || '') + errorLog;
+
+                // 디버그 버튼 활성화
+                if ((window as any).JSCUIManager) {
+                    (window as any).JSCUIManager.toggleDebugButton(true);
+                }
+            }
+        } catch (e) {
+            // UI 업데이트 실패해도 콘솔 로그는 출력됨
+        }
     }
 
     function logWarn(message: string, ..._args: any[]): void {
         log(LogLevel.WARN, message);
+
+        // WARN도 UI에 표시 (선택적)
+        try {
+            const timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+            const warnLog = `[${timestamp}] WARN: ${message}\n`;
+
+            if (typeof window !== 'undefined') {
+                (window as any).lastDebugInfo = ((window as any).lastDebugInfo || '') + warnLog;
+
+                if ((window as any).JSCUIManager) {
+                    (window as any).JSCUIManager.toggleDebugButton(true);
+                }
+            }
+        } catch (e) {
+            // UI 업데이트 실패해도 콘솔 로그는 출력됨
+        }
     }
 
     function logInfo(message: string, ..._args: any[]): void {
         log(LogLevel.INFO, message);
+        // INFO는 콘솔에만 (UI 표시 안 함)
     }
 
     function logDebug(message: string, ..._args: any[]): void {
         log(LogLevel.DEBUG, message);
+        // DEBUG는 콘솔에만 (UI 표시 안 함)
     }
 
     // 하위 호환성을 위한 별칭

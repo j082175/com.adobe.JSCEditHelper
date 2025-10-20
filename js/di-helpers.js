@@ -61,14 +61,38 @@ function getUtilsHelper(moduleName) {
             for (var _i = 1; _i < arguments.length; _i++) {
                 _args[_i - 1] = arguments[_i];
             }
-            return console.warn("[".concat(moduleName, "]"), msg);
+            console.warn("[".concat(moduleName, "]"), msg);
+            // WARN은 UI에도 표시
+            try {
+                var timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+                var warnLog = "[".concat(timestamp, "] WARN [").concat(moduleName, "]: ").concat(msg, "\n");
+                if (typeof window !== 'undefined') {
+                    window.lastDebugInfo = (window.lastDebugInfo || '') + warnLog;
+                    if (window.JSCUIManager) {
+                        window.JSCUIManager.toggleDebugButton(true);
+                    }
+                }
+            }
+            catch (e) { /* ignore */ }
         },
         logError: function (msg) {
             var _args = [];
             for (var _i = 1; _i < arguments.length; _i++) {
                 _args[_i - 1] = arguments[_i];
             }
-            return console.error("[".concat(moduleName, "]"), msg);
+            console.error("[".concat(moduleName, "]"), msg);
+            // ERROR는 UI에도 표시
+            try {
+                var timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+                var errorLog = "[".concat(timestamp, "] ERROR [").concat(moduleName, "]: ").concat(msg, "\n");
+                if (typeof window !== 'undefined') {
+                    window.lastDebugInfo = (window.lastDebugInfo || '') + errorLog;
+                    if (window.JSCUIManager) {
+                        window.JSCUIManager.toggleDebugButton(true);
+                    }
+                }
+            }
+            catch (e) { /* ignore */ }
         },
         isValidPath: function (path) { return !!path; },
         getShortPath: function (path) { return path; },

@@ -72,13 +72,29 @@ var JSCUtils = (function () {
             }
         }
     }
-    // 편의 함수들
+    // 편의 함수들 (하이브리드 로깅: ERROR/WARN은 UI에도 표시)
     function logError(message) {
         var _args = [];
         for (var _i = 1; _i < arguments.length; _i++) {
             _args[_i - 1] = arguments[_i];
         }
         log(LogLevel.ERROR, message);
+        // ERROR는 UI에도 표시
+        try {
+            var timestamp = new Date().toISOString().split('T')[1].split('.')[0]; // HH:MM:SS
+            var errorLog = "[".concat(timestamp, "] ERROR: ").concat(message, "\n");
+            // lastDebugInfo에 누적 (기존 로그 유지)
+            if (typeof window !== 'undefined') {
+                window.lastDebugInfo = (window.lastDebugInfo || '') + errorLog;
+                // 디버그 버튼 활성화
+                if (window.JSCUIManager) {
+                    window.JSCUIManager.toggleDebugButton(true);
+                }
+            }
+        }
+        catch (e) {
+            // UI 업데이트 실패해도 콘솔 로그는 출력됨
+        }
     }
     function logWarn(message) {
         var _args = [];
@@ -86,6 +102,20 @@ var JSCUtils = (function () {
             _args[_i - 1] = arguments[_i];
         }
         log(LogLevel.WARN, message);
+        // WARN도 UI에 표시 (선택적)
+        try {
+            var timestamp = new Date().toISOString().split('T')[1].split('.')[0];
+            var warnLog = "[".concat(timestamp, "] WARN: ").concat(message, "\n");
+            if (typeof window !== 'undefined') {
+                window.lastDebugInfo = (window.lastDebugInfo || '') + warnLog;
+                if (window.JSCUIManager) {
+                    window.JSCUIManager.toggleDebugButton(true);
+                }
+            }
+        }
+        catch (e) {
+            // UI 업데이트 실패해도 콘솔 로그는 출력됨
+        }
     }
     function logInfo(message) {
         var _args = [];
@@ -93,6 +123,7 @@ var JSCUtils = (function () {
             _args[_i - 1] = arguments[_i];
         }
         log(LogLevel.INFO, message);
+        // INFO는 콘솔에만 (UI 표시 안 함)
     }
     function logDebug(message) {
         var _args = [];
@@ -100,6 +131,7 @@ var JSCUtils = (function () {
             _args[_i - 1] = arguments[_i];
         }
         log(LogLevel.DEBUG, message);
+        // DEBUG는 콘솔에만 (UI 표시 안 함)
     }
     // 하위 호환성을 위한 별칭
     function debugLog(message) {

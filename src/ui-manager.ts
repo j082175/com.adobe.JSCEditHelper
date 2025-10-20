@@ -250,12 +250,52 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
         const closeButton = document.getElementById("close-debug-button");
 
         if (debugInfo && (window as any).lastDebugInfo) {
-            debugInfo.textContent = (window as any).lastDebugInfo;
+            // HTML 포맷팅: ERROR/WARN에 색상 적용
+            const formattedLog = formatDebugLog((window as any).lastDebugInfo);
+            debugInfo.innerHTML = formattedLog;
             debugInfo.style.display = "block";
             if (closeButton) {
                 closeButton.style.display = "block";
             }
         }
+    }
+
+    // 디버그 로그를 HTML로 포맷팅 (색상 적용)
+    function formatDebugLog(logText: string): string {
+        if (!logText) return '';
+
+        // 각 라인을 처리
+        const lines = logText.split('\n');
+        const formattedLines = lines.map(line => {
+            // XSS 방지: HTML 이스케이프
+            const escapedLine = line
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+
+            // ERROR 패턴 감지 및 색상 적용
+            if (/\[.*?\]\s*ERROR/.test(escapedLine)) {
+                return `<span class="log-error">${escapedLine}</span>`;
+            }
+            // WARN 패턴 감지 및 색상 적용
+            else if (/\[.*?\]\s*WARN/.test(escapedLine)) {
+                return `<span class="log-warn">${escapedLine}</span>`;
+            }
+            // INFO 패턴 감지 및 색상 적용
+            else if (/\[.*?\]\s*INFO/.test(escapedLine)) {
+                return `<span class="log-info">${escapedLine}</span>`;
+            }
+            // DEBUG 패턴 감지 및 색상 적용
+            else if (/\[.*?\]\s*DEBUG/.test(escapedLine)) {
+                return `<span class="log-debug">${escapedLine}</span>`;
+            }
+            // 일반 텍스트
+            return escapedLine;
+        });
+
+        return formattedLines.join('\n');
     }
     
     // 디버그 UI 초기화

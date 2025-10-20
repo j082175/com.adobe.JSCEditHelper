@@ -572,7 +572,7 @@ body {
 
 .debug-output {
     background: #000;
-    color: #00ff00;
+    color: #ccc;
     padding: var(--spacing-md);
     border-radius: var(--radius-sm);
     font-size: 11px;
@@ -587,6 +587,25 @@ body {
 
 .debug-output.active {
     display: block;
+}
+
+/* Log level colors */
+.log-error {
+    color: #ff4444;
+    font-weight: 600;
+}
+
+.log-warn {
+    color: #ffaa00;
+    font-weight: 600;
+}
+
+.log-info {
+    color: #4da6ff;
+}
+
+.log-debug {
+    color: #888;
 }
 
 /* ================================

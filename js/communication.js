@@ -27,20 +27,66 @@ var JSCCommunication = (function () {
     }
     // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
     function getUtils() {
-        return utilsService || window.JSCUtils || {
-            logDebug: function (msg) { return console.log(msg); },
-            logWarn: function (msg) { return console.warn(msg); },
-            debugLog: function (msg) { return console.log(msg); },
-            safeJSONParse: function (json) { try {
-                return JSON.parse(json);
-            }
-            catch (_a) {
-                return null;
-            } },
+        var fallback = {
+            debugLog: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.log('[Communication]', msg);
+            },
+            logDebug: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.log('[Communication]', msg);
+            },
+            logInfo: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.info('[Communication]', msg);
+            },
+            logWarn: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.warn('[Communication]', msg);
+            },
+            logError: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.error('[Communication]', msg);
+            },
             isValidPath: function (path) { return !!path; },
+            getShortPath: function (path) { return path; },
+            safeJSONParse: function (str) {
+                try {
+                    return JSON.parse(str);
+                }
+                catch (e) {
+                    return null;
+                }
+            },
             saveToStorage: function (key, value) { localStorage.setItem(key, value); return true; },
-            CONFIG: { SOUND_FOLDER_KEY: 'soundInserter_folder' }
+            loadFromStorage: function (key) { return localStorage.getItem(key); },
+            removeFromStorage: function (key) { localStorage.removeItem(key); return true; },
+            CONFIG: {
+                DEBUG_MODE: false,
+                SOUND_FOLDER_KEY: 'soundInserter_folder',
+                APP_NAME: 'JSCEditHelper',
+                VERSION: '1.0.0'
+            },
+            LOG_LEVELS: {},
+            log: function () { },
+            getDIStatus: function () { return ({ isDIAvailable: false, containerInfo: 'Fallback mode' }); }
         };
+        return utilsService || window.JSCUtils || fallback;
     }
     function getUIManager() {
         return uiService || window.JSCUIManager || {
@@ -68,17 +114,18 @@ var JSCCommunication = (function () {
     var csInterface = null;
     // CSInterface 초기화
     function initialize() {
+        var utils = getUtils();
         try {
             if (typeof CSInterface === 'undefined') {
                 throw new Error('CSInterface not available - CEP environment required');
             }
             csInterface = new CSInterface();
             setupEventListeners();
-            console.log('Communication module initialized successfully');
+            utils.logDebug('Communication module initialized successfully');
             return csInterface;
         }
         catch (e) {
-            console.error('Communication module initialization failed:', e.message);
+            utils.logError('Communication module initialization failed:', e.message);
             return null;
         }
     }
@@ -155,13 +202,13 @@ var JSCCommunication = (function () {
             var parsedData = void 0;
             if (typeof eventDataString === "string") {
                 if (eventDataString.trim() === "") {
-                    console.error("handleFileListEvent: Received empty string data.");
+                    utils.logError("handleFileListEvent: Received empty string data.");
                     uiManager.updateStatus("폴더에서 데이터를 가져오는 데 실패했습니다.", false);
                     return;
                 }
                 var parsed = utils.safeJSONParse(eventDataString);
                 if (!parsed) {
-                    console.error("handleFileListEvent: JSON parsing error for data: " + eventDataString);
+                    utils.logError("handleFileListEvent: JSON parsing error for data: " + eventDataString);
                     uiManager.updateStatus("폴더 데이터 처리 중 오류가 발생했습니다.", false);
                     return;
                 }
@@ -172,12 +219,12 @@ var JSCCommunication = (function () {
                 utils.debugLog("handleFileListEvent: Received data as object (no parsing needed)");
             }
             else {
-                console.error("handleFileListEvent: Unknown data type received: " + typeof eventDataString);
+                utils.logError("handleFileListEvent: Unknown data type received: " + typeof eventDataString);
                 uiManager.updateStatus("예상치 못한 데이터 형식을 받았습니다.", false);
                 return;
             }
             if (!parsedData || !parsedData.soundFiles) {
-                console.error("handleFileListEvent: Invalid data structure (soundFiles missing). Parsed data:", parsedData);
+                utils.logError("handleFileListEvent: Invalid data structure (soundFiles missing). Parsed data:", parsedData);
                 uiManager.updateStatus("폴더 데이터를 올바르게 읽을 수 없습니다.", false);
                 return;
             }
@@ -196,20 +243,46 @@ var JSCCommunication = (function () {
             uiManager.updateSoundButtons(soundFiles, folderPathFromEvent);
         }
         catch (e) {
-            console.error("handleFileListEvent: CRITICAL ERROR during event processing:", e);
+            utils.logError("handleFileListEvent: CRITICAL ERROR during event processing:", e);
             uiManager.updateStatus("폴더 정보를 처리하는 중 오류가 발생했습니다.", false);
         }
     }
     // ExtendScript 함수 호출
     function callExtendScript(scriptCode, callback) {
+        var utils = getUtils();
         if (!csInterface) {
-            console.error("CSInterface not initialized");
+            utils.logError("CSInterface not initialized");
             return;
         }
-        var utils = getUtils();
         utils.debugLog("Executing JSX code: " + scriptCode);
         csInterface.evalScript(scriptCode, callback || function (result) {
             utils.debugLog("JSX result: " + result);
+        });
+    }
+    // Promise 기반 ExtendScript 호출 (callback hell 제거용)
+    function callExtendScriptAsync(scriptCode) {
+        return new Promise(function (resolve, reject) {
+            var utils = getUtils();
+            if (!csInterface) {
+                var error = "CSInterface not initialized";
+                utils.logError(error);
+                reject(new Error(error));
+                return;
+            }
+            utils.debugLog("Executing JSX code (async): " + scriptCode);
+            csInterface.evalScript(scriptCode, function (result) {
+                utils.debugLog("JSX result (async): " + result);
+                // 에러 체크
+                if (typeof result === 'string' && result.indexOf('error:') === 0) {
+                    reject(new Error(result.substring(6)));
+                }
+                else if (typeof result === 'string' && result.indexOf('ERROR:') === 0) {
+                    reject(new Error(result.substring(6)));
+                }
+                else {
+                    resolve(result);
+                }
+            });
         });
     }
     // DI 상태 확인 함수 (디버깅용) - Phase 2.3
@@ -240,6 +313,7 @@ var JSCCommunication = (function () {
     return {
         initialize: initialize,
         callExtendScript: callExtendScript,
+        callExtendScriptAsync: callExtendScriptAsync, // Promise 기반 (callback hell 제거용)
         getCSInterface: function () { return csInterface; },
         getDIStatus: getDIStatus // Phase 2.3
     };

@@ -8,10 +8,11 @@
 // =============================================================================
 
 interface JSCUtilsInterface {
-    debugLog(message: string): void;
-    logInfo(message: string): void;
-    logWarn(message: string): void;
-    logError(message: string): void;
+    debugLog(message: string, ...args: any[]): void;
+    logDebug(message: string, ...args: any[]): void;
+    logInfo(message: string, ...args: any[]): void;
+    logWarn(message: string, ...args: any[]): void;
+    logError(message: string, ...args: any[]): void;
     isValidPath(path: string): boolean;
     getShortPath(path: string): string;
     safeJSONParse(json: string): any;
@@ -45,7 +46,10 @@ interface JSCStateManagerInterface {
 
 interface JSCCommunicationInterface {
     initialize(): any;
-    callExtendScript(script: string, callback: (result: string) => void): void;
+    callExtendScript(script: string, callback?: (result: string) => void): void;
+    callExtendScriptAsync(script: string): Promise<string>;
+    getCSInterface(): any;
+    getDIStatus(): any;
 }
 
 interface JSCEventManagerInterface {
@@ -54,8 +58,17 @@ interface JSCEventManagerInterface {
 }
 
 interface JSCErrorHandlerInterface {
-    handleError(error: any): void;
-    logError(message: string, details?: any): void;
+    readonly ERROR_TYPES: any;
+    readonly ERROR_SEVERITY: any;
+    createError(type: any, code: string, message?: string, details?: any): any;
+    handleError(error: any, showToUser?: boolean): any;
+    handleValidationError(code: string, customMessage?: string, details?: any): any;
+    handleCommunicationError(code: string, customMessage?: string, details?: any): any;
+    handleFileSystemError(code: string, customMessage?: string, details?: any): any;
+    handleUserInputError(code: string, customMessage?: string, details?: any): any;
+    safeExecute<T>(fn: () => T, errorMessage?: string, errorType?: any): T | null;
+    handleAsyncError(error: Error, context?: string): any;
+    getDIStatus(): any;
 }
 
 interface JSCAppInterface {

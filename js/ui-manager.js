@@ -59,10 +59,66 @@ var JSCUIManager = (function () {
     }
     // 유틸리티 서비스 가져오기 (DI 우선, 레거시 fallback)
     function getUtils() {
-        return utilsService || window.JSCUtils || {
+        var fallback = {
+            debugLog: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.log('[UIManager]', msg);
+            },
+            logDebug: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.log('[UIManager]', msg);
+            },
+            logInfo: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.info('[UIManager]', msg);
+            },
+            logWarn: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.warn('[UIManager]', msg);
+            },
+            logError: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.error('[UIManager]', msg);
+            },
+            isValidPath: function (path) { return !!path; },
             getShortPath: function (path) { return path; },
-            isValidPath: function (path) { return !!path; }
+            safeJSONParse: function (str) {
+                try {
+                    return JSON.parse(str);
+                }
+                catch (e) {
+                    return null;
+                }
+            },
+            saveToStorage: function (key, value) { localStorage.setItem(key, value); return true; },
+            loadFromStorage: function (key) { return localStorage.getItem(key); },
+            removeFromStorage: function (key) { localStorage.removeItem(key); return true; },
+            CONFIG: {
+                DEBUG_MODE: false,
+                SOUND_FOLDER_KEY: 'soundInserter_folder',
+                APP_NAME: 'JSCEditHelper',
+                VERSION: '1.0.0'
+            },
+            LOG_LEVELS: {},
+            log: function () { },
+            getDIStatus: function () { return ({ isDIAvailable: false, containerInfo: 'Fallback mode' }); }
         };
+        return utilsService || window.JSCUtils || fallback;
     }
     // 이벤트 서비스 가져오기 (DI 우선, 레거시 fallback)
     function getEventManager() {
@@ -70,9 +126,10 @@ var JSCUIManager = (function () {
     }
     // 상태 메시지 업데이트
     function updateStatus(message, isSuccess) {
+        var utils = getUtils();
         var statusElement = document.getElementById("status-message");
         if (!statusElement) {
-            console.error("Status element not found");
+            utils.logError("Status element not found");
             return;
         }
         // 기존 클래스 제거
@@ -179,13 +236,13 @@ var JSCUIManager = (function () {
     }
     // 개별 효과음 버튼 업데이트
     function updateSoundButtons(soundFiles, currentFolderPath) {
+        var utils = getUtils();
         var container = document.getElementById("individualSoundButtonsContainer");
         var folderPathSpan = document.getElementById("folderPathSpan");
         if (!container)
             return;
         container.innerHTML = ""; // 이전 버튼들 제거
         if (folderPathSpan && currentFolderPath) {
-            var utils = getUtils();
             folderPathSpan.textContent = utils.getShortPath(currentFolderPath);
         }
         if (soundFiles && soundFiles.length > 0) {
@@ -207,7 +264,7 @@ var JSCUIManager = (function () {
                         if (event.code === "Space" || event.key === " ") {
                             event.preventDefault();
                             event.stopPropagation();
-                            console.log("효과음 버튼 스페이스바 이벤트 차단됨");
+                            utils.logDebug("효과음 버튼 스페이스바 이벤트 차단됨");
                         }
                     });
                     // 미리보기 이벤트 추가
@@ -265,14 +322,15 @@ var JSCUIManager = (function () {
     }
     // Adobe 앱 테마 정보로 UI 업데이트
     function updateThemeWithAppSkinInfo(csInterface) {
+        var utils = getUtils();
         try {
             if (!csInterface || !csInterface.hostEnvironment) {
-                console.warn('CSInterface or hostEnvironment not available for theme update');
+                utils.logWarn('CSInterface or hostEnvironment not available for theme update');
                 return;
             }
             var appSkinInfo = csInterface.hostEnvironment.appSkinInfo;
             if (!appSkinInfo || !appSkinInfo.panelBackgroundColor) {
-                console.warn('App skin info not available');
+                utils.logWarn('App skin info not available');
                 return;
             }
             var panelBgColor = appSkinInfo.panelBackgroundColor.color;
@@ -285,10 +343,10 @@ var JSCUIManager = (function () {
                 // 밝은 테마 스타일 적용
                 document.body.classList.add("light-theme");
             }
-            console.log('Theme updated successfully');
+            utils.logDebug('Theme updated successfully');
         }
         catch (e) {
-            console.error('Theme update failed:', e.message);
+            utils.logError('Theme update failed:', e.message);
         }
     }
     // DI 상태 확인 함수 (디버깅용) - Phase 2.1

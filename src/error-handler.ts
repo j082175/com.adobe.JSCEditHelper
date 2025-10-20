@@ -110,13 +110,33 @@ const JSCErrorHandler = (function(): JSCErrorHandlerInterface {
     }
     
     // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
-    function getUtils() {
-        return utilsService || (window as any).JSCUtils || {
-            logError: (msg: string) => { console.error(msg); },
-            logWarn: (msg: string) => { console.warn(msg); },
-            logInfo: (msg: string) => { console.log(msg); },
-            CONFIG: { DEBUG_MODE: false }
+    function getUtils(): JSCUtilsInterface {
+        const fallback: JSCUtilsInterface = {
+            debugLog: (msg: string, ..._args: any[]) => console.log('[ErrorHandler]', msg),
+            logDebug: (msg: string, ..._args: any[]) => console.log('[ErrorHandler]', msg),
+            logInfo: (msg: string, ..._args: any[]) => console.info('[ErrorHandler]', msg),
+            logWarn: (msg: string, ..._args: any[]) => console.warn('[ErrorHandler]', msg),
+            logError: (msg: string, ..._args: any[]) => console.error('[ErrorHandler]', msg),
+            isValidPath: (path: string) => !!path,
+            getShortPath: (path: string) => path,
+            safeJSONParse: (str: string) => {
+                try { return JSON.parse(str); }
+                catch(e) { return null; }
+            },
+            saveToStorage: (key: string, value: string) => { localStorage.setItem(key, value); return true; },
+            loadFromStorage: (key: string) => localStorage.getItem(key),
+            removeFromStorage: (key: string) => { localStorage.removeItem(key); return true; },
+            CONFIG: {
+                DEBUG_MODE: false,
+                SOUND_FOLDER_KEY: 'soundInserter_folder',
+                APP_NAME: 'JSCEditHelper',
+                VERSION: '1.0.0'
+            },
+            LOG_LEVELS: {} as any,
+            log: () => {},
+            getDIStatus: () => ({ isDIAvailable: false, containerInfo: 'Fallback mode' })
         };
+        return utilsService || window.JSCUtils || fallback;
     }
     
     function getUIManager() {

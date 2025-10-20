@@ -43,11 +43,33 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
     }
     
     // 유틸리티 서비스 가져오기 (DI 우선, 레거시 fallback)
-    function getUtils(): any {
-        return utilsService || window.JSCUtils || {
+    function getUtils(): JSCUtilsInterface {
+        const fallback: JSCUtilsInterface = {
+            debugLog: (msg: string, ..._args: any[]) => console.log('[UIManager]', msg),
+            logDebug: (msg: string, ..._args: any[]) => console.log('[UIManager]', msg),
+            logInfo: (msg: string, ..._args: any[]) => console.info('[UIManager]', msg),
+            logWarn: (msg: string, ..._args: any[]) => console.warn('[UIManager]', msg),
+            logError: (msg: string, ..._args: any[]) => console.error('[UIManager]', msg),
+            isValidPath: (path: string) => !!path,
             getShortPath: (path: string) => path,
-            isValidPath: (path: string) => !!path
+            safeJSONParse: (str: string) => {
+                try { return JSON.parse(str); }
+                catch(e) { return null; }
+            },
+            saveToStorage: (key: string, value: string) => { localStorage.setItem(key, value); return true; },
+            loadFromStorage: (key: string) => localStorage.getItem(key),
+            removeFromStorage: (key: string) => { localStorage.removeItem(key); return true; },
+            CONFIG: {
+                DEBUG_MODE: false,
+                SOUND_FOLDER_KEY: 'soundInserter_folder',
+                APP_NAME: 'JSCEditHelper',
+                VERSION: '1.0.0'
+            },
+            LOG_LEVELS: {} as any,
+            log: () => {},
+            getDIStatus: () => ({ isDIAvailable: false, containerInfo: 'Fallback mode' })
         };
+        return utilsService || window.JSCUtils || fallback;
     }
     
     // 이벤트 서비스 가져오기 (DI 우선, 레거시 fallback)
@@ -57,10 +79,11 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
     
     // 상태 메시지 업데이트
     function updateStatus(message: string, isSuccess?: boolean): void {
+        const utils = getUtils();
         const statusElement = document.getElementById("status-message");
         
         if (!statusElement) {
-            console.error("Status element not found");
+            utils.logError("Status element not found");
             return;
         }
 
@@ -158,15 +181,15 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
 
     // 개별 효과음 버튼 업데이트
     function updateSoundButtons(soundFiles: SoundFile[], currentFolderPath: string): void {
+        const utils = getUtils();
         const container = document.getElementById("individualSoundButtonsContainer");
         const folderPathSpan = document.getElementById("folderPathSpan");
-        
+
         if (!container) return;
-        
+
         container.innerHTML = ""; // 이전 버튼들 제거
-        
+
         if (folderPathSpan && currentFolderPath) {
-            const utils = getUtils();
             folderPathSpan.textContent = utils.getShortPath(currentFolderPath);
         }
 
@@ -191,7 +214,7 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
                         if (event.code === "Space" || event.key === " ") {
                             event.preventDefault();
                             event.stopPropagation();
-                            console.log("효과음 버튼 스페이스바 이벤트 차단됨");
+                            utils.logDebug("효과음 버튼 스페이스바 이벤트 차단됨");
                         }
                     });
                     
@@ -258,15 +281,16 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
     
     // Adobe 앱 테마 정보로 UI 업데이트
     function updateThemeWithAppSkinInfo(csInterface: any): void {
+        const utils = getUtils();
         try {
             if (!csInterface || !csInterface.hostEnvironment) {
-                console.warn('CSInterface or hostEnvironment not available for theme update');
+                utils.logWarn('CSInterface or hostEnvironment not available for theme update');
                 return;
             }
             
             const appSkinInfo = csInterface.hostEnvironment.appSkinInfo;
             if (!appSkinInfo || !appSkinInfo.panelBackgroundColor) {
-                console.warn('App skin info not available');
+                utils.logWarn('App skin info not available');
                 return;
             }
             
@@ -282,9 +306,9 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
                 document.body.classList.add("light-theme");
             }
             
-            console.log('Theme updated successfully');
+            utils.logDebug('Theme updated successfully');
         } catch (e) {
-            console.error('Theme update failed:', (e as Error).message);
+            utils.logError('Theme update failed:', (e as Error).message);
         }
     }
     

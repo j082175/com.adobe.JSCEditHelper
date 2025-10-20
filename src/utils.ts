@@ -21,11 +21,11 @@ interface JSCUtilsInterface {
     readonly CONFIG: JSCConfig;
     readonly LOG_LEVELS: typeof LogLevel;
     log(level: LogLevel, message: string): void;
-    logError(message: string): void;
-    logWarn(message: string): void;
-    logInfo(message: string): void;
-    logDebug(message: string): void;
-    debugLog(message: string): void; // 하위 호환성
+    logError(message: string, ...args: any[]): void;
+    logWarn(message: string, ...args: any[]): void;
+    logInfo(message: string, ...args: any[]): void;
+    logDebug(message: string, ...args: any[]): void;
+    debugLog(message: string, ...args: any[]): void; // 하위 호환성
     isValidPath(path: string): boolean;
     getShortPath(path: string): string;
     saveToStorage(key: string, value: string): boolean;
@@ -101,25 +101,25 @@ const JSCUtils = (function(): JSCUtilsInterface {
     }
     
     // 편의 함수들
-    function logError(message: string): void { 
-        log(LogLevel.ERROR, message); 
+    function logError(message: string, ..._args: any[]): void {
+        log(LogLevel.ERROR, message);
     }
-    
-    function logWarn(message: string): void { 
-        log(LogLevel.WARN, message); 
+
+    function logWarn(message: string, ..._args: any[]): void {
+        log(LogLevel.WARN, message);
     }
-    
-    function logInfo(message: string): void { 
-        log(LogLevel.INFO, message); 
+
+    function logInfo(message: string, ..._args: any[]): void {
+        log(LogLevel.INFO, message);
     }
-    
-    function logDebug(message: string): void { 
-        log(LogLevel.DEBUG, message); 
+
+    function logDebug(message: string, ..._args: any[]): void {
+        log(LogLevel.DEBUG, message);
     }
-    
+
     // 하위 호환성을 위한 별칭
-    function debugLog(message: string): void { 
-        logDebug(message); 
+    function debugLog(message: string, ..._args: any[]): void {
+        logDebug(message);
     }
     
     // 실용적인 경로 검증 (기존 방식 복원)

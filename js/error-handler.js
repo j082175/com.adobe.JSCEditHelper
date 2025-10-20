@@ -51,12 +51,66 @@ var JSCErrorHandler = (function () {
     }
     // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
     function getUtils() {
-        return utilsService || window.JSCUtils || {
-            logError: function (msg) { console.error(msg); },
-            logWarn: function (msg) { console.warn(msg); },
-            logInfo: function (msg) { console.log(msg); },
-            CONFIG: { DEBUG_MODE: false }
+        var fallback = {
+            debugLog: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.log('[ErrorHandler]', msg);
+            },
+            logDebug: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.log('[ErrorHandler]', msg);
+            },
+            logInfo: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.info('[ErrorHandler]', msg);
+            },
+            logWarn: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.warn('[ErrorHandler]', msg);
+            },
+            logError: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.error('[ErrorHandler]', msg);
+            },
+            isValidPath: function (path) { return !!path; },
+            getShortPath: function (path) { return path; },
+            safeJSONParse: function (str) {
+                try {
+                    return JSON.parse(str);
+                }
+                catch (e) {
+                    return null;
+                }
+            },
+            saveToStorage: function (key, value) { localStorage.setItem(key, value); return true; },
+            loadFromStorage: function (key) { return localStorage.getItem(key); },
+            removeFromStorage: function (key) { localStorage.removeItem(key); return true; },
+            CONFIG: {
+                DEBUG_MODE: false,
+                SOUND_FOLDER_KEY: 'soundInserter_folder',
+                APP_NAME: 'JSCEditHelper',
+                VERSION: '1.0.0'
+            },
+            LOG_LEVELS: {},
+            log: function () { },
+            getDIStatus: function () { return ({ isDIAvailable: false, containerInfo: 'Fallback mode' }); }
         };
+        return utilsService || window.JSCUtils || fallback;
     }
     function getUIManager() {
         return uiService || window.JSCUIManager || {

@@ -42,18 +42,66 @@ var TextProcessor = (function () {
     }
     // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
     function getUtils() {
-        return utilsService || window.JSCUtils || {
-            logDebug: function (msg) { return console.log("[TextProcessor] ".concat(msg)); },
-            logWarn: function (msg) { return console.warn("[TextProcessor] ".concat(msg)); },
-            logInfo: function (msg) { return console.info("[TextProcessor] ".concat(msg)); },
+        var fallback = {
+            debugLog: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.log('[TextProcessor]', msg);
+            },
+            logDebug: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.log('[TextProcessor]', msg);
+            },
+            logInfo: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.info('[TextProcessor]', msg);
+            },
+            logWarn: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.warn('[TextProcessor]', msg);
+            },
+            logError: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.error('[TextProcessor]', msg);
+            },
             isValidPath: function (path) { return !!path; },
-            safeJSONParse: function (str) { try {
-                return JSON.parse(str);
-            }
-            catch (_a) {
-                return null;
-            } }
+            getShortPath: function (path) { return path; },
+            safeJSONParse: function (str) {
+                try {
+                    return JSON.parse(str);
+                }
+                catch (e) {
+                    return null;
+                }
+            },
+            saveToStorage: function (key, value) { localStorage.setItem(key, value); return true; },
+            loadFromStorage: function (key) { return localStorage.getItem(key); },
+            removeFromStorage: function (key) { localStorage.removeItem(key); return true; },
+            CONFIG: {
+                DEBUG_MODE: false,
+                SOUND_FOLDER_KEY: 'soundInserter_folder',
+                APP_NAME: 'JSCEditHelper',
+                VERSION: '1.0.0'
+            },
+            LOG_LEVELS: {},
+            log: function () { },
+            getDIStatus: function () { return ({ isDIAvailable: false, containerInfo: 'Fallback mode' }); }
         };
+        return utilsService || window.JSCUtils || fallback;
     }
     function getUIManager() {
         return uiService || window.JSCUIManager || {
@@ -64,7 +112,13 @@ var TextProcessor = (function () {
     function getErrorHandler() {
         return errorService || window.JSCErrorHandler || {
             handleError: function (error) { return console.error('TextProcessor Error:', error); },
-            logError: function (msg) { return console.error("[TextProcessor Error] ".concat(msg)); }
+            logError: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.error("[TextProcessor Error] ".concat(msg));
+            }
         };
     }
     /**

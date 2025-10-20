@@ -25,6 +25,7 @@ interface FileListEventData {
 interface JSCCommunicationInterface {
     initialize(): any | null;
     callExtendScript(scriptCode: string, callback?: (result: string) => void): void;
+    callExtendScriptAsync(scriptCode: string): Promise<string>;
     getCSInterface(): any | null;
     getDIStatus(): { isDIAvailable: boolean; dependencies: string[] }; // Phase 2.3
 }
@@ -53,16 +54,33 @@ const JSCCommunication = (function(): JSCCommunicationInterface {
     }
     
     // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
-    function getUtils(): any {
-        return utilsService || window.JSCUtils || {
-            logDebug: (msg: string) => console.log(msg),
-            logWarn: (msg: string) => console.warn(msg),
-            debugLog: (msg: string) => console.log(msg),
-            safeJSONParse: (json: string) => { try { return JSON.parse(json); } catch { return null; } },
+    function getUtils(): JSCUtilsInterface {
+        const fallback: JSCUtilsInterface = {
+            debugLog: (msg: string, ..._args: any[]) => console.log('[Communication]', msg),
+            logDebug: (msg: string, ..._args: any[]) => console.log('[Communication]', msg),
+            logInfo: (msg: string, ..._args: any[]) => console.info('[Communication]', msg),
+            logWarn: (msg: string, ..._args: any[]) => console.warn('[Communication]', msg),
+            logError: (msg: string, ..._args: any[]) => console.error('[Communication]', msg),
             isValidPath: (path: string) => !!path,
+            getShortPath: (path: string) => path,
+            safeJSONParse: (str: string) => {
+                try { return JSON.parse(str); }
+                catch(e) { return null; }
+            },
             saveToStorage: (key: string, value: string) => { localStorage.setItem(key, value); return true; },
-            CONFIG: { SOUND_FOLDER_KEY: 'soundInserter_folder' }
+            loadFromStorage: (key: string) => localStorage.getItem(key),
+            removeFromStorage: (key: string) => { localStorage.removeItem(key); return true; },
+            CONFIG: {
+                DEBUG_MODE: false,
+                SOUND_FOLDER_KEY: 'soundInserter_folder',
+                APP_NAME: 'JSCEditHelper',
+                VERSION: '1.0.0'
+            },
+            LOG_LEVELS: {} as any,
+            log: () => {},
+            getDIStatus: () => ({ isDIAvailable: false, containerInfo: 'Fallback mode' })
         };
+        return utilsService || window.JSCUtils || fallback;
     }
     
     function getUIManager(): any {
@@ -95,6 +113,7 @@ const JSCCommunication = (function(): JSCCommunicationInterface {
     
     // CSInterface 초기화
     function initialize(): any | null {
+        const utils = getUtils();
         try {
             if (typeof CSInterface === 'undefined') {
                 throw new Error('CSInterface not available - CEP environment required');
@@ -102,10 +121,10 @@ const JSCCommunication = (function(): JSCCommunicationInterface {
             
             csInterface = new CSInterface();
             setupEventListeners();
-            console.log('Communication module initialized successfully');
+            utils.logDebug('Communication module initialized successfully');
             return csInterface;
         } catch (e) {
-            console.error('Communication module initialization failed:', (e as Error).message);
+            utils.logError('Communication module initialization failed:', (e as Error).message);
             return null;
         }
     }
@@ -221,14 +240,14 @@ const JSCCommunication = (function(): JSCCommunicationInterface {
 
             if (typeof eventDataString === "string") {
                 if (eventDataString.trim() === "") {
-                    console.error("handleFileListEvent: Received empty string data.");
+                    utils.logError("handleFileListEvent: Received empty string data.");
                     uiManager.updateStatus("폴더에서 데이터를 가져오는 데 실패했습니다.", false);
                     return;
                 }
                 
                 const parsed = utils.safeJSONParse(eventDataString);
                 if (!parsed) {
-                    console.error("handleFileListEvent: JSON parsing error for data: " + eventDataString);
+                    utils.logError("handleFileListEvent: JSON parsing error for data: " + eventDataString);
                     uiManager.updateStatus("폴더 데이터 처리 중 오류가 발생했습니다.", false);
                     return;
                 }
@@ -237,13 +256,13 @@ const JSCCommunication = (function(): JSCCommunicationInterface {
                 parsedData = eventDataString as FileListEventData;
                 utils.debugLog("handleFileListEvent: Received data as object (no parsing needed)");
             } else {
-                console.error("handleFileListEvent: Unknown data type received: " + typeof eventDataString);
+                utils.logError("handleFileListEvent: Unknown data type received: " + typeof eventDataString);
                 uiManager.updateStatus("예상치 못한 데이터 형식을 받았습니다.", false);
                 return;
             }
 
             if (!parsedData || !parsedData.soundFiles) {
-                console.error("handleFileListEvent: Invalid data structure (soundFiles missing). Parsed data:", parsedData);
+                utils.logError("handleFileListEvent: Invalid data structure (soundFiles missing). Parsed data:", parsedData);
                 uiManager.updateStatus("폴더 데이터를 올바르게 읽을 수 없습니다.", false);
                 return;
             }
@@ -266,25 +285,52 @@ const JSCCommunication = (function(): JSCCommunicationInterface {
             uiManager.updateSoundButtons(soundFiles, folderPathFromEvent);
 
         } catch (e) {
-            console.error("handleFileListEvent: CRITICAL ERROR during event processing:", e);
+            utils.logError("handleFileListEvent: CRITICAL ERROR during event processing:", e);
             uiManager.updateStatus("폴더 정보를 처리하는 중 오류가 발생했습니다.", false);
         }
     }
     
     // ExtendScript 함수 호출
     function callExtendScript(scriptCode: string, callback?: (result: string) => void): void {
+        const utils = getUtils();
         if (!csInterface) {
-            console.error("CSInterface not initialized");
+            utils.logError("CSInterface not initialized");
             return;
         }
-        
-        const utils = getUtils();
+
         utils.debugLog("Executing JSX code: " + scriptCode);
         csInterface.evalScript(scriptCode, callback || function(result: string) {
             utils.debugLog("JSX result: " + result);
         });
     }
-    
+
+    // Promise 기반 ExtendScript 호출 (callback hell 제거용)
+    function callExtendScriptAsync(scriptCode: string): Promise<string> {
+        return new Promise((resolve, reject) => {
+            const utils = getUtils();
+            if (!csInterface) {
+                const error = "CSInterface not initialized";
+                utils.logError(error);
+                reject(new Error(error));
+                return;
+            }
+
+            utils.debugLog("Executing JSX code (async): " + scriptCode);
+            csInterface.evalScript(scriptCode, function(result: string) {
+                utils.debugLog("JSX result (async): " + result);
+
+                // 에러 체크
+                if (typeof result === 'string' && result.indexOf('error:') === 0) {
+                    reject(new Error(result.substring(6)));
+                } else if (typeof result === 'string' && result.indexOf('ERROR:') === 0) {
+                    reject(new Error(result.substring(6)));
+                } else {
+                    resolve(result);
+                }
+            });
+        });
+    }
+
     // DI 상태 확인 함수 (디버깅용) - Phase 2.3
     function getDIStatus(): { isDIAvailable: boolean; dependencies: string[] } {
         const dependencies: string[] = [];
@@ -311,6 +357,7 @@ const JSCCommunication = (function(): JSCCommunicationInterface {
     return {
         initialize: initialize,
         callExtendScript: callExtendScript,
+        callExtendScriptAsync: callExtendScriptAsync, // Promise 기반 (callback hell 제거용)
         getCSInterface: function() { return csInterface; },
         getDIStatus: getDIStatus // Phase 2.3
     };

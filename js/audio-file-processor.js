@@ -34,11 +34,66 @@ var AudioFileProcessor = (function () {
     }
     // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
     function getUtils() {
-        return utilsService || window.JSCUtils || {
-            logDebug: function (msg) { console.log('[DEBUG]', msg); },
-            logWarn: function (msg) { console.warn('[WARN]', msg); },
-            logInfo: function (msg) { console.info('[INFO]', msg); }
+        var fallback = {
+            debugLog: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.log('[AudioFileProcessor]', msg);
+            },
+            logDebug: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.log('[AudioFileProcessor]', msg);
+            },
+            logInfo: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.info('[AudioFileProcessor]', msg);
+            },
+            logWarn: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.warn('[AudioFileProcessor]', msg);
+            },
+            logError: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.error('[AudioFileProcessor]', msg);
+            },
+            isValidPath: function (path) { return !!path; },
+            getShortPath: function (path) { return path; },
+            safeJSONParse: function (str) {
+                try {
+                    return JSON.parse(str);
+                }
+                catch (e) {
+                    return null;
+                }
+            },
+            saveToStorage: function (key, value) { localStorage.setItem(key, value); return true; },
+            loadFromStorage: function (key) { return localStorage.getItem(key); },
+            removeFromStorage: function (key) { localStorage.removeItem(key); return true; },
+            CONFIG: {
+                DEBUG_MODE: false,
+                SOUND_FOLDER_KEY: 'soundInserter_folder',
+                APP_NAME: 'JSCEditHelper',
+                VERSION: '1.0.0'
+            },
+            LOG_LEVELS: {},
+            log: function () { },
+            getDIStatus: function () { return ({ isDIAvailable: false, containerInfo: 'Fallback mode' }); }
         };
+        return utilsService || window.JSCUtils || fallback;
     }
     function getCommunication() {
         return communicationService || window.JSCCommunication || {

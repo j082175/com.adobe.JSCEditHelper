@@ -50,12 +50,33 @@ const AudioPreviewManager = (function() {
     }
     
     // 서비스 가져오기 헬퍼 함수들
-    function getUtils() {
-        return utilsService || (window as any).JSCUtils || {
-            logDebug: (msg: string) => console.log('[DEBUG]', msg),
-            logWarn: (msg: string) => console.warn('[WARN]', msg),
-            logInfo: (msg: string) => console.info('[INFO]', msg)
+    function getUtils(): JSCUtilsInterface {
+        const fallback: JSCUtilsInterface = {
+            debugLog: (msg: string, ..._args: any[]) => console.log('[AudioPreviewManager]', msg),
+            logDebug: (msg: string, ..._args: any[]) => console.log('[AudioPreviewManager]', msg),
+            logInfo: (msg: string, ..._args: any[]) => console.info('[AudioPreviewManager]', msg),
+            logWarn: (msg: string, ..._args: any[]) => console.warn('[AudioPreviewManager]', msg),
+            logError: (msg: string, ..._args: any[]) => console.error('[AudioPreviewManager]', msg),
+            isValidPath: (path: string) => !!path,
+            getShortPath: (path: string) => path,
+            safeJSONParse: (str: string) => {
+                try { return JSON.parse(str); }
+                catch(e) { return null; }
+            },
+            saveToStorage: (key: string, value: string) => { localStorage.setItem(key, value); return true; },
+            loadFromStorage: (key: string) => localStorage.getItem(key),
+            removeFromStorage: (key: string) => { localStorage.removeItem(key); return true; },
+            CONFIG: {
+                DEBUG_MODE: false,
+                SOUND_FOLDER_KEY: 'soundInserter_folder',
+                APP_NAME: 'JSCEditHelper',
+                VERSION: '1.0.0'
+            },
+            LOG_LEVELS: {} as any,
+            log: () => {},
+            getDIStatus: () => ({ isDIAvailable: false, containerInfo: 'Fallback mode' })
         };
+        return utilsService || window.JSCUtils || fallback;
     }
     
     function getUIManager() {

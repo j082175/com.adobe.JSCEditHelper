@@ -7,6 +7,60 @@
 // 디버그 모드 설정
 var DEBUG_MODE = true;
 
+// 안전한 JSON 헬퍼 함수 (전역 JSON 오염 방지)
+var JSCEditHelperJSON = {
+    stringify: function(obj) {
+        try {
+            // 네이티브 JSON이 있으면 사용
+            if (typeof JSON !== 'undefined' && JSON.stringify) {
+                return JSON.stringify(obj);
+            }
+
+            // 폴백 구현
+            if (obj === null) return 'null';
+            if (typeof obj === 'string') return '"' + obj.replace(/"/g, '\\"') + '"';
+            if (typeof obj === 'number' || typeof obj === 'boolean') return String(obj);
+            if (typeof obj === 'object') {
+                if (obj.constructor === Array) {
+                    var arr = [];
+                    for (var i = 0; i < obj.length; i++) {
+                        arr.push(JSCEditHelperJSON.stringify(obj[i]));
+                    }
+                    return '[' + arr.join(',') + ']';
+                } else {
+                    var props = [];
+                    for (var key in obj) {
+                        if (obj.hasOwnProperty(key)) {
+                            props.push('"' + key + '":' + JSCEditHelperJSON.stringify(obj[key]));
+                        }
+                    }
+                    return '{' + props.join(',') + '}';
+                }
+            }
+            return '{}';
+        } catch (e) {
+            debugWriteln("JSCEditHelperJSON.stringify error: " + e.toString());
+            return '{}';
+        }
+    },
+    parse: function(str) {
+        try {
+            // 네이티브 JSON이 있으면 사용
+            if (typeof JSON !== 'undefined' && JSON.parse) {
+                return JSON.parse(str);
+            }
+
+            // 폴백 구현
+            return eval('(' + str + ')');
+        } catch (e) {
+            debugWriteln("JSCEditHelperJSON.parse error: " + e.toString());
+            return null;
+        }
+    }
+};
+
+debugWriteln("JSCEditHelper JSON helper loaded (non-global)");
+
 // 조건부 로깅 함수
 function debugWriteln(message) {
     if (DEBUG_MODE && $) {

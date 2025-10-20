@@ -44,18 +44,33 @@ const JSCStateManager = (function(): JSCStateManagerInterface {
     }
     
     // 유틸리티 서비스 가져오기 (DI 우선, 레거시 fallback)
-    function getUtils(): any {
-        return utilsService || window.JSCUtils || {
+    function getUtils(): JSCUtilsInterface {
+        const fallback: JSCUtilsInterface = {
+            debugLog: (msg: string, ..._args: any[]) => console.log('[StateManager]', msg),
+            logDebug: (msg: string, ..._args: any[]) => console.log('[StateManager]', msg),
+            logInfo: (msg: string, ..._args: any[]) => console.info('[StateManager]', msg),
+            logWarn: (msg: string, ..._args: any[]) => console.warn('[StateManager]', msg),
+            logError: (msg: string, ..._args: any[]) => console.error('[StateManager]', msg),
             isValidPath: (path: string) => !!path,
-            logDebug: (msg: string) => console.log(msg),
-            logInfo: (msg: string) => console.log(msg),
-            logWarn: (msg: string) => console.warn(msg),
-            debugLog: (msg: string) => console.log(msg),
-            loadFromStorage: (key: string) => localStorage.getItem(key),
+            getShortPath: (path: string) => path,
+            safeJSONParse: (str: string) => {
+                try { return JSON.parse(str); }
+                catch(e) { return null; }
+            },
             saveToStorage: (key: string, value: string) => { localStorage.setItem(key, value); return true; },
+            loadFromStorage: (key: string) => localStorage.getItem(key),
             removeFromStorage: (key: string) => { localStorage.removeItem(key); return true; },
-            CONFIG: { SOUND_FOLDER_KEY: 'soundInserter_folder' }
+            CONFIG: {
+                DEBUG_MODE: false,
+                SOUND_FOLDER_KEY: 'soundInserter_folder',
+                APP_NAME: 'JSCEditHelper',
+                VERSION: '1.0.0'
+            },
+            LOG_LEVELS: {} as any,
+            log: () => {},
+            getDIStatus: () => ({ isDIAvailable: false, containerInfo: 'Fallback mode' })
         };
+        return utilsService || window.JSCUtils || fallback;
     }
     
     // UI 서비스 가져오기 (DI 우선, 레거시 fallback)

@@ -53,20 +53,37 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     }
     
     // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
-    function getUtils() {
-        return utilsService || (window as any).JSCUtils || {
-            debugLog: (msg: string) => { console.log('[DEBUG]', msg); },
-            logInfo: (msg: string) => { console.info('[INFO]', msg); },
-            isValidPath: (path: string) => { return !!path; },
-            getShortPath: (path: string) => { return path; },
-            safeJSONParse: (str: string) => { 
-                try { return JSON.parse(str); } catch(e) { return null; } 
+    function getUtils(): JSCUtilsInterface {
+        const fallback: JSCUtilsInterface = {
+            debugLog: (msg: string, ..._args: any[]) => console.log('[EventManager]', msg),
+            logDebug: (msg: string, ..._args: any[]) => console.log('[EventManager]', msg),
+            logInfo: (msg: string, ..._args: any[]) => console.info('[EventManager]', msg),
+            logWarn: (msg: string, ..._args: any[]) => console.warn('[EventManager]', msg),
+            logError: (msg: string, ..._args: any[]) => console.error('[EventManager]', msg),
+            isValidPath: (path: string) => !!path,
+            getShortPath: (path: string) => path,
+            safeJSONParse: (str: string) => {
+                try { return JSON.parse(str); }
+                catch(e) { return null; }
             },
-            CONFIG: { DEBUG_MODE: false }
+            saveToStorage: (key: string, value: string) => { localStorage.setItem(key, value); return true; },
+            loadFromStorage: (key: string) => localStorage.getItem(key),
+            removeFromStorage: (key: string) => { localStorage.removeItem(key); return true; },
+            CONFIG: {
+                DEBUG_MODE: false,
+                SOUND_FOLDER_KEY: 'soundInserter_folder',
+                APP_NAME: 'JSCEditHelper',
+                VERSION: '1.0.0'
+            },
+            LOG_LEVELS: {} as any,
+            log: () => {},
+            getDIStatus: () => ({ isDIAvailable: false, containerInfo: 'Fallback mode' })
         };
+        return utilsService || window.JSCUtils || fallback;
     }
     
     function getUIManager() {
+        const utils = getUtils();
         return uiService || (window as any).JSCUIManager || {
             updateStatus: (msg: string, _success?: boolean) => { console.log('Status:', msg); },
             displaySoundList: (_files: any[]) => { console.log('Display sound list'); },
@@ -75,7 +92,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             showDebugInfo: () => { console.log('Show debug info'); },
             toggleDebugButton: (_show: boolean) => { console.log('Toggle debug button'); },
             updateMagnetStatus: (_success: boolean, _moved?: number, _removed?: number) => { 
-                console.log('Update magnet status'); 
+                utils.logDebug('Update magnet status'); 
             }
         };
     }
@@ -113,97 +130,99 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     
     // 이벤트 리스너 설정
     function setupEventListeners(): void {
+        const utils = getUtils();
         try {
-            console.log('Setting up event listeners...');
+            utils.logDebug('Setting up event listeners...');
             setupInsertSoundsButton();
             setupBrowseFolderButton();
             setupRefreshButton();
             setupMagnetButton();
             setupFolderInput();
             setupDebugUI();
-            console.log('Event listeners setup completed');
+            utils.logDebug('Event listeners setup completed');
         } catch (e) {
-            console.error('Event listeners setup failed:', (e as Error).message);
+            utils.logError('Event listeners setup failed:', (e as Error).message);
         }
     }
     
     // 효과음 삽입 버튼 이벤트
     function setupInsertSoundsButton(): void {
+        const utils = getUtils();
         const insertButton = document.getElementById("insert-sounds");
         if (insertButton) {
             insertButton.addEventListener("click", insertSounds);
-            console.log("Event listener added to insert-sounds button");
+            utils.logDebug("Event listener added to insert-sounds button");
         } else {
-            console.warn("Button with ID 'insert-sounds' not found.");
+            utils.logWarn("Button with ID 'insert-sounds' not found.");
         }
     }
     
     // 폴더 찾기 버튼 이벤트
     function setupBrowseFolderButton(): void {
+        const utils = getUtils();
         const browseButton = document.getElementById("browseFolder");
         if (browseButton) {
             browseButton.addEventListener("click", browseSoundFolder);
-            const utils = getUtils();
             utils.debugLog("Event listener added to browseFolder button");
         } else {
-            console.error("Button with ID 'browseFolder' not found.");
+            utils.logError("Button with ID 'browseFolder' not found.");
         }
     }
     
     // 새로고침 버튼 이벤트
     function setupRefreshButton(): void {
+        const utils = getUtils();
         const refreshButton = document.getElementById("refreshSounds");
         if (refreshButton) {
             refreshButton.addEventListener("click", refreshSoundButtons);
-            const utils = getUtils();
             utils.debugLog("Event listener added to refreshSounds button");
         } else {
-            console.error("Button with ID 'refreshSounds' not found.");
+            utils.logError("Button with ID 'refreshSounds' not found.");
         }
     }
     
     // 마그넷 버튼 이벤트
     function setupMagnetButton(): void {
+        const utils = getUtils();
         const magnetButton = document.getElementById("magnetClips");
         if (magnetButton) {
             magnetButton.addEventListener("click", magnetClips);
-            const utils = getUtils();
             utils.debugLog("Event listener added to magnetClips button");
         } else {
-            console.error("Button with ID 'magnetClips' not found.");
+            utils.logError("Button with ID 'magnetClips' not found.");
         }
     }
     
     // 폴더 입력 필드 이벤트
     function setupFolderInput(): void {
+        const utils = getUtils();
         const folderInput = document.getElementById("sound-folder") as HTMLInputElement;
         if (folderInput) {
             folderInput.addEventListener("change", function(this: HTMLInputElement) {
                 const inputPath = this.value.trim();
                 const utils = getUtils();
                 const stateManager = getStateManager();
-                
+
                 utils.debugLog("Folder input changed: " + inputPath);
-                
+
                 if (inputPath && utils.isValidPath(inputPath)) {
                     stateManager.saveFolderPath(inputPath);
-                    console.log("Valid path stored: " + inputPath);
+                    utils.logDebug("Valid path stored: " + inputPath);
                 } else {
                     if (inputPath) {
-                        console.warn("Invalid path entered: " + inputPath);
+                        utils.logWarn("Invalid path entered: " + inputPath);
                         const uiManager = getUIManager();
                         uiManager.updateStatus("입력된 폴더 경로가 유효하지 않습니다.", false);
                         this.value = stateManager.getCurrentFolderPath(); // 이전 유효한 경로로 복원
                     } else {
                         stateManager.clearFolderPath();
-                        console.log("Path cleared");
+                        utils.logDebug("Path cleared");
                     }
                 }
             });
-            const utils = getUtils();
             utils.debugLog("Event listener added to sound-folder input");
         } else {
-            console.error("Input with ID 'sound-folder' not found.");
+            utils.logError("Input with ID 'sound-folder' not found.");
         }
     }
     
@@ -303,15 +322,16 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     
     // 효과음 삽입 처리 (새로운 SoundEngine 사용)
     async function insertSounds(): Promise<void> {
+        const utils = getUtils();
         let debugInfo = "=== 효과음 삽입 디버그 ===\n";
         debugInfo += `시작 시간: ${new Date().toISOString()}\n`;
-        
+
         try {
             debugInfo += "1. JSCStateManager 확인...\n";
             const stateManager = getStateManager();
             if (!stateManager) {
                 debugInfo += "❌ JSCStateManager 없음\n";
-                console.error('JSCStateManager not available');
+                utils.logError('JSCStateManager not available');
                 (window as any).lastDebugInfo = debugInfo;
                 return;
             }
@@ -324,7 +344,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 debugInfo += "❌ SoundEngine 모듈 없음\n";
                 const uiManager = getUIManager();
                 uiManager.updateStatus("SoundEngine 모듈이 로드되지 않았습니다. 페이지를 새로고침하세요.", false);
-                console.error('SoundEngine not available');
+                utils.logError('SoundEngine not available');
                 (window as any).lastDebugInfo = debugInfo;
                 return;
             }
@@ -431,7 +451,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         } catch (e) {
             debugInfo += `❌ 예외 발생: ${(e as Error).message}\n`;
             debugInfo += `스택 추적:\n${(e as Error).stack}\n`;
-            console.error("Sound insertion failed:", (e as Error).message);
+            utils.logError("Sound insertion failed:", (e as Error).message);
             const uiManager = getUIManager();
             uiManager.updateStatus("효과음 삽입 중 오류가 발생했습니다.", false);
         }
@@ -441,43 +461,44 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         // window.JSCUIManager.toggleDebugButton(true); // 항상 표시되므로 필요없음
     }
     
-    // 폴더 찾기 처리
-    function browseSoundFolder(): void {
+    // 폴더 찾기 처리 (async/await로 리팩토링)
+    async function browseSoundFolder(): Promise<void> {
+        const utils = getUtils();
+        const stateManager = getStateManager();
+        const uiManager = getUIManager();
         const communication = getCommunication();
-        if (communication) {
-            communication.callExtendScript("browseSoundFolder()", function(result: string) {
-                console.log("Browse folder result: " + result);
-                
-                const utils = getUtils();
-                const stateManager = getStateManager();
-                const uiManager = getUIManager();
-                
-                if (result && result !== "undefined" && result !== "" && 
-                    utils && utils.isValidPath(result)) {
-                    if (stateManager) {
-                        stateManager.saveFolderPath(result);
-                        console.log("Valid path set: " + result);
-                        
-                        // 폴더 선택 성공 후 자동으로 효과음 라이브러리 새로고침
-                        if (uiManager) {
-                            uiManager.updateStatus("폴더가 설정되었습니다. 효과음 목록을 불러오는 중...", true);
-                        }
-                        // 잠시 후 새로고침 실행 (UI 업데이트 완료 후)
-                        setTimeout(() => {
-                            refreshSoundButtons();
-                        }, 100);
-                    }
+
+        if (!communication || !communication.callExtendScriptAsync) {
+            utils.logError("Communication service not available");
+            return;
+        }
+
+        try {
+            const result = await communication.callExtendScriptAsync("browseSoundFolder()");
+            utils.logDebug("Browse folder result: " + result);
+
+            if (result && result !== "undefined" && result !== "" && utils.isValidPath(result)) {
+                stateManager.saveFolderPath(result);
+                utils.logDebug("Valid path set: " + result);
+
+                // 폴더 선택 성공 후 자동으로 효과음 라이브러리 새로고침
+                uiManager.updateStatus("폴더가 설정되었습니다. 효과음 목록을 불러오는 중...", true);
+
+                // 잠시 후 새로고침 실행 (UI 업데이트 완료 후)
+                setTimeout(() => {
+                    refreshSoundButtons();
+                }, 100);
+            } else {
+                if (result && result !== "undefined" && result !== "") {
+                    utils.logWarn("Invalid path received from ExtendScript: " + result);
+                    uiManager.updateStatus("올바른 폴더를 선택해주세요.", false);
                 } else {
-                    if (result && result !== "undefined" && result !== "") {
-                        console.warn("Invalid path received from ExtendScript: " + result);
-                        if (uiManager) {
-                            uiManager.updateStatus("올바른 폴더를 선택해주세요.", false);
-                        }
-                    } else {
-                        console.log("No folder selected or empty result");
-                    }
+                    utils.logDebug("No folder selected or empty result");
                 }
-            });
+            }
+        } catch (error) {
+            utils.logError("Failed to browse folder:", (error as Error).message);
+            uiManager.updateStatus("폴더 선택 중 오류가 발생했습니다.", false);
         }
     }
     
@@ -554,11 +575,11 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             );
         } else {
             if (currentPath && !utils.isValidPath(currentPath)) {
-                console.warn("currentFolderPath is invalid, clearing it: " + currentPath);
+                utils.logWarn("currentFolderPath is invalid, clearing it: " + currentPath);
                 stateManager.clearFolderPath();
                 uiManager.updateStatus("폴더 경로가 올바르지 않습니다. 다시 선택해주세요.", false);
             } else {
-                console.warn("currentFolderPath is empty or invalid. Aborting refresh.");
+                utils.logWarn("currentFolderPath is empty or invalid. Aborting refresh.");
                 uiManager.updateStatus("먼저 '폴더 찾아보기'를 통해 효과음 폴더를 선택해주세요.", false);
             }
         }
@@ -576,7 +597,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             // Check if SoundEngine is available
             if (!soundEngine) {
                 uiManager.updateStatus("SoundEngine 모듈이 로드되지 않았습니다. 페이지를 새로고침하세요.", false);
-                console.error('SoundEngine not available');
+                utils.logError('SoundEngine not available');
                 return;
             }
             
@@ -632,9 +653,9 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             }
             
         } catch (e) {
-            console.error("Magnet clips failed:", (e as Error).message);
-            const uiManager = getUIManager();
             const utils = getUtils();
+            const uiManager = getUIManager();
+            utils.logError("Magnet clips failed:", (e as Error).message);
             uiManager.updateStatus("클립 자동 정렬 중 오류가 발생했습니다.", false);
             uiManager.updateMagnetStatus(false);
             
@@ -648,15 +669,15 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     
     // 개별 효과음 버튼 클릭 처리
     function handleSoundFileButtonClick(event: Event): void {
+        const utils = getUtils();
         const target = event.target as HTMLElement;
         const soundFsName = target.getAttribute("data-fsname");
         const soundDisplayName = target.textContent;
 
         if (soundFsName) {
-            console.log("Replacing with sound file: " + soundFsName);
+            utils.logDebug("Replacing with sound file: " + soundFsName);
             const uiManager = getUIManager();
             const communication = getCommunication();
-            const utils = getUtils();
             
             if (uiManager) {
                 uiManager.updateStatus("클립을 '" + soundDisplayName + "' (으)로 대체 중...", true);
@@ -664,9 +685,9 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             
             if (communication) {
                 // 단계별 테스트: 가장 간단한 함수부터 시작
-                console.log("Testing simplest ExtendScript function first...");
+                utils.logDebug("Testing simplest ExtendScript function first...");
                 communication.callExtendScript("simpleTest()", function(simpleResult: string) {
-                    console.log("Simple test result: " + simpleResult);
+                    utils.logDebug("Simple test result: " + simpleResult);
                     
                     let debugInfo = "=== Sound File Button Click Debug ===\n";
                     debugInfo += "시간: " + new Date().toISOString() + "\n";
@@ -696,7 +717,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                                     communication.callExtendScript(
                                         "replaceSelectedAudioClips(" + JSON.stringify(soundFsName) + ")",
                                         function(result: string) {
-                                        console.log("replaceSelectedAudioClips call result: " + result);
+                                        utils.logDebug("replaceSelectedAudioClips call result: " + result);
                                         
                                         debugInfo += "\n--- 클립 교체 결과 ---\n";
                                         debugInfo += "원본 결과: " + result + "\n";
@@ -812,22 +833,26 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                                                             // 최종 결과를 UI에 표시
                                                             const veryFinalElement = document.activeElement;
                                                             focusDebug += "최종 - 활성 요소: " + (veryFinalElement ? (veryFinalElement.tagName + (veryFinalElement.id ? "#" + veryFinalElement.id : "")) : "없음") + "\n";
-                                                            
+
                                                             // 디버그 정보에 포커스 정보 추가
                                                             (window as any).lastDebugInfo = ((window as any).lastDebugInfo || "") + focusDebug;
-                                                            
-                                                            console.log("포커스 디버그:", focusDebug);
+
+                                                            const utils = getUtils();
+                                                            utils.logDebug("포커스 디버그:", focusDebug);
                                                         });
                                                     } else {
                                                         focusDebug += "Communication 객체 없음\n";
                                                         (window as any).lastDebugInfo = ((window as any).lastDebugInfo || "") + focusDebug;
-                                                        console.log("포커스 디버그:", focusDebug);
+                                                        const utils = getUtils();
+                                                        utils.logDebug("포커스 디버그:", focusDebug);
                                                     }
                                                     
                                                 } catch (focusError) {
+                                                    const utils = getUtils();
+                                                    const uiManager = getUIManager();
                                                     const errorMsg = "포커스 이동 중 오류: " + focusError;
                                                     uiManager.updateStatus(errorMsg, false);
-                                                    console.log(errorMsg);
+                                                    utils.logDebug(errorMsg);
                                                 }
                                             }, 100); // 100ms 후 실행
                                         }
@@ -849,8 +874,9 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 });
             }
         } else {
-            console.error("Sound file path (fsName) not found on button.");
+            const utils = getUtils();
             const uiManager = getUIManager();
+            utils.logError("Sound file path (fsName) not found on button.");
             if (uiManager) {
                 uiManager.updateStatus("효과음 파일 경로를 찾을 수 없습니다.", false);
             }

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ExtensionManifest Version="6.0" ExtensionBundleId="com.adobe.SoundInserter" 
-    ExtensionBundleVersion="1.0.0" ExtensionBundleName="JSCEditHelper" 
+<ExtensionManifest Version="6.0" ExtensionBundleId="com.adobe.JSCEditHelper"
+    ExtensionBundleVersion="1.0.0" ExtensionBundleName="JSCEditHelper"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <ExtensionList>
-        <Extension Id="com.adobe.SoundInserter" Version="1.0.0" />
+        <Extension Id="com.adobe.JSCEditHelper" Version="1.0.0" />
     </ExtensionList>
     <ExecutionEnvironment>
         <HostList>
@@ -17,7 +17,7 @@
         </RequiredRuntimeList>
     </ExecutionEnvironment>
     <DispatchInfoList>
-        <Extension Id="com.adobe.SoundInserter">
+        <Extension Id="com.adobe.JSCEditHelper">
             <DispatchInfo>
                 <Resources>
                     <MainPath>./index.html</MainPath>

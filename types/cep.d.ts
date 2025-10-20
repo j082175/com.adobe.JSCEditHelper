@@ -5,19 +5,7 @@
 
 declare global {
   interface Window {
-    JSCUtils?: any;
-    JSCUIManager?: any;
-    JSCStateManager?: any;
-    JSCCommunication?: any;
-    JSCEventManager?: any;
-    JSCErrorHandler?: any;
-    JSCApp?: any;
-    
-    // TypeScript 엔진들
-    SoundEngine?: any;
-    ClipTimeCalculator?: any;
-    AudioFileProcessor?: any;
-    
+    // Module declarations moved to globals.d.ts for proper typing
     // 디버그 및 상태 정보
     lastDebugInfo?: string;
   }

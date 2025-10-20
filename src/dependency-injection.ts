@@ -70,10 +70,10 @@ class DependencyContainer implements DIContainer {
                 return instance as T;
             }
 
-            console.warn(`Service '${key}' not found in DI container`);
+            console.warn(`[DI] Service '${key}' not found in DI container`);
             return null;
         } catch (error) {
-            console.error(`Error creating service '${key}':`, error);
+            console.error(`[DI] Error creating service '${key}':`, error);
             return null;
         }
     }
@@ -153,7 +153,7 @@ class ServiceLocator {
         }
 
         if (validator && !validator(service)) {
-            console.warn(`Service '${key}' failed type validation`);
+            console.warn(`[DI] Service '${key}' failed type validation`);
             return null;
         }
 
@@ -246,7 +246,7 @@ const DI = {
         const validation = this.validateDependencies(requiredDeps);
         
         if (!validation.isValid) {
-            console.error('Missing dependencies:', validation.missing);
+            console.error('[DI] Missing dependencies:', validation.missing);
             return null;
         }
 
@@ -258,7 +258,7 @@ const DI = {
         try {
             return factory(deps);
         } catch (error) {
-            console.error('Error creating module with dependencies:', error);
+            console.error('[DI] Error creating module with dependencies:', error);
             return null;
         }
     }

@@ -74,19 +74,39 @@ var JSCUtils = (function () {
     }
     // 편의 함수들
     function logError(message) {
+        var _args = [];
+        for (var _i = 1; _i < arguments.length; _i++) {
+            _args[_i - 1] = arguments[_i];
+        }
         log(LogLevel.ERROR, message);
     }
     function logWarn(message) {
+        var _args = [];
+        for (var _i = 1; _i < arguments.length; _i++) {
+            _args[_i - 1] = arguments[_i];
+        }
         log(LogLevel.WARN, message);
     }
     function logInfo(message) {
+        var _args = [];
+        for (var _i = 1; _i < arguments.length; _i++) {
+            _args[_i - 1] = arguments[_i];
+        }
         log(LogLevel.INFO, message);
     }
     function logDebug(message) {
+        var _args = [];
+        for (var _i = 1; _i < arguments.length; _i++) {
+            _args[_i - 1] = arguments[_i];
+        }
         log(LogLevel.DEBUG, message);
     }
     // 하위 호환성을 위한 별칭
     function debugLog(message) {
+        var _args = [];
+        for (var _i = 1; _i < arguments.length; _i++) {
+            _args[_i - 1] = arguments[_i];
+        }
         logDebug(message);
     }
     // 실용적인 경로 검증 (기존 방식 복원)

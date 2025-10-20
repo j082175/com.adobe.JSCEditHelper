@@ -85,8 +85,44 @@ var SoundEngine = (function () {
     }
     // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
     function getUtils() {
-        return utilsService || window.JSCUtils || {
+        var fallback = {
+            debugLog: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.log('[SoundEngine]', msg);
+            },
+            logDebug: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.log('[SoundEngine]', msg);
+            },
+            logInfo: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.info('[SoundEngine]', msg);
+            },
+            logWarn: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.warn('[SoundEngine]', msg);
+            },
+            logError: function (msg) {
+                var _args = [];
+                for (var _i = 1; _i < arguments.length; _i++) {
+                    _args[_i - 1] = arguments[_i];
+                }
+                return console.error('[SoundEngine]', msg);
+            },
             isValidPath: function (path) { return !!path; },
+            getShortPath: function (path) { return path; },
             safeJSONParse: function (str) {
                 try {
                     return JSON.parse(str);
@@ -94,8 +130,21 @@ var SoundEngine = (function () {
                 catch (e) {
                     return null;
                 }
-            }
+            },
+            saveToStorage: function (key, value) { localStorage.setItem(key, value); return true; },
+            loadFromStorage: function (key) { return localStorage.getItem(key); },
+            removeFromStorage: function (key) { localStorage.removeItem(key); return true; },
+            CONFIG: {
+                DEBUG_MODE: false,
+                SOUND_FOLDER_KEY: 'soundInserter_folder',
+                APP_NAME: 'JSCEditHelper',
+                VERSION: '1.0.0'
+            },
+            LOG_LEVELS: {},
+            log: function () { },
+            getDIStatus: function () { return ({ isDIAvailable: false, containerInfo: 'Fallback mode' }); }
         };
+        return utilsService || window.JSCUtils || fallback;
     }
     function getCommunication() {
         return communicationService || window.JSCCommunication || {
@@ -486,26 +535,17 @@ var SoundEngine = (function () {
                         var jsxFunction = "executeSoundEngineCommand(".concat(JSON.stringify(commandJson), ")");
                         // 디버그 로그 수집
                         var debugLog = "";
-                        // ExtendScript 호출 및 응답 디버깅
-                        var logEntry1 = "\uD83D\uDD27 ExtendScript \uD638\uCD9C: ".concat(jsxFunction);
-                        console.log(logEntry1);
-                        debugLog += logEntry1 + "\n";
+                        var utils = getUtils();
+                        utils.logDebug("ExtendScript call: ".concat(jsxFunction));
+                        debugLog += "\uD83D\uDD27 ExtendScript \uD638\uCD9C: ".concat(jsxFunction, "\n");
                         var communication = getCommunication();
                         communication.callExtendScript(jsxFunction, function (result) {
                             try {
-                                var logEntry2 = "\uD83D\uDD27 ExtendScript \uC6D0\uBCF8 \uC751\uB2F5: ".concat(result);
-                                var logEntry3 = "\uD83D\uDD27 \uC751\uB2F5 \uD0C0\uC785: ".concat(typeof result);
-                                var logEntry4 = "\uD83D\uDD27 \uC751\uB2F5 \uAE38\uC774: ".concat(result ? result.length : 0);
-                                console.log(logEntry2);
-                                console.log(logEntry3);
-                                console.log(logEntry4);
-                                debugLog += logEntry2 + "\n";
-                                debugLog += logEntry3 + "\n";
-                                debugLog += logEntry4 + "\n";
+                                utils.logDebug("Response: ".concat(result));
+                                debugLog += "\uD83D\uDD27 \uC751\uB2F5: ".concat(result, "\n");
                                 if (result === "true" || result === "false") {
-                                    var logEntry5 = "🔧 boolean 문자열 응답 처리";
-                                    console.log(logEntry5);
-                                    debugLog += logEntry5 + "\n";
+                                    utils.logDebug("Boolean string response");
+                                    debugLog += "🔧 Boolean 응답 처리\n";
                                     resolve({
                                         success: result === "true",
                                         message: result === "true" ? "Success" : "Failed",
@@ -514,23 +554,17 @@ var SoundEngine = (function () {
                                     return;
                                 }
                                 // JSON 응답 파싱 시도
-                                var utils = getUtils();
                                 var parsedResult = utils.safeJSONParse(result);
-                                var logEntry6 = "\uD83D\uDD27 JSON \uD30C\uC2F1 \uACB0\uACFC: ".concat(JSON.stringify(parsedResult));
-                                console.log(logEntry6);
-                                debugLog += logEntry6 + "\n";
                                 if (parsedResult) {
-                                    var logEntry7 = "🔧 JSON 파싱 성공, 결과 반환";
-                                    console.log(logEntry7);
-                                    debugLog += logEntry7 + "\n";
+                                    utils.logDebug("JSON parsing successful");
+                                    debugLog += "🔧 JSON 파싱 성공\n";
                                     resolve(__assign(__assign({}, parsedResult), { debugLog: debugLog }));
                                     return;
                                 }
                                 // 에러 메시지 처리
                                 if (result && result.startsWith('error:')) {
-                                    var logEntry8 = "🔧 에러 메시지 처리";
-                                    console.log(logEntry8);
-                                    debugLog += logEntry8 + "\n";
+                                    utils.logError("Error response: " + result);
+                                    debugLog += "🔧 에러 응답\n";
                                     resolve({
                                         success: false,
                                         message: result.substring(6), // 'error:' 제거
@@ -539,9 +573,8 @@ var SoundEngine = (function () {
                                     return;
                                 }
                                 // 기본 실패 응답
-                                var logEntry9 = "🔧 기본 실패 응답 처리";
-                                console.log(logEntry9);
-                                debugLog += logEntry9 + "\n";
+                                utils.logWarn("Unknown response format: " + result);
+                                debugLog += "🔧 알 수 없는 응답\n";
                                 resolve({
                                     success: false,
                                     message: result || "알 수 없는 오류가 발생했습니다.",
@@ -549,9 +582,8 @@ var SoundEngine = (function () {
                                 });
                             }
                             catch (error) {
-                                var logEntry10 = "\uD83D\uDD27 \uC608\uC678 \uBC1C\uC0DD: ".concat(error);
-                                console.log(logEntry10);
-                                debugLog += logEntry10 + "\n";
+                                utils.logError("Exception: " + error.message);
+                                debugLog += "\uD83D\uDD27 \uC608\uC678: ".concat(error.message, "\n");
                                 resolve({
                                     success: false,
                                     message: "응답 처리 중 오류가 발생했습니다: " + error.message,

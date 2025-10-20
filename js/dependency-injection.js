@@ -47,11 +47,11 @@ var DependencyInjection = (function () {
                     }
                     return instance;
                 }
-                console.warn("Service '".concat(key, "' not found in DI container"));
+                console.warn("[DI] Service '".concat(key, "' not found in DI container"));
                 return null;
             }
             catch (error) {
-                console.error("Error creating service '".concat(key, "':"), error);
+                console.error("[DI] Error creating service '".concat(key, "':"), error);
                 return null;
             }
         };
@@ -117,7 +117,7 @@ var DependencyInjection = (function () {
                 return null;
             }
             if (validator && !validator(service)) {
-                console.warn("Service '".concat(key, "' failed type validation"));
+                console.warn("[DI] Service '".concat(key, "' failed type validation"));
                 return null;
             }
             return service;
@@ -197,7 +197,7 @@ var DependencyInjection = (function () {
         createWithDependencies: function (factory, requiredDeps) {
             var validation = this.validateDependencies(requiredDeps);
             if (!validation.isValid) {
-                console.error('Missing dependencies:', validation.missing);
+                console.error('[DI] Missing dependencies:', validation.missing);
                 return null;
             }
             var deps = {};
@@ -209,7 +209,7 @@ var DependencyInjection = (function () {
                 return factory(deps);
             }
             catch (error) {
-                console.error('Error creating module with dependencies:', error);
+                console.error('[DI] Error creating module with dependencies:', error);
                 return null;
             }
         }

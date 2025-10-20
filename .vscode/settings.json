@@ -1,0 +1,12 @@
+{
+  "files.exclude": {
+    "js/**/*.js": {
+      "when": "$(basename).ts"
+    },
+    "js/**/*.js.map": true
+  },
+  "search.exclude": {
+    "js/**/*.js": true,
+    "js/**/*.js.map": true
+  }
+}

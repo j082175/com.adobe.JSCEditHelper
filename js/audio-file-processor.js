@@ -5,35 +5,14 @@
  */
 var AudioFileProcessor = (function () {
     'use strict';
-    // DI 컨테이너에서 의존성 가져오기 (옵션)
-    var diContainer = null;
-    var utilsService = null;
-    var communicationService = null;
-    function initializeDIDependencies() {
-        try {
-            diContainer = window.DI;
-            if (diContainer) {
-                // DI에서 서비스 가져오기 시도
-                utilsService = diContainer.getSafe('JSCUtils');
-                communicationService = diContainer.getSafe('JSCCommunication');
-            }
-        }
-        catch (e) {
-            // DI 사용 불가시 레거시 모드로 작동
-        }
-    }
-    // 초기화 시도 (즉시 및 지연)
-    initializeDIDependencies();
-    // 앱 초기화 후에 DI 서비스 재시도
-    if (typeof window !== 'undefined') {
-        setTimeout(function () {
-            if (!utilsService || !communicationService) {
-                initializeDIDependencies();
-            }
-        }, 100);
-    }
-    // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
+    // DIHelpers 사용 - 반복 코드 제거!
+    var DIHelpers = window.DIHelpers;
+    // 서비스 가져오기 헬퍼 함수들
     function getUtils() {
+        if (DIHelpers && DIHelpers.getUtils) {
+            return DIHelpers.getUtils('AudioFileProcessor');
+        }
+        // Fallback
         var fallback = {
             debugLog: function (msg) {
                 var _args = [];
@@ -93,10 +72,14 @@ var AudioFileProcessor = (function () {
             log: function () { },
             getDIStatus: function () { return ({ isDIAvailable: false, containerInfo: 'Fallback mode' }); }
         };
-        return utilsService || window.JSCUtils || fallback;
+        return (window.JSCUtils || fallback);
     }
     function getCommunication() {
-        return communicationService || window.JSCCommunication || {
+        if (DIHelpers && DIHelpers.getCommunication) {
+            return DIHelpers.getCommunication();
+        }
+        // Fallback
+        return window.JSCCommunication || {
             callExtendScript: function (_script, callback) {
                 callback('error: Communication service not available');
             }
@@ -301,17 +284,21 @@ var AudioFileProcessor = (function () {
     // DI 상태 확인 함수 (디버깅용)
     function getDIStatus() {
         var dependencies = [];
-        if (utilsService)
-            dependencies.push('JSCUtils (DI)');
-        else if (window.JSCUtils)
-            dependencies.push('JSCUtils (Legacy)');
-        if (communicationService)
-            dependencies.push('JSCCommunication (DI)');
-        else if (window.JSCCommunication)
-            dependencies.push('JSCCommunication (Legacy)');
+        if (DIHelpers)
+            dependencies.push('DIHelpers (Available)');
+        else
+            dependencies.push('DIHelpers (Not loaded)');
+        if (window.JSCUtils)
+            dependencies.push('JSCUtils (Available)');
+        else
+            dependencies.push('JSCUtils (Missing)');
+        if (window.JSCCommunication)
+            dependencies.push('JSCCommunication (Available)');
+        else
+            dependencies.push('JSCCommunication (Missing)');
         return {
-            isDIAvailable: !!diContainer,
-            containerInfo: diContainer ? 'DI Container active' : 'Legacy mode',
+            isDIAvailable: !!DIHelpers,
+            containerInfo: DIHelpers ? 'DIHelpers active' : 'Fallback mode',
             dependencies: dependencies
         };
     }

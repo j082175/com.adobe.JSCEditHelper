@@ -28,44 +28,16 @@ interface ExtendScriptCommand {
 
 const SoundEngine = (function() {
     'use strict';
-    
-    // DI 컨테이너에서 의존성 가져오기 (옵션)
-    let diContainer: any = null;
-    let utilsService: any = null;
-    let communicationService: any = null;
-    let uiService: any = null;
-    let clipCalculatorService: any = null;
-    
-    function initializeDIDependencies() {
-        try {
-            diContainer = (window as any).DI;
-            if (diContainer) {
-                // DI에서 서비스 가져오기 시도
-                utilsService = diContainer.getSafe('JSCUtils');
-                communicationService = diContainer.getSafe('JSCCommunication');
-                uiService = diContainer.getSafe('JSCUIManager');
-                clipCalculatorService = diContainer.getSafe('ClipTimeCalculator');
-            }
-        }
-        catch (e) {
-            // DI 사용 불가시 레거시 모드로 작동
-        }
-    }
-    
-    // 초기화 시도 (즉시 및 지연)
-    initializeDIDependencies();
-    
-    // 앱 초기화 후에 DI 서비스 재시도
-    if (typeof window !== 'undefined') {
-        setTimeout(() => {
-            if (!utilsService || !communicationService || !uiService || !clipCalculatorService) {
-                initializeDIDependencies();
-            }
-        }, 100);
-    }
-    
-    // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
+
+    // DIHelpers 사용 - 반복 코드 제거!
+    const DIHelpers = (window as any).DIHelpers;
+
+    // 서비스 가져오기 헬퍼 함수들
     function getUtils(): JSCUtilsInterface {
+        if (DIHelpers && DIHelpers.getUtils) {
+            return DIHelpers.getUtils('SoundEngine');
+        }
+        // Fallback
         const fallback: JSCUtilsInterface = {
             debugLog: (msg: string, ..._args: any[]) => console.log('[SoundEngine]', msg),
             logDebug: (msg: string, ..._args: any[]) => console.log('[SoundEngine]', msg),
@@ -91,25 +63,34 @@ const SoundEngine = (function() {
             log: () => {},
             getDIStatus: () => ({ isDIAvailable: false, containerInfo: 'Fallback mode' })
         };
-        return utilsService || window.JSCUtils || fallback;
+        return (window.JSCUtils || fallback) as JSCUtilsInterface;
     }
-    
+
     function getCommunication() {
-        return communicationService || (window as any).JSCCommunication || {
-            callExtendScript: (_script: string, callback: (result: string) => void) => { 
-                callback('error: Communication service not available'); 
+        if (DIHelpers && DIHelpers.getCommunication) {
+            return DIHelpers.getCommunication();
+        }
+        // Fallback
+        return (window as any).JSCCommunication || {
+            callExtendScript: (_script: string, callback: (result: string) => void) => {
+                callback('error: Communication service not available');
             }
         };
     }
-    
+
     function getUIManager() {
-        return uiService || (window as any).JSCUIManager || {
+        if (DIHelpers && DIHelpers.getUIManager) {
+            return DIHelpers.getUIManager('SoundEngine');
+        }
+        // Fallback
+        return (window as any).JSCUIManager || {
             updateStatus: (msg: string, _success: boolean) => { console.log('Status:', msg); }
         };
     }
-    
+
     function getClipCalculator() {
-        return clipCalculatorService || (window as any).ClipTimeCalculator || {
+        // No DIHelper for ClipTimeCalculator yet
+        return (window as any).ClipTimeCalculator || {
             createInsertionPlan: () => ({ totalInsertions: 0 }),
             createMagnetPlan: () => ({ totalMoved: 0, gapsRemoved: 0 }),
             formatDuration: (duration: number) => duration + 'ms'
@@ -576,19 +557,19 @@ const SoundEngine = (function() {
         const uiManager = getUIManager();
         const clipCalculator = getClipCalculator();
         
-        if (!utils || (!utilsService && !(window as any).JSCUtils)) {
+        if (!utils || !(window as any).JSCUtils) {
             dependencies.push('JSCUtils');
             isReady = false;
         }
-        if (!communication || (!communicationService && !(window as any).JSCCommunication)) {
+        if (!communication || !(window as any).JSCCommunication) {
             dependencies.push('JSCCommunication');
             isReady = false;
         }
-        if (!uiManager || (!uiService && !(window as any).JSCUIManager)) {
+        if (!uiManager || !(window as any).JSCUIManager) {
             dependencies.push('JSCUIManager');
             isReady = false;
         }
-        if (!clipCalculator || (!clipCalculatorService && !(window as any).ClipTimeCalculator)) {
+        if (!clipCalculator || !(window as any).ClipTimeCalculator) {
             dependencies.push('ClipTimeCalculator');
             isReady = false;
         }
@@ -598,29 +579,33 @@ const SoundEngine = (function() {
     // DI 상태 확인 함수 (디버깅용) - Phase 2.6
     function getDIStatus() {
         const dependencies: string[] = [];
-        if (utilsService) 
-            dependencies.push('JSCUtils (DI)');
-        else if ((window as any).JSCUtils)
-            dependencies.push('JSCUtils (Legacy)');
-        
-        if (communicationService)
-            dependencies.push('JSCCommunication (DI)');  
-        else if ((window as any).JSCCommunication)
-            dependencies.push('JSCCommunication (Legacy)');
-            
-        if (uiService)
-            dependencies.push('JSCUIManager (DI)');  
-        else if ((window as any).JSCUIManager)
-            dependencies.push('JSCUIManager (Legacy)');
-            
-        if (clipCalculatorService)
-            dependencies.push('ClipTimeCalculator (DI)');  
-        else if ((window as any).ClipTimeCalculator)
-            dependencies.push('ClipTimeCalculator (Legacy)');
-            
+
+        if (DIHelpers) dependencies.push('DIHelpers (Available)');
+        else dependencies.push('DIHelpers (Not loaded)');
+
+        if ((window as any).JSCUtils)
+            dependencies.push('JSCUtils (Available)');
+        else
+            dependencies.push('JSCUtils (Missing)');
+
+        if ((window as any).JSCCommunication)
+            dependencies.push('JSCCommunication (Available)');
+        else
+            dependencies.push('JSCCommunication (Missing)');
+
+        if ((window as any).JSCUIManager)
+            dependencies.push('JSCUIManager (Available)');
+        else
+            dependencies.push('JSCUIManager (Missing)');
+
+        if ((window as any).ClipTimeCalculator)
+            dependencies.push('ClipTimeCalculator (Available)');
+        else
+            dependencies.push('ClipTimeCalculator (Missing)');
+
         return {
-            isDIAvailable: !!diContainer,
-            containerInfo: diContainer ? 'DI Container active' : 'Legacy mode',
+            isDIAvailable: !!DIHelpers,
+            containerInfo: DIHelpers ? 'DIHelpers active' : 'Fallback mode',
             dependencies: dependencies
         };
     }

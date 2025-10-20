@@ -52,39 +52,14 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
 };
 var SoundEngine = (function () {
     'use strict';
-    // DI 컨테이너에서 의존성 가져오기 (옵션)
-    var diContainer = null;
-    var utilsService = null;
-    var communicationService = null;
-    var uiService = null;
-    var clipCalculatorService = null;
-    function initializeDIDependencies() {
-        try {
-            diContainer = window.DI;
-            if (diContainer) {
-                // DI에서 서비스 가져오기 시도
-                utilsService = diContainer.getSafe('JSCUtils');
-                communicationService = diContainer.getSafe('JSCCommunication');
-                uiService = diContainer.getSafe('JSCUIManager');
-                clipCalculatorService = diContainer.getSafe('ClipTimeCalculator');
-            }
-        }
-        catch (e) {
-            // DI 사용 불가시 레거시 모드로 작동
-        }
-    }
-    // 초기화 시도 (즉시 및 지연)
-    initializeDIDependencies();
-    // 앱 초기화 후에 DI 서비스 재시도
-    if (typeof window !== 'undefined') {
-        setTimeout(function () {
-            if (!utilsService || !communicationService || !uiService || !clipCalculatorService) {
-                initializeDIDependencies();
-            }
-        }, 100);
-    }
-    // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
+    // DIHelpers 사용 - 반복 코드 제거!
+    var DIHelpers = window.DIHelpers;
+    // 서비스 가져오기 헬퍼 함수들
     function getUtils() {
+        if (DIHelpers && DIHelpers.getUtils) {
+            return DIHelpers.getUtils('SoundEngine');
+        }
+        // Fallback
         var fallback = {
             debugLog: function (msg) {
                 var _args = [];
@@ -144,22 +119,31 @@ var SoundEngine = (function () {
             log: function () { },
             getDIStatus: function () { return ({ isDIAvailable: false, containerInfo: 'Fallback mode' }); }
         };
-        return utilsService || window.JSCUtils || fallback;
+        return (window.JSCUtils || fallback);
     }
     function getCommunication() {
-        return communicationService || window.JSCCommunication || {
+        if (DIHelpers && DIHelpers.getCommunication) {
+            return DIHelpers.getCommunication();
+        }
+        // Fallback
+        return window.JSCCommunication || {
             callExtendScript: function (_script, callback) {
                 callback('error: Communication service not available');
             }
         };
     }
     function getUIManager() {
-        return uiService || window.JSCUIManager || {
+        if (DIHelpers && DIHelpers.getUIManager) {
+            return DIHelpers.getUIManager('SoundEngine');
+        }
+        // Fallback
+        return window.JSCUIManager || {
             updateStatus: function (msg, _success) { console.log('Status:', msg); }
         };
     }
     function getClipCalculator() {
-        return clipCalculatorService || window.ClipTimeCalculator || {
+        // No DIHelper for ClipTimeCalculator yet
+        return window.ClipTimeCalculator || {
             createInsertionPlan: function () { return ({ totalInsertions: 0 }); },
             createMagnetPlan: function () { return ({ totalMoved: 0, gapsRemoved: 0 }); },
             formatDuration: function (duration) { return duration + 'ms'; }
@@ -612,19 +596,19 @@ var SoundEngine = (function () {
         var communication = getCommunication();
         var uiManager = getUIManager();
         var clipCalculator = getClipCalculator();
-        if (!utils || (!utilsService && !window.JSCUtils)) {
+        if (!utils || !window.JSCUtils) {
             dependencies.push('JSCUtils');
             isReady = false;
         }
-        if (!communication || (!communicationService && !window.JSCCommunication)) {
+        if (!communication || !window.JSCCommunication) {
             dependencies.push('JSCCommunication');
             isReady = false;
         }
-        if (!uiManager || (!uiService && !window.JSCUIManager)) {
+        if (!uiManager || !window.JSCUIManager) {
             dependencies.push('JSCUIManager');
             isReady = false;
         }
-        if (!clipCalculator || (!clipCalculatorService && !window.ClipTimeCalculator)) {
+        if (!clipCalculator || !window.ClipTimeCalculator) {
             dependencies.push('ClipTimeCalculator');
             isReady = false;
         }
@@ -633,25 +617,29 @@ var SoundEngine = (function () {
     // DI 상태 확인 함수 (디버깅용) - Phase 2.6
     function getDIStatus() {
         var dependencies = [];
-        if (utilsService)
-            dependencies.push('JSCUtils (DI)');
-        else if (window.JSCUtils)
-            dependencies.push('JSCUtils (Legacy)');
-        if (communicationService)
-            dependencies.push('JSCCommunication (DI)');
-        else if (window.JSCCommunication)
-            dependencies.push('JSCCommunication (Legacy)');
-        if (uiService)
-            dependencies.push('JSCUIManager (DI)');
-        else if (window.JSCUIManager)
-            dependencies.push('JSCUIManager (Legacy)');
-        if (clipCalculatorService)
-            dependencies.push('ClipTimeCalculator (DI)');
-        else if (window.ClipTimeCalculator)
-            dependencies.push('ClipTimeCalculator (Legacy)');
+        if (DIHelpers)
+            dependencies.push('DIHelpers (Available)');
+        else
+            dependencies.push('DIHelpers (Not loaded)');
+        if (window.JSCUtils)
+            dependencies.push('JSCUtils (Available)');
+        else
+            dependencies.push('JSCUtils (Missing)');
+        if (window.JSCCommunication)
+            dependencies.push('JSCCommunication (Available)');
+        else
+            dependencies.push('JSCCommunication (Missing)');
+        if (window.JSCUIManager)
+            dependencies.push('JSCUIManager (Available)');
+        else
+            dependencies.push('JSCUIManager (Missing)');
+        if (window.ClipTimeCalculator)
+            dependencies.push('ClipTimeCalculator (Available)');
+        else
+            dependencies.push('ClipTimeCalculator (Missing)');
         return {
-            isDIAvailable: !!diContainer,
-            containerInfo: diContainer ? 'DI Container active' : 'Legacy mode',
+            isDIAvailable: !!DIHelpers,
+            containerInfo: DIHelpers ? 'DIHelpers active' : 'Fallback mode',
             dependencies: dependencies
         };
     }

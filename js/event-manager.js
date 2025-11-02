@@ -187,7 +187,6 @@ var JSCEventManager = (function () {
             setupFolderInput();
             setupDebugUI();
             setupCaptionEventListeners(); // 캡션-이미지 동기화 이벤트
-            setupThumbnailSizeSlider(); // 썸네일 크기 조절 슬라이더
             setupTextListInput(); // 텍스트 리스트 입력
             utils.logDebug('Event listeners setup completed');
         }
@@ -979,11 +978,11 @@ var JSCEventManager = (function () {
             clearAllButton.addEventListener('click', clearImageQueue);
             utils.logDebug('Event listener added to clear-all-images button');
         }
-        // 드래그 앤 드롭 이벤트 (패널)
-        var imageSummary = document.getElementById('image-summary');
-        if (imageSummary) {
-            setupDragAndDrop(imageSummary);
-            utils.logDebug('Drag and drop setup for image-summary');
+        // 드래그 앤 드롭 이벤트 (이미지 그리드)
+        var imageGrid = document.getElementById('image-grid');
+        if (imageGrid) {
+            setupDragAndDrop(imageGrid);
+            utils.logDebug('Drag and drop setup for image-grid');
         }
         // 드래그 앤 드롭 이벤트 (모달)
         var modalDropZone = document.getElementById('modal-drop-zone');
@@ -995,52 +994,30 @@ var JSCEventManager = (function () {
     /**
      * 썸네일 크기 조절 슬라이더 설정
      */
-    function setupThumbnailSizeSlider() {
-        var utils = getUtils();
-        var slider = document.getElementById('thumbnail-size-slider');
-        var sizeValue = document.getElementById('thumbnail-size-value');
-        if (!slider || !sizeValue) {
-            utils.logWarn('Thumbnail size slider or value element not found');
-            return;
-        }
-        // 슬라이더 값 변경 이벤트
-        slider.addEventListener('input', function () {
-            var size = parseInt(slider.value, 10);
-            sizeValue.textContent = "".concat(size, "px");
-            updateThumbnailSizes(size);
-        });
-        utils.logDebug('Thumbnail size slider setup completed');
-    }
-    /**
-     * 썸네일 크기 동적 업데이트
-     */
-    function updateThumbnailSizes(size) {
-        var style = document.getElementById('dynamic-thumbnail-style');
-        // 기존 스타일 제거
-        if (style) {
-            style.remove();
-        }
-        // 새 스타일 생성
-        var newStyle = document.createElement('style');
-        newStyle.id = 'dynamic-thumbnail-style';
-        newStyle.textContent = "\n            .preview-thumbnail-wrapper {\n                width: ".concat(size, "px !important;\n                height: ").concat(size, "px !important;\n            }\n            .preview-thumbnail {\n                width: ").concat(size, "px !important;\n                height: ").concat(size, "px !important;\n            }\n        ");
-        document.head.appendChild(newStyle);
-    }
     /**
      * 텍스트 리스트 입력 이벤트 설정
      */
     function setupTextListInput() {
         var utils = getUtils();
         var textArea = document.getElementById('text-list');
-        var textCountDisplay = document.getElementById('text-count');
-        if (!textArea || !textCountDisplay) {
-            utils.logWarn('Text list input or count display not found');
+        var lineNumbers = document.getElementById('line-numbers');
+        if (!textArea) {
+            utils.logWarn('Text list textarea not found');
             return;
         }
-        // 텍스트 입력 시 자동으로 배열 업데이트
+        // 텍스트 입력 이벤트
         textArea.addEventListener('input', function () {
             updateTextList();
+            updateLineNumbers();
         });
+        // 스크롤 동기화
+        textArea.addEventListener('scroll', function () {
+            if (lineNumbers) {
+                lineNumbers.scrollTop = textArea.scrollTop;
+            }
+        });
+        // 초기 줄 번호 업데이트
+        updateLineNumbers();
         utils.logDebug('Text list input setup completed');
     }
     /**
@@ -1048,116 +1025,107 @@ var JSCEventManager = (function () {
      */
     function updateTextList() {
         var textArea = document.getElementById('text-list');
-        var textCountDisplay = document.getElementById('text-count');
+        var textCount = document.getElementById('text-count');
         if (!textArea)
             return;
         // 텍스트를 줄 단위로 분리하고 빈 줄 제거
         var lines = textArea.value.split('\n').filter(function (line) { return line.trim() !== ''; });
         textList = lines;
         // 개수 표시 업데이트
-        if (textCountDisplay) {
-            textCountDisplay.textContent = "".concat(textList.length, "\uAC1C \uD14D\uC2A4\uD2B8");
+        if (textCount) {
+            textCount.textContent = "".concat(textArea.value.split('\n').length, "\uC904");
         }
-        // 이미지 큐 업데이트 (텍스트 라벨 매칭)
+        // 이미지 텍스트 라벨 업데이트
         updateImageTextLabels();
+    }
+    /**
+     * 줄 번호 업데이트
+     */
+    function updateLineNumbers() {
+        var textArea = document.getElementById('text-list');
+        var lineNumbers = document.getElementById('line-numbers');
+        if (!textArea || !lineNumbers)
+            return;
+        var lines = textArea.value.split('\n');
+        var lineNumbersText = lines.map(function (_, i) { return i + 1; }).join('\n');
+        lineNumbers.textContent = lineNumbersText;
     }
     /**
      * 이미지에 텍스트 라벨 매칭
      */
     function updateImageTextLabels() {
+        var lines = textList;
         imageMappings.forEach(function (mapping, index) {
-            if (index < textList.length) {
-                mapping.textLabel = textList[index];
+            if (index < lines.length) {
+                mapping.textLabel = lines[index];
             }
             else {
                 mapping.textLabel = undefined;
             }
         });
         // UI 업데이트
-        renderImageQueue();
+        updateImageGrid();
     }
     /**
-     * 패널 요약 정보 업데이트
+     * 이미지 그리드 렌더링
      */
-    function updateImageSummary() {
+    function updateImageGrid() {
+        var gridDiv = document.getElementById('image-grid');
         var countText = document.getElementById('image-count-text');
-        var previewDiv = document.getElementById('image-preview-thumbnails');
         var clearAllButton = document.getElementById('clear-all-images');
-        if (!countText || !previewDiv)
+        if (!gridDiv || !countText)
             return;
         if (imageMappings.length === 0) {
-            countText.textContent = '이미지가 없습니다';
-            previewDiv.innerHTML = '';
+            gridDiv.innerHTML = "\n                <div class=\"empty-state\">\n                    <div class=\"empty-icon\">\uD83D\uDDBC\uFE0F</div>\n                    <h3>\uC774\uBBF8\uC9C0\uB97C \uCD94\uAC00\uD558\uC138\uC694</h3>\n                    <p>\uB4DC\uB798\uADF8 \uC564 \uB4DC\uB86D \uB610\uB294 Ctrl+V\uB85C \uCD94\uAC00</p>\n                </div>\n            ";
+            countText.textContent = '0개';
             if (clearAllButton)
                 clearAllButton.style.display = 'none';
         }
         else {
-            countText.textContent = "\uC774\uBBF8\uC9C0 ".concat(imageMappings.length, "\uAC1C");
+            countText.textContent = "".concat(imageMappings.length, "\uAC1C");
             if (clearAllButton)
                 clearAllButton.style.display = 'inline-block';
-            // 미리보기 썸네일 렌더링 (모든 이미지)
-            previewDiv.innerHTML = '';
+            // 그리드 렌더링
+            gridDiv.innerHTML = '';
             // 캡션 범위 계산을 위한 누적 카운터
             var cumulativeCaptionIndex_1 = 1;
-            imageMappings.forEach(function (mapping) {
-                // 이 이미지의 캡션 범위 계산
+            imageMappings.forEach(function (mapping, index) {
                 var captionStart = cumulativeCaptionIndex_1;
                 var captionEnd = cumulativeCaptionIndex_1 + mapping.captionCount - 1;
                 cumulativeCaptionIndex_1 += mapping.captionCount;
-                // 툴팁 텍스트 생성
-                var tooltipText = "".concat(mapping.fileName, "\n\uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, " \uBC94\uC704 (").concat(mapping.captionCount, "\uAC1C)");
-                // 래퍼 생성
-                var wrapper = document.createElement('div');
-                wrapper.className = 'preview-thumbnail-wrapper';
-                wrapper.draggable = true;
-                wrapper.dataset.imageId = mapping.id;
-                // 썸네일 이미지
-                var img = document.createElement('img');
-                img.className = 'preview-thumbnail';
-                img.src = "data:image/png;base64,".concat(mapping.thumbnail);
-                img.alt = mapping.fileName;
-                img.title = tooltipText;
-                // 삭제 버튼
-                var removeBtn = document.createElement('div');
-                removeBtn.className = 'preview-remove-btn';
-                removeBtn.textContent = '✕';
-                removeBtn.title = "".concat(mapping.fileName, " \uC0AD\uC81C");
-                removeBtn.dataset.imageId = mapping.id;
-                removeBtn.addEventListener('click', handleRemoveImage);
-                wrapper.appendChild(img);
-                wrapper.appendChild(removeBtn);
-                // 캡션 개수 표시 (항상)
-                var captionCount = document.createElement('div');
-                captionCount.className = 'preview-caption-count';
-                captionCount.textContent = String(mapping.captionCount || 1);
-                captionCount.title = '캡션 개수 (클릭하여 변경)';
-                captionCount.dataset.imageId = mapping.id;
-                captionCount.addEventListener('click', handlePreviewCaptionClick);
-                wrapper.appendChild(captionCount);
-                // 캡션 범위 표시 (항상)
-                var captionRange = document.createElement('div');
-                captionRange.className = 'preview-caption-range';
-                captionRange.textContent = "\uCEA1\uC158 ".concat(captionStart, "-").concat(captionEnd);
-                captionRange.dataset.imageId = mapping.id;
-                captionRange.id = "preview-caption-range-".concat(mapping.id);
-                wrapper.appendChild(captionRange);
-                // 텍스트 라벨 표시 (있는 경우)
-                if (mapping.textLabel) {
-                    var textLabel = document.createElement('div');
-                    textLabel.className = 'text-label';
-                    textLabel.textContent = "\"".concat(mapping.textLabel, "\"");
-                    textLabel.title = mapping.textLabel;
-                    textLabel.style.cssText = 'position: absolute; top: -6px; left: -6px; background: rgba(52, 152, 219, 0.9); color: white; padding: 2px 6px; border: 2px solid var(--color-bg-primary); border-radius: 4px; font-size: 9px; font-weight: bold; max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);';
-                    wrapper.appendChild(textLabel);
+                // 카드 생성
+                var card = document.createElement('div');
+                card.className = 'image-card';
+                card.dataset.imageId = mapping.id;
+                card.draggable = true;
+                // 텍스트 라벨 표시 (있으면)
+                var textLabelHtml = mapping.textLabel
+                    ? "<div class=\"image-card-text\" title=\"".concat(mapping.textLabel, "\">\uD83D\uDCDD ").concat(mapping.textLabel, "</div>")
+                    : '';
+                card.innerHTML = "\n                    <div class=\"image-card-number\">".concat(index + 1, "</div>\n                    <button class=\"image-card-remove\" data-image-id=\"").concat(mapping.id, "\">\u2715</button>\n                    <img class=\"image-card-thumbnail\" src=\"data:image/png;base64,").concat(mapping.thumbnail, "\" alt=\"").concat(mapping.fileName, "\">\n                    <div class=\"image-card-info\">\n                        ").concat(textLabelHtml, "\n                        <div class=\"image-card-filename\" title=\"").concat(mapping.fileName, "\">").concat(mapping.fileName, "</div>\n                        <div class=\"image-card-controls\">\n                            <span class=\"image-card-caption\">\uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, "</span>\n                            <select data-image-id=\"").concat(mapping.id, "\" class=\"image-card-caption-select\">\n                                ").concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) {
+                    return "<option value=\"".concat(n, "\" ").concat(n === mapping.captionCount ? 'selected' : '', ">").concat(n, "\uAC1C</option>");
+                }).join(''), "\n                            </select>\n                        </div>\n                    </div>\n                ");
+                gridDiv.appendChild(card);
+                // 이벤트 리스너
+                var removeBtn = card.querySelector('.image-card-remove');
+                if (removeBtn) {
+                    removeBtn.addEventListener('click', handleRemoveImage);
                 }
-                // 드래그 앤 드롭 이벤트 추가
-                wrapper.addEventListener('dragstart', handlePreviewDragStart);
-                wrapper.addEventListener('dragover', handlePreviewDragOver);
-                wrapper.addEventListener('drop', handlePreviewDrop);
-                wrapper.addEventListener('dragend', handlePreviewDragEnd);
-                previewDiv.appendChild(wrapper);
+                var captionSelect = card.querySelector('.image-card-caption-select');
+                if (captionSelect) {
+                    captionSelect.addEventListener('change', handleCaptionCountChange);
+                }
+                // 드래그 이벤트
+                card.addEventListener('dragstart', handlePreviewDragStart);
+                card.addEventListener('dragover', handlePreviewDragOver);
+                card.addEventListener('drop', handlePreviewDrop);
+                card.addEventListener('dragend', handlePreviewDragEnd);
             });
         }
+    }
+    // updateImageSummary는 updateImageGrid의 별칭으로 사용
+    function updateImageSummary() {
+        updateImageGrid();
     }
     /**
      * 특정 인덱스부터 캡션 범위 업데이트 (DOM 텍스트만 변경)
@@ -1179,18 +1147,15 @@ var JSCEventManager = (function () {
             if (captionPreview) {
                 captionPreview.textContent = "\uCEA1\uC158 ".concat(captionStart, "-").concat(captionEnd, " \uBC94\uC704");
             }
-            // 미리보기 패널의 캡션 범위 업데이트
-            var previewCaptionRange = document.getElementById("preview-caption-range-".concat(mapping.id));
-            if (previewCaptionRange) {
-                previewCaptionRange.textContent = "\uCEA1\uC158 ".concat(captionStart, "-").concat(captionEnd);
-            }
-            // 미리보기 이미지의 툴팁도 업데이트
-            var previewWrapper = document.querySelector("[data-image-id=\"".concat(mapping.id, "\"]"));
-            if (previewWrapper) {
-                var previewImg = previewWrapper.querySelector('.preview-thumbnail');
-                if (previewImg) {
-                    var tooltipText = "".concat(mapping.fileName, "\n\uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, " \uBC94\uC704 (").concat(mapping.captionCount, "\uAC1C)");
-                    previewImg.setAttribute('title', tooltipText);
+            // 메인 리스트의 캡션 정보 업데이트
+            var previewDiv = document.getElementById('image-preview-thumbnails');
+            if (previewDiv) {
+                var listItem = previewDiv.querySelector("[data-image-id=\"".concat(mapping.id, "\"]"));
+                if (listItem) {
+                    var captionInfo = listItem.querySelector('.caption-info');
+                    if (captionInfo) {
+                        captionInfo.textContent = "\uD83C\uDFAC \uCEA1\uC158: ".concat(captionStart, "-").concat(captionEnd);
+                    }
                 }
             }
             cumulativeCaptionIndex += mapping.captionCount;
@@ -1201,46 +1166,6 @@ var JSCEventManager = (function () {
      * @param mapping 추가할 이미지 매핑
      * @param index imageMappings 배열에서의 인덱스
      */
-    function addSingleImageToDOM(mapping, index) {
-        var queueDiv = document.getElementById('image-queue');
-        if (!queueDiv)
-            return;
-        // 빈 상태 메시지 제거
-        if (imageMappings.length === 1) {
-            queueDiv.innerHTML = '';
-        }
-        // 이전 이미지들의 captionCount 합산하여 현재 이미지의 시작 캡션 계산
-        var cumulativeCaptionIndex = 1;
-        for (var i = 0; i < index; i++) {
-            cumulativeCaptionIndex += imageMappings[i].captionCount;
-        }
-        var captionStart = cumulativeCaptionIndex;
-        var captionEnd = cumulativeCaptionIndex + mapping.captionCount - 1;
-        // DOM 요소 생성
-        var itemDiv = document.createElement('div');
-        itemDiv.className = 'image-queue-item-advanced';
-        itemDiv.draggable = true;
-        itemDiv.dataset.imageId = mapping.id;
-        itemDiv.innerHTML = "\n            <div class=\"drag-handle\" title=\"\uB4DC\uB798\uADF8\uD558\uC5EC \uC21C\uC11C \uBCC0\uACBD\">\u22EE</div>\n            <img class=\"image-thumbnail\" src=\"data:image/png;base64,".concat(mapping.thumbnail, "\" alt=\"").concat(mapping.fileName, "\">\n            <div class=\"image-info\">\n                <div class=\"image-info-header\">\n                    <span class=\"image-filename\" title=\"").concat(mapping.fileName, "\">").concat(mapping.fileName, "</span>\n                    <button class=\"image-remove-btn\" data-image-id=\"").concat(mapping.id, "\">\u2715</button>\n                </div>\n                ").concat(mapping.textLabel ? "\n                <div style=\"font-size: 12px; color: #3498db; margin-bottom: 4px; font-weight: 500;\">\n                    \uD83D\uDCDD \"".concat(mapping.textLabel, "\"\n                </div>\n                ") : '', "\n                <div class=\"caption-range\">\n                    <label>\uCEA1\uC158 \uAC1C\uC218:</label>\n                    <div class=\"caption-range-inputs\">\n                        <select data-image-id=\"").concat(mapping.id, "\" class=\"caption-count-input select-modern\" style=\"width: 80px;\">\n                            ").concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) {
-            return "<option value=\"".concat(n, "\" ").concat(n === mapping.captionCount ? 'selected' : '', ">").concat(n, "\uAC1C</option>");
-        }).join(''), "\n                        </select>\n                    </div>\n                </div>\n                <div class=\"caption-preview\" id=\"caption-preview-").concat(mapping.id, "\">\n                    \uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, " \uBC94\uC704\n                </div>\n            </div>\n        ");
-        queueDiv.appendChild(itemDiv);
-        // 드래그 이벤트 추가
-        itemDiv.addEventListener('dragstart', handleDragStart);
-        itemDiv.addEventListener('dragover', handleDragOver);
-        itemDiv.addEventListener('drop', handleDrop);
-        itemDiv.addEventListener('dragend', handleDragEnd);
-        // 제거 버튼 이벤트 추가
-        var removeBtn = itemDiv.querySelector('.image-remove-btn');
-        if (removeBtn) {
-            removeBtn.addEventListener('click', handleRemoveImage);
-        }
-        // 캡션 개수 입력 이벤트 추가
-        var countInput = itemDiv.querySelector('.caption-count-input');
-        if (countInput) {
-            countInput.addEventListener('change', handleCaptionCountChange);
-        }
-    }
     /**
      * 이미지 큐 렌더링 (모달 내부 - 기본 모드 vs 고급 모드)
      */
@@ -1361,8 +1286,6 @@ var JSCEventManager = (function () {
                         // 영향받는 이미지들의 캡션 범위만 업데이트
                         var minIndex = Math.min(draggedIndex, targetIndex);
                         updateCaptionRanges(minIndex);
-                        // 텍스트 라벨 재매칭
-                        updateImageTextLabels();
                     }
                 }
             }
@@ -1385,35 +1308,10 @@ var JSCEventManager = (function () {
             if (index !== -1) {
                 var removed = imageMappings.splice(index, 1)[0];
                 utils.logInfo("\uC774\uBBF8\uC9C0 \uC81C\uAC70\uB428: ".concat(removed.fileName));
-                // 성능 최적화: 전체 재렌더링 대신 해당 요소만 삭제
-                var queueDiv = document.getElementById('image-queue');
-                var previewDiv = document.getElementById('image-preview-thumbnails');
-                // 큐에서 DOM 요소 삭제
-                if (queueDiv) {
-                    var queueElement = queueDiv.querySelector("[data-image-id=\"".concat(imageId, "\"]"));
-                    if (queueElement) {
-                        queueElement.remove();
-                    }
-                    // 빈 상태 메시지 표시
-                    if (imageMappings.length === 0) {
-                        queueDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #888;">이미지를 추가하세요</div>';
-                    }
-                    else {
-                        // 삭제된 위치 이후의 캡션 범위 업데이트
-                        updateCaptionRanges(index);
-                        // 텍스트 라벨 재매칭
-                        updateImageTextLabels();
-                    }
-                }
-                // 미리보기에서 DOM 요소 삭제
-                if (previewDiv) {
-                    var previewElement = previewDiv.querySelector("[data-image-id=\"".concat(imageId, "\"]"));
-                    if (previewElement) {
-                        previewElement.remove();
-                    }
-                }
-                // 요약 정보 업데이트
-                updateImageSummary();
+                // 텍스트 라벨 다시 매칭
+                updateImageTextLabels();
+                // 그리드 재렌더링
+                updateImageGrid();
                 // 동기화 버튼 상태 업데이트
                 var syncButton = document.getElementById('sync-caption-images');
                 if (syncButton) {
@@ -1446,7 +1344,6 @@ var JSCEventManager = (function () {
         }
     }
     function handlePreviewDrop(e) {
-        var _a, _b, _c, _d;
         e.preventDefault();
         var target = e.currentTarget;
         target.classList.remove('drag-over-preview');
@@ -1457,36 +1354,13 @@ var JSCEventManager = (function () {
                 var draggedIndex = imageMappings.findIndex(function (m) { return m.id === draggedId_2; });
                 var targetIndex = imageMappings.findIndex(function (m) { return m.id === targetId_2; });
                 if (draggedIndex !== -1 && targetIndex !== -1) {
+                    // 배열에서 순서 변경
                     var draggedItem = imageMappings.splice(draggedIndex, 1)[0];
                     imageMappings.splice(targetIndex, 0, draggedItem);
-                    // 성능 최적화: 전체 재렌더링 대신 DOM 요소만 이동
-                    var previewDiv = document.getElementById('image-preview-thumbnails');
-                    var queueDiv = document.getElementById('image-queue');
-                    if (previewDiv && queueDiv) {
-                        // 미리보기 패널: DOM 요소 이동
-                        if (draggedIndex < targetIndex) {
-                            (_a = target.parentNode) === null || _a === void 0 ? void 0 : _a.insertBefore(previewDraggedElement, target.nextSibling);
-                        }
-                        else {
-                            (_b = target.parentNode) === null || _b === void 0 ? void 0 : _b.insertBefore(previewDraggedElement, target);
-                        }
-                        // 큐 패널: 해당하는 DOM 요소도 이동
-                        var queueDraggedElement = queueDiv.querySelector("[data-image-id=\"".concat(draggedId_2, "\"]"));
-                        var queueTargetElement = queueDiv.querySelector("[data-image-id=\"".concat(targetId_2, "\"]"));
-                        if (queueDraggedElement && queueTargetElement) {
-                            if (draggedIndex < targetIndex) {
-                                (_c = queueTargetElement.parentNode) === null || _c === void 0 ? void 0 : _c.insertBefore(queueDraggedElement, queueTargetElement.nextSibling);
-                            }
-                            else {
-                                (_d = queueTargetElement.parentNode) === null || _d === void 0 ? void 0 : _d.insertBefore(queueDraggedElement, queueTargetElement);
-                            }
-                        }
-                        // 영향받는 이미지들의 캡션 범위만 업데이트
-                        var minIndex = Math.min(draggedIndex, targetIndex);
-                        updateCaptionRanges(minIndex);
-                        // 텍스트 라벨 재매칭
-                        updateImageTextLabels();
-                    }
+                    // 텍스트 라벨 다시 매칭 (순서가 바뀌었으므로)
+                    updateImageTextLabels();
+                    // 그리드 전체 재렌더링
+                    updateImageGrid();
                 }
             }
         }
@@ -1499,70 +1373,6 @@ var JSCEventManager = (function () {
             el.classList.remove('drag-over-preview');
         });
         previewDraggedElement = null;
-    }
-    /**
-     * 미리보기 캡션 개수 클릭 핸들러 (드롭다운으로 변경)
-     */
-    function handlePreviewCaptionClick(e) {
-        e.stopPropagation();
-        var captionDiv = e.currentTarget;
-        var imageId = captionDiv.dataset.imageId;
-        var currentValue = parseInt(captionDiv.textContent || '1', 10);
-        // 드롭다운으로 교체
-        var select = document.createElement('select');
-        select.className = 'preview-caption-select select-modern';
-        select.dataset.imageId = imageId || '';
-        // 옵션 추가 (1~10)
-        for (var i = 1; i <= 10; i++) {
-            var option = document.createElement('option');
-            option.value = String(i);
-            option.textContent = "".concat(i, "\uAC1C");
-            if (i === currentValue) {
-                option.selected = true;
-            }
-            select.appendChild(option);
-        }
-        // 부모에서 캡션 div 제거하고 select 추가
-        var wrapper = captionDiv.parentElement;
-        if (wrapper) {
-            wrapper.removeChild(captionDiv);
-            wrapper.appendChild(select);
-            // 클릭 이벤트 전파 방지 (부모 이미지의 클릭 애니메이션 방지)
-            select.addEventListener('click', function (e) {
-                e.stopPropagation();
-            });
-            // mousedown 이벤트 전파 방지
-            select.addEventListener('mousedown', function (e) {
-                e.stopPropagation();
-            });
-            select.focus();
-            // 드롭다운 자동으로 열기
-            setTimeout(function () {
-                var event = new MouseEvent('mousedown', {
-                    bubbles: false, // 부모로 전파되지 않도록
-                    cancelable: true,
-                    view: window
-                });
-                select.dispatchEvent(event);
-            }, 10);
-            // 선택 변경 시 즉시 저장
-            var saveValue = function () {
-                var newValue = parseInt(select.value, 10);
-                if (imageId && newValue > 0) {
-                    var index = imageMappings.findIndex(function (m) { return m.id === imageId; });
-                    if (index !== -1) {
-                        imageMappings[index].captionCount = newValue;
-                        updateImageSummary();
-                        updateCaptionRanges(index);
-                    }
-                }
-            };
-            select.addEventListener('change', saveValue);
-            select.addEventListener('blur', function () {
-                // blur 시 원래 div로 복원
-                updateImageSummary();
-            });
-        }
     }
     /**
      * 모달 캡션 개수 클릭 핸들러 (드롭다운으로 변경)
@@ -1633,16 +1443,16 @@ var JSCEventManager = (function () {
      * 캡션 개수 변경 핸들러
      */
     function handleCaptionCountChange(e) {
-        var input = e.currentTarget;
-        var imageId = input.dataset.imageId;
-        var value = parseInt(input.value, 10);
+        var select = e.currentTarget;
+        var imageId = select.dataset.imageId;
+        var value = parseInt(select.value, 10);
         if (imageId && value > 0) {
             var index = imageMappings.findIndex(function (m) { return m.id === imageId; });
             if (index !== -1) {
                 var mapping = imageMappings[index];
                 mapping.captionCount = value;
-                // 성능 최적화: 전체 재렌더링 대신 영향받는 캡션 범위만 업데이트
-                updateCaptionRanges(index);
+                // 그리드 재렌더링 (캡션 범위 업데이트)
+                updateImageGrid();
             }
         }
     }
@@ -2133,7 +1943,7 @@ var JSCEventManager = (function () {
      */
     function addImageToQueue(filePath, fileName, thumbnailBase64) {
         return __awaiter(this, void 0, void 0, function () {
-            var utils, id, thumbnail, e_6, currentIndex, textLabel, mapping, syncButton;
+            var utils, id, thumbnail, e_6, mapping, syncButton;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
@@ -2161,21 +1971,20 @@ var JSCEventManager = (function () {
                         thumbnail = ''; // 실패 시 빈 문자열
                         return [3 /*break*/, 7];
                     case 7:
-                        currentIndex = imageMappings.length;
-                        textLabel = currentIndex < textList.length ? textList[currentIndex] : undefined;
                         mapping = {
                             id: id,
                             filePath: filePath,
                             fileName: fileName,
                             thumbnail: thumbnail,
                             captionCount: 1, // 기본값: 캡션 1개
-                            textLabel: textLabel // 텍스트 라벨 매칭
+                            textLabel: undefined // 사용자가 직접 입력
                         };
                         imageMappings.push(mapping);
-                        utils.logInfo("\uC774\uBBF8\uC9C0 \uCD94\uAC00\uB428: ".concat(fileName, " (ID: ").concat(id, ")").concat(textLabel ? " - ".concat(textLabel) : ''));
-                        // 성능 최적화: 전체 재렌더링 대신 새 이미지만 추가
-                        addSingleImageToDOM(mapping, imageMappings.length - 1);
-                        updateImageSummary();
+                        utils.logInfo("\uC774\uBBF8\uC9C0 \uCD94\uAC00\uB428: ".concat(fileName, " (ID: ").concat(id, ")"));
+                        // 텍스트 라벨 매칭
+                        updateImageTextLabels();
+                        // 그리드 재렌더링
+                        updateImageGrid();
                         syncButton = document.getElementById('sync-caption-images');
                         if (syncButton) {
                             syncButton.disabled = false;

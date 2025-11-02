@@ -145,7 +145,6 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             setupFolderInput();
             setupDebugUI();
             setupCaptionEventListeners(); // 캡션-이미지 동기화 이벤트
-            setupThumbnailSizeSlider(); // 썸네일 크기 조절 슬라이더
             setupTextListInput(); // 텍스트 리스트 입력
             utils.logDebug('Event listeners setup completed');
         } catch (e) {
@@ -954,11 +953,11 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             utils.logDebug('Event listener added to clear-all-images button');
         }
 
-        // 드래그 앤 드롭 이벤트 (패널)
-        const imageSummary = document.getElementById('image-summary');
-        if (imageSummary) {
-            setupDragAndDrop(imageSummary);
-            utils.logDebug('Drag and drop setup for image-summary');
+        // 드래그 앤 드롭 이벤트 (이미지 그리드)
+        const imageGrid = document.getElementById('image-grid');
+        if (imageGrid) {
+            setupDragAndDrop(imageGrid);
+            utils.logDebug('Drag and drop setup for image-grid');
         }
 
         // 드래그 앤 드롭 이벤트 (모달)
@@ -972,52 +971,6 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     /**
      * 썸네일 크기 조절 슬라이더 설정
      */
-    function setupThumbnailSizeSlider(): void {
-        const utils = getUtils();
-        const slider = document.getElementById('thumbnail-size-slider') as HTMLInputElement;
-        const sizeValue = document.getElementById('thumbnail-size-value');
-
-        if (!slider || !sizeValue) {
-            utils.logWarn('Thumbnail size slider or value element not found');
-            return;
-        }
-
-        // 슬라이더 값 변경 이벤트
-        slider.addEventListener('input', () => {
-            const size = parseInt(slider.value, 10);
-            sizeValue.textContent = `${size}px`;
-            updateThumbnailSizes(size);
-        });
-
-        utils.logDebug('Thumbnail size slider setup completed');
-    }
-
-    /**
-     * 썸네일 크기 동적 업데이트
-     */
-    function updateThumbnailSizes(size: number): void {
-        const style = document.getElementById('dynamic-thumbnail-style');
-
-        // 기존 스타일 제거
-        if (style) {
-            style.remove();
-        }
-
-        // 새 스타일 생성
-        const newStyle = document.createElement('style');
-        newStyle.id = 'dynamic-thumbnail-style';
-        newStyle.textContent = `
-            .preview-thumbnail-wrapper {
-                width: ${size}px !important;
-                height: ${size}px !important;
-            }
-            .preview-thumbnail {
-                width: ${size}px !important;
-                height: ${size}px !important;
-            }
-        `;
-        document.head.appendChild(newStyle);
-    }
 
     /**
      * 텍스트 리스트 입력 이벤트 설정
@@ -1025,17 +978,28 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     function setupTextListInput(): void {
         const utils = getUtils();
         const textArea = document.getElementById('text-list') as HTMLTextAreaElement;
-        const textCountDisplay = document.getElementById('text-count');
+        const lineNumbers = document.getElementById('line-numbers');
 
-        if (!textArea || !textCountDisplay) {
-            utils.logWarn('Text list input or count display not found');
+        if (!textArea) {
+            utils.logWarn('Text list textarea not found');
             return;
         }
 
-        // 텍스트 입력 시 자동으로 배열 업데이트
+        // 텍스트 입력 이벤트
         textArea.addEventListener('input', () => {
             updateTextList();
+            updateLineNumbers();
         });
+
+        // 스크롤 동기화
+        textArea.addEventListener('scroll', () => {
+            if (lineNumbers) {
+                lineNumbers.scrollTop = textArea.scrollTop;
+            }
+        });
+
+        // 초기 줄 번호 업데이트
+        updateLineNumbers();
 
         utils.logDebug('Text list input setup completed');
     }
@@ -1045,7 +1009,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
      */
     function updateTextList(): void {
         const textArea = document.getElementById('text-list') as HTMLTextAreaElement;
-        const textCountDisplay = document.getElementById('text-count');
+        const textCount = document.getElementById('text-count');
 
         if (!textArea) return;
 
@@ -1054,123 +1018,136 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         textList = lines;
 
         // 개수 표시 업데이트
-        if (textCountDisplay) {
-            textCountDisplay.textContent = `${textList.length}개 텍스트`;
+        if (textCount) {
+            textCount.textContent = `${textArea.value.split('\n').length}줄`;
         }
 
-        // 이미지 큐 업데이트 (텍스트 라벨 매칭)
+        // 이미지 텍스트 라벨 업데이트
         updateImageTextLabels();
+    }
+
+    /**
+     * 줄 번호 업데이트
+     */
+    function updateLineNumbers(): void {
+        const textArea = document.getElementById('text-list') as HTMLTextAreaElement;
+        const lineNumbers = document.getElementById('line-numbers');
+
+        if (!textArea || !lineNumbers) return;
+
+        const lines = textArea.value.split('\n');
+        const lineNumbersText = lines.map((_, i) => i + 1).join('\n');
+
+        lineNumbers.textContent = lineNumbersText;
     }
 
     /**
      * 이미지에 텍스트 라벨 매칭
      */
     function updateImageTextLabels(): void {
+        const lines = textList;
+
         imageMappings.forEach((mapping, index) => {
-            if (index < textList.length) {
-                mapping.textLabel = textList[index];
+            if (index < lines.length) {
+                mapping.textLabel = lines[index];
             } else {
                 mapping.textLabel = undefined;
             }
         });
 
         // UI 업데이트
-        renderImageQueue();
+        updateImageGrid();
     }
 
     /**
-     * 패널 요약 정보 업데이트
+     * 이미지 그리드 렌더링
      */
-    function updateImageSummary(): void {
+    function updateImageGrid(): void {
+        const gridDiv = document.getElementById('image-grid');
         const countText = document.getElementById('image-count-text');
-        const previewDiv = document.getElementById('image-preview-thumbnails');
         const clearAllButton = document.getElementById('clear-all-images') as HTMLButtonElement;
 
-        if (!countText || !previewDiv) return;
+        if (!gridDiv || !countText) return;
 
         if (imageMappings.length === 0) {
-            countText.textContent = '이미지가 없습니다';
-            previewDiv.innerHTML = '';
+            gridDiv.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">🖼️</div>
+                    <h3>이미지를 추가하세요</h3>
+                    <p>드래그 앤 드롭 또는 Ctrl+V로 추가</p>
+                </div>
+            `;
+            countText.textContent = '0개';
             if (clearAllButton) clearAllButton.style.display = 'none';
         } else {
-            countText.textContent = `이미지 ${imageMappings.length}개`;
+            countText.textContent = `${imageMappings.length}개`;
             if (clearAllButton) clearAllButton.style.display = 'inline-block';
 
-            // 미리보기 썸네일 렌더링 (모든 이미지)
-            previewDiv.innerHTML = '';
+            // 그리드 렌더링
+            gridDiv.innerHTML = '';
 
             // 캡션 범위 계산을 위한 누적 카운터
             let cumulativeCaptionIndex = 1;
 
-            imageMappings.forEach((mapping) => {
-                // 이 이미지의 캡션 범위 계산
+            imageMappings.forEach((mapping, index) => {
                 const captionStart = cumulativeCaptionIndex;
                 const captionEnd = cumulativeCaptionIndex + mapping.captionCount - 1;
                 cumulativeCaptionIndex += mapping.captionCount;
 
-                // 툴팁 텍스트 생성
-                const tooltipText = `${mapping.fileName}\n캡션 ${captionStart}-${captionEnd} 범위 (${mapping.captionCount}개)`;
+                // 카드 생성
+                const card = document.createElement('div');
+                card.className = 'image-card';
+                card.dataset.imageId = mapping.id;
+                card.draggable = true;
 
-                // 래퍼 생성
-                const wrapper = document.createElement('div');
-                wrapper.className = 'preview-thumbnail-wrapper';
-                wrapper.draggable = true;
-                wrapper.dataset.imageId = mapping.id;
+                // 텍스트 라벨 표시 (있으면)
+                const textLabelHtml = mapping.textLabel
+                    ? `<div class="image-card-text" title="${mapping.textLabel}">📝 ${mapping.textLabel}</div>`
+                    : '';
 
-                // 썸네일 이미지
-                const img = document.createElement('img');
-                img.className = 'preview-thumbnail';
-                img.src = `data:image/png;base64,${mapping.thumbnail}`;
-                img.alt = mapping.fileName;
-                img.title = tooltipText;
+                card.innerHTML = `
+                    <div class="image-card-number">${index + 1}</div>
+                    <button class="image-card-remove" data-image-id="${mapping.id}">✕</button>
+                    <img class="image-card-thumbnail" src="data:image/png;base64,${mapping.thumbnail}" alt="${mapping.fileName}">
+                    <div class="image-card-info">
+                        ${textLabelHtml}
+                        <div class="image-card-filename" title="${mapping.fileName}">${mapping.fileName}</div>
+                        <div class="image-card-controls">
+                            <span class="image-card-caption">캡션 ${captionStart}-${captionEnd}</span>
+                            <select data-image-id="${mapping.id}" class="image-card-caption-select">
+                                ${[1,2,3,4,5,6,7,8,9,10].map(n =>
+                                    `<option value="${n}" ${n === mapping.captionCount ? 'selected' : ''}>${n}개</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                    </div>
+                `;
 
-                // 삭제 버튼
-                const removeBtn = document.createElement('div');
-                removeBtn.className = 'preview-remove-btn';
-                removeBtn.textContent = '✕';
-                removeBtn.title = `${mapping.fileName} 삭제`;
-                removeBtn.dataset.imageId = mapping.id;
-                removeBtn.addEventListener('click', handleRemoveImage);
+                gridDiv.appendChild(card);
 
-                wrapper.appendChild(img);
-                wrapper.appendChild(removeBtn);
-
-                // 캡션 개수 표시 (항상)
-                const captionCount = document.createElement('div');
-                captionCount.className = 'preview-caption-count';
-                captionCount.textContent = String(mapping.captionCount || 1);
-                captionCount.title = '캡션 개수 (클릭하여 변경)';
-                captionCount.dataset.imageId = mapping.id;
-                captionCount.addEventListener('click', handlePreviewCaptionClick);
-                wrapper.appendChild(captionCount);
-
-                // 캡션 범위 표시 (항상)
-                const captionRange = document.createElement('div');
-                captionRange.className = 'preview-caption-range';
-                captionRange.textContent = `캡션 ${captionStart}-${captionEnd}`;
-                captionRange.dataset.imageId = mapping.id;
-                captionRange.id = `preview-caption-range-${mapping.id}`;
-                wrapper.appendChild(captionRange);
-
-                // 텍스트 라벨 표시 (있는 경우)
-                if (mapping.textLabel) {
-                    const textLabel = document.createElement('div');
-                    textLabel.className = 'text-label';
-                    textLabel.textContent = `"${mapping.textLabel}"`;
-                    textLabel.title = mapping.textLabel;
-                    textLabel.style.cssText = 'position: absolute; top: -6px; left: -6px; background: rgba(52, 152, 219, 0.9); color: white; padding: 2px 6px; border: 2px solid var(--color-bg-primary); border-radius: 4px; font-size: 9px; font-weight: bold; max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);';
-                    wrapper.appendChild(textLabel);
+                // 이벤트 리스너
+                const removeBtn = card.querySelector('.image-card-remove');
+                if (removeBtn) {
+                    removeBtn.addEventListener('click', handleRemoveImage);
                 }
 
-                // 드래그 앤 드롭 이벤트 추가
-                wrapper.addEventListener('dragstart', handlePreviewDragStart);
-                wrapper.addEventListener('dragover', handlePreviewDragOver);
-                wrapper.addEventListener('drop', handlePreviewDrop);
-                wrapper.addEventListener('dragend', handlePreviewDragEnd);
+                const captionSelect = card.querySelector('.image-card-caption-select');
+                if (captionSelect) {
+                    captionSelect.addEventListener('change', handleCaptionCountChange);
+                }
 
-                previewDiv.appendChild(wrapper);
+                // 드래그 이벤트
+                card.addEventListener('dragstart', handlePreviewDragStart);
+                card.addEventListener('dragover', handlePreviewDragOver);
+                card.addEventListener('drop', handlePreviewDrop);
+                card.addEventListener('dragend', handlePreviewDragEnd);
             });
         }
+    }
+
+    // updateImageSummary는 updateImageGrid의 별칭으로 사용
+    function updateImageSummary(): void {
+        updateImageGrid();
     }
 
     /**
@@ -1196,19 +1173,15 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 captionPreview.textContent = `캡션 ${captionStart}-${captionEnd} 범위`;
             }
 
-            // 미리보기 패널의 캡션 범위 업데이트
-            const previewCaptionRange = document.getElementById(`preview-caption-range-${mapping.id}`);
-            if (previewCaptionRange) {
-                previewCaptionRange.textContent = `캡션 ${captionStart}-${captionEnd}`;
-            }
-
-            // 미리보기 이미지의 툴팁도 업데이트
-            const previewWrapper = document.querySelector(`[data-image-id="${mapping.id}"]`);
-            if (previewWrapper) {
-                const previewImg = previewWrapper.querySelector('.preview-thumbnail');
-                if (previewImg) {
-                    const tooltipText = `${mapping.fileName}\n캡션 ${captionStart}-${captionEnd} 범위 (${mapping.captionCount}개)`;
-                    previewImg.setAttribute('title', tooltipText);
+            // 메인 리스트의 캡션 정보 업데이트
+            const previewDiv = document.getElementById('image-preview-thumbnails');
+            if (previewDiv) {
+                const listItem = previewDiv.querySelector(`[data-image-id="${mapping.id}"]`);
+                if (listItem) {
+                    const captionInfo = listItem.querySelector('.caption-info');
+                    if (captionInfo) {
+                        captionInfo.textContent = `🎬 캡션: ${captionStart}-${captionEnd}`;
+                    }
                 }
             }
 
@@ -1221,79 +1194,6 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
      * @param mapping 추가할 이미지 매핑
      * @param index imageMappings 배열에서의 인덱스
      */
-    function addSingleImageToDOM(mapping: ImageMapping, index: number): void {
-        const queueDiv = document.getElementById('image-queue');
-        if (!queueDiv) return;
-
-        // 빈 상태 메시지 제거
-        if (imageMappings.length === 1) {
-            queueDiv.innerHTML = '';
-        }
-
-        // 이전 이미지들의 captionCount 합산하여 현재 이미지의 시작 캡션 계산
-        let cumulativeCaptionIndex = 1;
-        for (let i = 0; i < index; i++) {
-            cumulativeCaptionIndex += imageMappings[i].captionCount;
-        }
-
-        const captionStart = cumulativeCaptionIndex;
-        const captionEnd = cumulativeCaptionIndex + mapping.captionCount - 1;
-
-        // DOM 요소 생성
-        const itemDiv = document.createElement('div');
-        itemDiv.className = 'image-queue-item-advanced';
-        itemDiv.draggable = true;
-        itemDiv.dataset.imageId = mapping.id;
-
-        itemDiv.innerHTML = `
-            <div class="drag-handle" title="드래그하여 순서 변경">⋮</div>
-            <img class="image-thumbnail" src="data:image/png;base64,${mapping.thumbnail}" alt="${mapping.fileName}">
-            <div class="image-info">
-                <div class="image-info-header">
-                    <span class="image-filename" title="${mapping.fileName}">${mapping.fileName}</span>
-                    <button class="image-remove-btn" data-image-id="${mapping.id}">✕</button>
-                </div>
-                ${mapping.textLabel ? `
-                <div style="font-size: 12px; color: #3498db; margin-bottom: 4px; font-weight: 500;">
-                    📝 "${mapping.textLabel}"
-                </div>
-                ` : ''}
-                <div class="caption-range">
-                    <label>캡션 개수:</label>
-                    <div class="caption-range-inputs">
-                        <select data-image-id="${mapping.id}" class="caption-count-input select-modern" style="width: 80px;">
-                            ${[1,2,3,4,5,6,7,8,9,10].map(n =>
-                                `<option value="${n}" ${n === mapping.captionCount ? 'selected' : ''}>${n}개</option>`
-                            ).join('')}
-                        </select>
-                    </div>
-                </div>
-                <div class="caption-preview" id="caption-preview-${mapping.id}">
-                    캡션 ${captionStart}-${captionEnd} 범위
-                </div>
-            </div>
-        `;
-
-        queueDiv.appendChild(itemDiv);
-
-        // 드래그 이벤트 추가
-        itemDiv.addEventListener('dragstart', handleDragStart);
-        itemDiv.addEventListener('dragover', handleDragOver);
-        itemDiv.addEventListener('drop', handleDrop);
-        itemDiv.addEventListener('dragend', handleDragEnd);
-
-        // 제거 버튼 이벤트 추가
-        const removeBtn = itemDiv.querySelector('.image-remove-btn');
-        if (removeBtn) {
-            removeBtn.addEventListener('click', handleRemoveImage);
-        }
-
-        // 캡션 개수 입력 이벤트 추가
-        const countInput = itemDiv.querySelector('.caption-count-input');
-        if (countInput) {
-            countInput.addEventListener('change', handleCaptionCountChange);
-        }
-    }
 
     /**
      * 이미지 큐 렌더링 (모달 내부 - 기본 모드 vs 고급 모드)
@@ -1436,9 +1336,6 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                         // 영향받는 이미지들의 캡션 범위만 업데이트
                         const minIndex = Math.min(draggedIndex, targetIndex);
                         updateCaptionRanges(minIndex);
-
-                        // 텍스트 라벨 재매칭
-                        updateImageTextLabels();
                     }
                 }
             }
@@ -1465,39 +1362,11 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 const removed = imageMappings.splice(index, 1)[0];
                 utils.logInfo(`이미지 제거됨: ${removed.fileName}`);
 
-                // 성능 최적화: 전체 재렌더링 대신 해당 요소만 삭제
-                const queueDiv = document.getElementById('image-queue');
-                const previewDiv = document.getElementById('image-preview-thumbnails');
+                // 텍스트 라벨 다시 매칭
+                updateImageTextLabels();
 
-                // 큐에서 DOM 요소 삭제
-                if (queueDiv) {
-                    const queueElement = queueDiv.querySelector(`[data-image-id="${imageId}"]`);
-                    if (queueElement) {
-                        queueElement.remove();
-                    }
-
-                    // 빈 상태 메시지 표시
-                    if (imageMappings.length === 0) {
-                        queueDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #888;">이미지를 추가하세요</div>';
-                    } else {
-                        // 삭제된 위치 이후의 캡션 범위 업데이트
-                        updateCaptionRanges(index);
-
-                        // 텍스트 라벨 재매칭
-                        updateImageTextLabels();
-                    }
-                }
-
-                // 미리보기에서 DOM 요소 삭제
-                if (previewDiv) {
-                    const previewElement = previewDiv.querySelector(`[data-image-id="${imageId}"]`);
-                    if (previewElement) {
-                        previewElement.remove();
-                    }
-                }
-
-                // 요약 정보 업데이트
-                updateImageSummary();
+                // 그리드 재렌더링
+                updateImageGrid();
 
                 // 동기화 버튼 상태 업데이트
                 const syncButton = document.getElementById('sync-caption-images') as HTMLButtonElement;
@@ -1548,40 +1417,15 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 const targetIndex = imageMappings.findIndex(m => m.id === targetId);
 
                 if (draggedIndex !== -1 && targetIndex !== -1) {
+                    // 배열에서 순서 변경
                     const [draggedItem] = imageMappings.splice(draggedIndex, 1);
                     imageMappings.splice(targetIndex, 0, draggedItem);
 
-                    // 성능 최적화: 전체 재렌더링 대신 DOM 요소만 이동
-                    const previewDiv = document.getElementById('image-preview-thumbnails');
-                    const queueDiv = document.getElementById('image-queue');
+                    // 텍스트 라벨 다시 매칭 (순서가 바뀌었으므로)
+                    updateImageTextLabels();
 
-                    if (previewDiv && queueDiv) {
-                        // 미리보기 패널: DOM 요소 이동
-                        if (draggedIndex < targetIndex) {
-                            target.parentNode?.insertBefore(previewDraggedElement, target.nextSibling);
-                        } else {
-                            target.parentNode?.insertBefore(previewDraggedElement, target);
-                        }
-
-                        // 큐 패널: 해당하는 DOM 요소도 이동
-                        const queueDraggedElement = queueDiv.querySelector(`[data-image-id="${draggedId}"]`) as HTMLElement;
-                        const queueTargetElement = queueDiv.querySelector(`[data-image-id="${targetId}"]`) as HTMLElement;
-
-                        if (queueDraggedElement && queueTargetElement) {
-                            if (draggedIndex < targetIndex) {
-                                queueTargetElement.parentNode?.insertBefore(queueDraggedElement, queueTargetElement.nextSibling);
-                            } else {
-                                queueTargetElement.parentNode?.insertBefore(queueDraggedElement, queueTargetElement);
-                            }
-                        }
-
-                        // 영향받는 이미지들의 캡션 범위만 업데이트
-                        const minIndex = Math.min(draggedIndex, targetIndex);
-                        updateCaptionRanges(minIndex);
-
-                        // 텍스트 라벨 재매칭
-                        updateImageTextLabels();
-                    }
+                    // 그리드 전체 재렌더링
+                    updateImageGrid();
                 }
             }
         }
@@ -1597,80 +1441,6 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         });
 
         previewDraggedElement = null;
-    }
-
-    /**
-     * 미리보기 캡션 개수 클릭 핸들러 (드롭다운으로 변경)
-     */
-    function handlePreviewCaptionClick(e: Event): void {
-        e.stopPropagation();
-        const captionDiv = e.currentTarget as HTMLElement;
-        const imageId = captionDiv.dataset.imageId;
-        const currentValue = parseInt(captionDiv.textContent || '1', 10);
-
-        // 드롭다운으로 교체
-        const select = document.createElement('select');
-        select.className = 'preview-caption-select select-modern';
-        select.dataset.imageId = imageId || '';
-
-        // 옵션 추가 (1~10)
-        for (let i = 1; i <= 10; i++) {
-            const option = document.createElement('option');
-            option.value = String(i);
-            option.textContent = `${i}개`;
-            if (i === currentValue) {
-                option.selected = true;
-            }
-            select.appendChild(option);
-        }
-
-        // 부모에서 캡션 div 제거하고 select 추가
-        const wrapper = captionDiv.parentElement;
-        if (wrapper) {
-            wrapper.removeChild(captionDiv);
-            wrapper.appendChild(select);
-
-            // 클릭 이벤트 전파 방지 (부모 이미지의 클릭 애니메이션 방지)
-            select.addEventListener('click', (e) => {
-                e.stopPropagation();
-            });
-
-            // mousedown 이벤트 전파 방지
-            select.addEventListener('mousedown', (e) => {
-                e.stopPropagation();
-            });
-
-            select.focus();
-
-            // 드롭다운 자동으로 열기
-            setTimeout(() => {
-                const event = new MouseEvent('mousedown', {
-                    bubbles: false,  // 부모로 전파되지 않도록
-                    cancelable: true,
-                    view: window
-                });
-                select.dispatchEvent(event);
-            }, 10);
-
-            // 선택 변경 시 즉시 저장
-            const saveValue = () => {
-                const newValue = parseInt(select.value, 10);
-                if (imageId && newValue > 0) {
-                    const index = imageMappings.findIndex(m => m.id === imageId);
-                    if (index !== -1) {
-                        imageMappings[index].captionCount = newValue;
-                        updateImageSummary();
-                        updateCaptionRanges(index);
-                    }
-                }
-            };
-
-            select.addEventListener('change', saveValue);
-            select.addEventListener('blur', () => {
-                // blur 시 원래 div로 복원
-                updateImageSummary();
-            });
-        }
     }
 
     /**
@@ -1752,9 +1522,9 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
      * 캡션 개수 변경 핸들러
      */
     function handleCaptionCountChange(e: Event): void {
-        const input = e.currentTarget as HTMLInputElement;
-        const imageId = input.dataset.imageId;
-        const value = parseInt(input.value, 10);
+        const select = e.currentTarget as HTMLSelectElement;
+        const imageId = select.dataset.imageId;
+        const value = parseInt(select.value, 10);
 
         if (imageId && value > 0) {
             const index = imageMappings.findIndex(m => m.id === imageId);
@@ -1762,11 +1532,12 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 const mapping = imageMappings[index];
                 mapping.captionCount = value;
 
-                // 성능 최적화: 전체 재렌더링 대신 영향받는 캡션 범위만 업데이트
-                updateCaptionRanges(index);
+                // 그리드 재렌더링 (캡션 범위 업데이트)
+                updateImageGrid();
             }
         }
     }
+
 
     /**
      * Base64 이미지를 프로젝트 폴더에 파일로 저장 (Node.js fs 사용 - 매우 빠름!)
@@ -2267,10 +2038,6 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             thumbnail = ''; // 실패 시 빈 문자열
         }
 
-        // 현재 이미지 인덱스로 텍스트 라벨 매칭
-        const currentIndex = imageMappings.length;
-        const textLabel = currentIndex < textList.length ? textList[currentIndex] : undefined;
-
         // ImageMapping 생성
         const mapping: ImageMapping = {
             id: id,
@@ -2278,15 +2045,17 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             fileName: fileName,
             thumbnail: thumbnail,
             captionCount: 1,    // 기본값: 캡션 1개
-            textLabel: textLabel // 텍스트 라벨 매칭
+            textLabel: undefined // 사용자가 직접 입력
         };
 
         imageMappings.push(mapping);
-        utils.logInfo(`이미지 추가됨: ${fileName} (ID: ${id})${textLabel ? ` - ${textLabel}` : ''}`);
+        utils.logInfo(`이미지 추가됨: ${fileName} (ID: ${id})`);
 
-        // 성능 최적화: 전체 재렌더링 대신 새 이미지만 추가
-        addSingleImageToDOM(mapping, imageMappings.length - 1);
-        updateImageSummary();
+        // 텍스트 라벨 매칭
+        updateImageTextLabels();
+
+        // 그리드 재렌더링
+        updateImageGrid();
 
         // 동기화 버튼 상태 업데이트
         const syncButton = document.getElementById('sync-caption-images') as HTMLButtonElement;

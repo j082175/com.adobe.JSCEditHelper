@@ -1135,6 +1135,65 @@ body {
     transform: scale(1.1);
 }
 
+/* 미리보기 캡션 개수 표시 (고급 모드) */
+.preview-caption-count {
+    position: absolute;
+    bottom: -6px;
+    right: -6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    background: var(--color-primary);
+    color: white;
+    border: 2px solid var(--color-bg-primary);
+    border-radius: 9px;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.preview-thumbnail-wrapper:hover .preview-caption-count {
+    opacity: 1;
+}
+
+.preview-caption-count:hover {
+    background: #2980b9;
+    transform: scale(1.1);
+}
+
+/* 캡션 개수 입력 필드 */
+.preview-caption-input {
+    position: absolute;
+    bottom: -6px;
+    right: -6px;
+    width: 30px;
+    height: 18px;
+    padding: 0 4px;
+    background: white;
+    color: var(--color-text);
+    border: 2px solid var(--color-primary);
+    border-radius: 9px;
+    font-size: 10px;
+    text-align: center;
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* 드래그 중인 미리보기 썸네일 */
+.preview-thumbnail-wrapper.dragging {
+    opacity: 0.5;
+}
+
+.preview-thumbnail-wrapper.drag-over-preview {
+    transform: translateX(5px);
+}
+
 /* 드롭존 스타일 */
 .image-drop-zone {
     position: relative;

@@ -260,8 +260,12 @@ function insertImageAtTime(imagePath, trackIndex, startTime, endTime) {
             });
         }
 
+        // fsName을 사용하여 정규화된 파일 경로 사용
+        var normalizedPath = imageFile.fsName;
+        debugWriteln("원본 경로: " + imagePath);
+        debugWriteln("정규화된 경로 (fsName): " + normalizedPath);
         debugWriteln("프로젝트에 임포트 시작...");
-        app.project.importFiles([imagePath], true, app.project.rootItem, false);
+        app.project.importFiles([normalizedPath], true, app.project.rootItem, false);
 
         var fileName = imagePath.split("\\").pop().split("/").pop();
         var projectItem = findProjectItemByName(fileName);

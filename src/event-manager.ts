@@ -1013,6 +1013,10 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             countText.textContent = `이미지 ${imageMappings.length}개`;
             openModalBtn.disabled = false;
 
+            // 고급 모드 확인
+            const advancedModeToggle = document.getElementById('advanced-mode-toggle') as HTMLInputElement;
+            const isAdvancedMode = advancedModeToggle?.checked || false;
+
             // 미리보기 썸네일 렌더링 (모든 이미지)
             previewDiv.innerHTML = '';
 
@@ -1020,6 +1024,8 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 // 래퍼 생성
                 const wrapper = document.createElement('div');
                 wrapper.className = 'preview-thumbnail-wrapper';
+                wrapper.draggable = true;
+                wrapper.dataset.imageId = mapping.id;
 
                 // 썸네일 이미지
                 const img = document.createElement('img');
@@ -1038,6 +1044,24 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
 
                 wrapper.appendChild(img);
                 wrapper.appendChild(removeBtn);
+
+                // 고급 모드일 때 캡션 개수 표시
+                if (isAdvancedMode) {
+                    const captionCount = document.createElement('div');
+                    captionCount.className = 'preview-caption-count';
+                    captionCount.textContent = String(mapping.captionCount || 1);
+                    captionCount.title = '캡션 개수 (클릭하여 변경)';
+                    captionCount.dataset.imageId = mapping.id;
+                    captionCount.addEventListener('click', handlePreviewCaptionClick);
+                    wrapper.appendChild(captionCount);
+                }
+
+                // 드래그 앤 드롭 이벤트 추가
+                wrapper.addEventListener('dragstart', handlePreviewDragStart);
+                wrapper.addEventListener('dragover', handlePreviewDragOver);
+                wrapper.addEventListener('drop', handlePreviewDrop);
+                wrapper.addEventListener('dragend', handlePreviewDragEnd);
+
                 previewDiv.appendChild(wrapper);
             });
         }
@@ -1155,6 +1179,8 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         target.classList.add('dragging');
         if (e.dataTransfer) {
             e.dataTransfer.effectAllowed = 'move';
+            // 내부 드래그임을 표시 (외부 파일 드래그와 구분)
+            e.dataTransfer.setData('text/plain', 'internal-reorder');
         }
     }
 
@@ -1210,6 +1236,122 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 utils.logInfo(`이미지 제거됨: ${removed.fileName}`);
                 renderImageQueue();
             }
+        }
+    }
+
+    /**
+     * 미리보기 드래그 앤 드롭 핸들러 (순서 변경)
+     */
+    let previewDraggedElement: HTMLElement | null = null;
+
+    function handlePreviewDragStart(e: DragEvent): void {
+        const target = e.currentTarget as HTMLElement;
+        previewDraggedElement = target;
+        target.classList.add('dragging');
+        if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', 'internal-reorder');
+        }
+    }
+
+    function handlePreviewDragOver(e: DragEvent): void {
+        e.preventDefault();
+        const target = e.currentTarget as HTMLElement;
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = 'move';
+        }
+        if (previewDraggedElement && previewDraggedElement !== target) {
+            target.classList.add('drag-over-preview');
+        }
+    }
+
+    function handlePreviewDrop(e: DragEvent): void {
+        e.preventDefault();
+        const target = e.currentTarget as HTMLElement;
+        target.classList.remove('drag-over-preview');
+
+        if (previewDraggedElement && previewDraggedElement !== target) {
+            const draggedId = previewDraggedElement.dataset.imageId;
+            const targetId = target.dataset.imageId;
+
+            if (draggedId && targetId) {
+                const draggedIndex = imageMappings.findIndex(m => m.id === draggedId);
+                const targetIndex = imageMappings.findIndex(m => m.id === targetId);
+
+                if (draggedIndex !== -1 && targetIndex !== -1) {
+                    const [draggedItem] = imageMappings.splice(draggedIndex, 1);
+                    imageMappings.splice(targetIndex, 0, draggedItem);
+
+                    // 미리보기와 큐 모두 다시 렌더링
+                    updateImageSummary();
+                    renderImageQueue();
+                }
+            }
+        }
+    }
+
+    function handlePreviewDragEnd(e: DragEvent): void {
+        const target = e.currentTarget as HTMLElement;
+        target.classList.remove('dragging');
+
+        // 모든 drag-over 스타일 제거
+        document.querySelectorAll('.drag-over-preview').forEach(el => {
+            el.classList.remove('drag-over-preview');
+        });
+
+        previewDraggedElement = null;
+    }
+
+    /**
+     * 미리보기 캡션 개수 클릭 핸들러 (입력 필드로 변경)
+     */
+    function handlePreviewCaptionClick(e: Event): void {
+        e.stopPropagation();
+        const captionDiv = e.currentTarget as HTMLElement;
+        const imageId = captionDiv.dataset.imageId;
+        const currentValue = captionDiv.textContent || '1';
+
+        // 입력 필드로 교체
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.min = '1';
+        input.max = '99';
+        input.className = 'preview-caption-input';
+        input.value = currentValue;
+        input.dataset.imageId = imageId || '';
+
+        // 부모에서 캡션 div 제거하고 input 추가
+        const wrapper = captionDiv.parentElement;
+        if (wrapper) {
+            wrapper.removeChild(captionDiv);
+            wrapper.appendChild(input);
+            input.focus();
+            input.select();
+
+            // Enter 키 또는 blur 시 저장
+            const saveValue = () => {
+                const newValue = parseInt(input.value, 10);
+                if (imageId && newValue > 0 && newValue <= 99) {
+                    const mapping = imageMappings.find(m => m.id === imageId);
+                    if (mapping) {
+                        mapping.captionCount = newValue;
+                        updateImageSummary();
+                        renderImageQueue();
+                    }
+                } else {
+                    // 잘못된 값이면 원래대로
+                    updateImageSummary();
+                }
+            };
+
+            input.addEventListener('blur', saveValue);
+            input.addEventListener('keydown', (event: KeyboardEvent) => {
+                if (event.key === 'Enter') {
+                    saveValue();
+                } else if (event.key === 'Escape') {
+                    updateImageSummary();
+                }
+            });
         }
     }
 
@@ -1385,17 +1527,29 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         const utils = getUtils();
 
         dropZone.addEventListener('dragenter', (e: DragEvent) => {
+            // 내부 요소 드래그인지 확인 (text/plain 타입이 있으면 내부 드래그)
+            if (e.dataTransfer?.types.includes('text/plain')) {
+                return; // 내부 요소 드래그는 처리하지 않음
+            }
             e.preventDefault();
             e.stopPropagation();
             dropZone.classList.add('drag-over');
         });
 
         dropZone.addEventListener('dragover', (e: DragEvent) => {
+            // 내부 요소 드래그인지 확인 (text/plain 타입이 있으면 내부 드래그)
+            if (e.dataTransfer?.types.includes('text/plain')) {
+                return; // 내부 요소 드래그는 처리하지 않음
+            }
             e.preventDefault();
             e.stopPropagation();
         });
 
         dropZone.addEventListener('dragleave', (e: DragEvent) => {
+            // 내부 요소 드래그인지 확인 (text/plain 타입이 있으면 내부 드래그)
+            if (e.dataTransfer?.types.includes('text/plain')) {
+                return; // 내부 요소 드래그는 처리하지 않음
+            }
             e.preventDefault();
             e.stopPropagation();
             // 자식 요소로의 이동은 무시
@@ -1405,6 +1559,12 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         });
 
         dropZone.addEventListener('drop', async (e: DragEvent) => {
+            // 내부 요소 드롭인지 확인 (text/plain 데이터가 'internal-reorder'이면 내부 드래그)
+            const dragData = e.dataTransfer?.getData('text/plain');
+            if (dragData === 'internal-reorder') {
+                return; // 내부 요소 드래그는 처리하지 않음
+            }
+
             e.preventDefault();
             e.stopPropagation();
             dropZone.classList.remove('drag-over');

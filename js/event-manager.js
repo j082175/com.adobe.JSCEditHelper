@@ -1031,12 +1031,17 @@ var JSCEventManager = (function () {
         else {
             countText.textContent = "\uC774\uBBF8\uC9C0 ".concat(imageMappings.length, "\uAC1C");
             openModalBtn.disabled = false;
+            // 고급 모드 확인
+            var advancedModeToggle = document.getElementById('advanced-mode-toggle');
+            var isAdvancedMode_1 = (advancedModeToggle === null || advancedModeToggle === void 0 ? void 0 : advancedModeToggle.checked) || false;
             // 미리보기 썸네일 렌더링 (모든 이미지)
             previewDiv.innerHTML = '';
             imageMappings.forEach(function (mapping) {
                 // 래퍼 생성
                 var wrapper = document.createElement('div');
                 wrapper.className = 'preview-thumbnail-wrapper';
+                wrapper.draggable = true;
+                wrapper.dataset.imageId = mapping.id;
                 // 썸네일 이미지
                 var img = document.createElement('img');
                 img.className = 'preview-thumbnail';
@@ -1052,6 +1057,21 @@ var JSCEventManager = (function () {
                 removeBtn.addEventListener('click', handleRemoveImage);
                 wrapper.appendChild(img);
                 wrapper.appendChild(removeBtn);
+                // 고급 모드일 때 캡션 개수 표시
+                if (isAdvancedMode_1) {
+                    var captionCount = document.createElement('div');
+                    captionCount.className = 'preview-caption-count';
+                    captionCount.textContent = String(mapping.captionCount || 1);
+                    captionCount.title = '캡션 개수 (클릭하여 변경)';
+                    captionCount.dataset.imageId = mapping.id;
+                    captionCount.addEventListener('click', handlePreviewCaptionClick);
+                    wrapper.appendChild(captionCount);
+                }
+                // 드래그 앤 드롭 이벤트 추가
+                wrapper.addEventListener('dragstart', handlePreviewDragStart);
+                wrapper.addEventListener('dragover', handlePreviewDragOver);
+                wrapper.addEventListener('drop', handlePreviewDrop);
+                wrapper.addEventListener('dragend', handlePreviewDragEnd);
                 previewDiv.appendChild(wrapper);
             });
         }
@@ -1129,6 +1149,8 @@ var JSCEventManager = (function () {
         target.classList.add('dragging');
         if (e.dataTransfer) {
             e.dataTransfer.effectAllowed = 'move';
+            // 내부 드래그임을 표시 (외부 파일 드래그와 구분)
+            e.dataTransfer.setData('text/plain', 'internal-reorder');
         }
     }
     function handleDragOver(e) {
@@ -1175,6 +1197,108 @@ var JSCEventManager = (function () {
                 utils.logInfo("\uC774\uBBF8\uC9C0 \uC81C\uAC70\uB428: ".concat(removed.fileName));
                 renderImageQueue();
             }
+        }
+    }
+    /**
+     * 미리보기 드래그 앤 드롭 핸들러 (순서 변경)
+     */
+    var previewDraggedElement = null;
+    function handlePreviewDragStart(e) {
+        var target = e.currentTarget;
+        previewDraggedElement = target;
+        target.classList.add('dragging');
+        if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', 'internal-reorder');
+        }
+    }
+    function handlePreviewDragOver(e) {
+        e.preventDefault();
+        var target = e.currentTarget;
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = 'move';
+        }
+        if (previewDraggedElement && previewDraggedElement !== target) {
+            target.classList.add('drag-over-preview');
+        }
+    }
+    function handlePreviewDrop(e) {
+        e.preventDefault();
+        var target = e.currentTarget;
+        target.classList.remove('drag-over-preview');
+        if (previewDraggedElement && previewDraggedElement !== target) {
+            var draggedId_2 = previewDraggedElement.dataset.imageId;
+            var targetId_2 = target.dataset.imageId;
+            if (draggedId_2 && targetId_2) {
+                var draggedIndex = imageMappings.findIndex(function (m) { return m.id === draggedId_2; });
+                var targetIndex = imageMappings.findIndex(function (m) { return m.id === targetId_2; });
+                if (draggedIndex !== -1 && targetIndex !== -1) {
+                    var draggedItem = imageMappings.splice(draggedIndex, 1)[0];
+                    imageMappings.splice(targetIndex, 0, draggedItem);
+                    // 미리보기와 큐 모두 다시 렌더링
+                    updateImageSummary();
+                    renderImageQueue();
+                }
+            }
+        }
+    }
+    function handlePreviewDragEnd(e) {
+        var target = e.currentTarget;
+        target.classList.remove('dragging');
+        // 모든 drag-over 스타일 제거
+        document.querySelectorAll('.drag-over-preview').forEach(function (el) {
+            el.classList.remove('drag-over-preview');
+        });
+        previewDraggedElement = null;
+    }
+    /**
+     * 미리보기 캡션 개수 클릭 핸들러 (입력 필드로 변경)
+     */
+    function handlePreviewCaptionClick(e) {
+        e.stopPropagation();
+        var captionDiv = e.currentTarget;
+        var imageId = captionDiv.dataset.imageId;
+        var currentValue = captionDiv.textContent || '1';
+        // 입력 필드로 교체
+        var input = document.createElement('input');
+        input.type = 'number';
+        input.min = '1';
+        input.max = '99';
+        input.className = 'preview-caption-input';
+        input.value = currentValue;
+        input.dataset.imageId = imageId || '';
+        // 부모에서 캡션 div 제거하고 input 추가
+        var wrapper = captionDiv.parentElement;
+        if (wrapper) {
+            wrapper.removeChild(captionDiv);
+            wrapper.appendChild(input);
+            input.focus();
+            input.select();
+            // Enter 키 또는 blur 시 저장
+            var saveValue_1 = function () {
+                var newValue = parseInt(input.value, 10);
+                if (imageId && newValue > 0 && newValue <= 99) {
+                    var mapping = imageMappings.find(function (m) { return m.id === imageId; });
+                    if (mapping) {
+                        mapping.captionCount = newValue;
+                        updateImageSummary();
+                        renderImageQueue();
+                    }
+                }
+                else {
+                    // 잘못된 값이면 원래대로
+                    updateImageSummary();
+                }
+            };
+            input.addEventListener('blur', saveValue_1);
+            input.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') {
+                    saveValue_1();
+                }
+                else if (event.key === 'Escape') {
+                    updateImageSummary();
+                }
+            });
         }
     }
     /**
@@ -1339,15 +1463,30 @@ var JSCEventManager = (function () {
         var _this = this;
         var utils = getUtils();
         dropZone.addEventListener('dragenter', function (e) {
+            var _a;
+            // 내부 요소 드래그인지 확인 (text/plain 타입이 있으면 내부 드래그)
+            if ((_a = e.dataTransfer) === null || _a === void 0 ? void 0 : _a.types.includes('text/plain')) {
+                return; // 내부 요소 드래그는 처리하지 않음
+            }
             e.preventDefault();
             e.stopPropagation();
             dropZone.classList.add('drag-over');
         });
         dropZone.addEventListener('dragover', function (e) {
+            var _a;
+            // 내부 요소 드래그인지 확인 (text/plain 타입이 있으면 내부 드래그)
+            if ((_a = e.dataTransfer) === null || _a === void 0 ? void 0 : _a.types.includes('text/plain')) {
+                return; // 내부 요소 드래그는 처리하지 않음
+            }
             e.preventDefault();
             e.stopPropagation();
         });
         dropZone.addEventListener('dragleave', function (e) {
+            var _a;
+            // 내부 요소 드래그인지 확인 (text/plain 타입이 있으면 내부 드래그)
+            if ((_a = e.dataTransfer) === null || _a === void 0 ? void 0 : _a.types.includes('text/plain')) {
+                return; // 내부 요소 드래그는 처리하지 않음
+            }
             e.preventDefault();
             e.stopPropagation();
             // 자식 요소로의 이동은 무시
@@ -1356,15 +1495,19 @@ var JSCEventManager = (function () {
             }
         });
         dropZone.addEventListener('drop', function (e) { return __awaiter(_this, void 0, void 0, function () {
-            var files, _loop_1, i;
-            var _a;
-            return __generator(this, function (_b) {
-                switch (_b.label) {
+            var dragData, files, _loop_1, i;
+            var _a, _b;
+            return __generator(this, function (_c) {
+                switch (_c.label) {
                     case 0:
+                        dragData = (_a = e.dataTransfer) === null || _a === void 0 ? void 0 : _a.getData('text/plain');
+                        if (dragData === 'internal-reorder') {
+                            return [2 /*return*/]; // 내부 요소 드래그는 처리하지 않음
+                        }
                         e.preventDefault();
                         e.stopPropagation();
                         dropZone.classList.remove('drag-over');
-                        files = (_a = e.dataTransfer) === null || _a === void 0 ? void 0 : _a.files;
+                        files = (_b = e.dataTransfer) === null || _b === void 0 ? void 0 : _b.files;
                         if (!files || files.length === 0) {
                             utils.logWarn('드롭된 파일이 없습니다');
                             return [2 /*return*/];
@@ -1372,8 +1515,8 @@ var JSCEventManager = (function () {
                         utils.logInfo("".concat(files.length, "\uAC1C \uD30C\uC77C \uB4DC\uB86D\uB428"));
                         _loop_1 = function (i) {
                             var file, base64, originalName, savedPath, e_3;
-                            return __generator(this, function (_c) {
-                                switch (_c.label) {
+                            return __generator(this, function (_d) {
+                                switch (_d.label) {
                                     case 0:
                                         file = files[i];
                                         // 이미지 파일인지 확인
@@ -1382,9 +1525,9 @@ var JSCEventManager = (function () {
                                             return [2 /*return*/, "continue"];
                                         }
                                         utils.logInfo("\uC774\uBBF8\uC9C0 \uD30C\uC77C \uCC98\uB9AC \uC911: ".concat(file.name, " (").concat(file.type, ")"));
-                                        _c.label = 1;
+                                        _d.label = 1;
                                     case 1:
-                                        _c.trys.push([1, 4, , 5]);
+                                        _d.trys.push([1, 4, , 5]);
                                         return [4 /*yield*/, new Promise(function (resolve, reject) {
                                                 var reader = new FileReader();
                                                 reader.onloadend = function () {
@@ -1405,11 +1548,11 @@ var JSCEventManager = (function () {
                                                 reader.readAsDataURL(file);
                                             })];
                                     case 2:
-                                        base64 = _c.sent();
+                                        base64 = _d.sent();
                                         originalName = file.name;
                                         return [4 /*yield*/, saveBase64ToProjectFolder(base64, originalName)];
                                     case 3:
-                                        savedPath = _c.sent();
+                                        savedPath = _d.sent();
                                         if (savedPath) {
                                             // 큐에 추가
                                             addImageToQueue(savedPath, originalName, base64);
@@ -1420,7 +1563,7 @@ var JSCEventManager = (function () {
                                         }
                                         return [3 /*break*/, 5];
                                     case 4:
-                                        e_3 = _c.sent();
+                                        e_3 = _d.sent();
                                         utils.logError("\uD30C\uC77C \uCC98\uB9AC \uC911 \uC624\uB958: ".concat(file.name), e_3);
                                         return [3 /*break*/, 5];
                                     case 5: return [2 /*return*/];
@@ -1428,13 +1571,13 @@ var JSCEventManager = (function () {
                             });
                         };
                         i = 0;
-                        _b.label = 1;
+                        _c.label = 1;
                     case 1:
                         if (!(i < files.length)) return [3 /*break*/, 4];
                         return [5 /*yield**/, _loop_1(i)];
                     case 2:
-                        _b.sent();
-                        _b.label = 3;
+                        _c.sent();
+                        _c.label = 3;
                     case 3:
                         i++;
                         return [3 /*break*/, 1];

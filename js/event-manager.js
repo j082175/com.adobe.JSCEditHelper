@@ -1003,14 +1003,34 @@ var JSCEventManager = (function () {
         renderImageQueue();
     }
     /**
-     * 이미지 큐 렌더링 (기본 모드 vs 고급 모드)
+     * 패널 요약 정보 업데이트
+     */
+    function updateImageSummary() {
+        var countText = document.getElementById('image-count-text');
+        var openModalBtn = document.getElementById('open-image-modal');
+        if (!countText || !openModalBtn)
+            return;
+        if (imageMappings.length === 0) {
+            countText.textContent = '이미지가 없습니다';
+            openModalBtn.disabled = true;
+        }
+        else {
+            countText.textContent = "\uC774\uBBF8\uC9C0 ".concat(imageMappings.length, "\uAC1C");
+            openModalBtn.disabled = false;
+        }
+    }
+    /**
+     * 이미지 큐 렌더링 (모달 내부 - 기본 모드 vs 고급 모드)
      */
     function renderImageQueue() {
         var queueDiv = document.getElementById('image-queue');
         if (!queueDiv)
             return;
         queueDiv.innerHTML = '';
+        // 패널 요약 정보 업데이트
+        updateImageSummary();
         if (imageMappings.length === 0) {
+            queueDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #888;">이미지를 추가하세요</div>';
             return;
         }
         // 자동 캡션 범위 계산을 위한 누적 카운터

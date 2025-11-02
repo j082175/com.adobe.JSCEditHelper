@@ -982,7 +982,25 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     }
 
     /**
-     * 이미지 큐 렌더링 (기본 모드 vs 고급 모드)
+     * 패널 요약 정보 업데이트
+     */
+    function updateImageSummary(): void {
+        const countText = document.getElementById('image-count-text');
+        const openModalBtn = document.getElementById('open-image-modal') as HTMLButtonElement;
+
+        if (!countText || !openModalBtn) return;
+
+        if (imageMappings.length === 0) {
+            countText.textContent = '이미지가 없습니다';
+            openModalBtn.disabled = true;
+        } else {
+            countText.textContent = `이미지 ${imageMappings.length}개`;
+            openModalBtn.disabled = false;
+        }
+    }
+
+    /**
+     * 이미지 큐 렌더링 (모달 내부 - 기본 모드 vs 고급 모드)
      */
     function renderImageQueue(): void {
         const queueDiv = document.getElementById('image-queue');
@@ -990,7 +1008,11 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
 
         queueDiv.innerHTML = '';
 
+        // 패널 요약 정보 업데이트
+        updateImageSummary();
+
         if (imageMappings.length === 0) {
+            queueDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #888;">이미지를 추가하세요</div>';
             return;
         }
 

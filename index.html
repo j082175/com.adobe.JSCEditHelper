@@ -173,23 +173,26 @@
                         <h3>🖼️ 이미지 관리</h3>
                     </div>
                     <p class="card-description">로컬 이미지 파일을 선택하세요</p>
-                    <div class="input-group">
-                        <button id="browse-images" class="btn-secondary">📁 이미지 선택</button>
-                        <button id="clear-image-queue" class="btn-text">🗑️ 이미지 큐 비우기</button>
-                    </div>
-                    <p class="card-description" style="margin-top: 8px; font-size: 12px; color: #888;">
-                        💡 팁: 이미지를 복사한 후 이 패널에서 <strong>Ctrl+V</strong>를 눌러도 추가할 수 있습니다
-                    </p>
 
                     <!-- 고급 모드 토글 -->
-                    <div class="form-group compact" style="margin-top: 12px;">
+                    <div class="form-group compact" style="margin-bottom: 12px;">
                         <label>
                             <input type="checkbox" id="advanced-mode-toggle" style="margin-right: 8px;">
                             고급 매칭 모드 (썸네일 + 캡션 범위 선택)
                         </label>
                     </div>
 
-                    <div id="image-queue" class="image-list"></div>
+                    <!-- 이미지 요약 정보 -->
+                    <div id="image-summary" class="image-summary">
+                        <div class="summary-text">
+                            <span id="image-count-text">이미지가 없습니다</span>
+                        </div>
+                        <button id="open-image-modal" class="btn-primary" disabled>🔍 크게 관리하기</button>
+                    </div>
+
+                    <p class="card-description" style="margin-top: 8px; font-size: 12px; color: #888;">
+                        💡 팁: 이미지를 복사한 후 이 패널에서 <strong>Ctrl+V</strong>를 눌러도 추가할 수 있습니다
+                    </p>
                 </div>
 
                 <div class="action-card">
@@ -240,8 +243,28 @@
                 </div>
             </div>
         </div>
+
+        <!-- 이미지 관리 모달 -->
+        <div id="image-modal" class="modal-overlay">
+            <div class="modal-container">
+                <div class="modal-header">
+                    <h2>🎬 이미지 매칭 관리</h2>
+                    <button id="close-modal" class="modal-close-btn">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="modal-actions">
+                        <button id="browse-images" class="btn-secondary">📁 이미지 추가</button>
+                        <button id="clear-image-queue" class="btn-text">🗑️ 전체 삭제</button>
+                    </div>
+                    <div id="image-queue" class="image-grid"></div>
+                </div>
+                <div class="modal-footer">
+                    <button id="modal-done" class="btn-primary">✓ 완료</button>
+                </div>
+            </div>
+        </div>
     </div>
-    
+
     <script src="lib/CSInterface.js"></script>
     <script src="js/utils.js"></script>
     <script src="js/di-helpers.js"></script>
@@ -296,6 +319,46 @@
                         icon.textContent = isVisible ? '+' : '−';
                     }
                 });
+            });
+
+            // 모달 열기/닫기 기능
+            const modal = document.getElementById('image-modal');
+            const openModalBtn = document.getElementById('open-image-modal');
+            const closeModalBtn = document.getElementById('close-modal');
+            const doneBtn = document.getElementById('modal-done');
+
+            function openModal() {
+                modal.classList.add('active');
+            }
+
+            function closeModal() {
+                modal.classList.remove('active');
+            }
+
+            if (openModalBtn) {
+                openModalBtn.addEventListener('click', openModal);
+            }
+
+            if (closeModalBtn) {
+                closeModalBtn.addEventListener('click', closeModal);
+            }
+
+            if (doneBtn) {
+                doneBtn.addEventListener('click', closeModal);
+            }
+
+            // 오버레이 클릭 시 닫기
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeModal();
+                }
+            });
+
+            // ESC 키로 닫기
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && modal.classList.contains('active')) {
+                    closeModal();
+                }
             });
         });
     </script>

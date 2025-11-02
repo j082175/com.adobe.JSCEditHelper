@@ -1008,15 +1008,38 @@ var JSCEventManager = (function () {
     function updateImageSummary() {
         var countText = document.getElementById('image-count-text');
         var openModalBtn = document.getElementById('open-image-modal');
-        if (!countText || !openModalBtn)
+        var previewDiv = document.getElementById('image-preview-thumbnails');
+        if (!countText || !openModalBtn || !previewDiv)
             return;
         if (imageMappings.length === 0) {
             countText.textContent = '이미지가 없습니다';
             openModalBtn.disabled = true;
+            previewDiv.innerHTML = '';
         }
         else {
             countText.textContent = "\uC774\uBBF8\uC9C0 ".concat(imageMappings.length, "\uAC1C");
             openModalBtn.disabled = false;
+            // 미리보기 썸네일 렌더링 (최대 5개)
+            previewDiv.innerHTML = '';
+            var maxPreview = 5;
+            var previewCount = Math.min(imageMappings.length, maxPreview);
+            for (var i = 0; i < previewCount; i++) {
+                var mapping = imageMappings[i];
+                var img = document.createElement('img');
+                img.className = 'preview-thumbnail';
+                img.src = "data:image/png;base64,".concat(mapping.thumbnail);
+                img.alt = mapping.fileName;
+                img.title = mapping.fileName;
+                previewDiv.appendChild(img);
+            }
+            // 5개 넘으면 "+N" 표시
+            if (imageMappings.length > maxPreview) {
+                var moreDiv = document.createElement('div');
+                moreDiv.className = 'preview-more';
+                moreDiv.textContent = "+".concat(imageMappings.length - maxPreview);
+                moreDiv.title = "".concat(imageMappings.length - maxPreview, "\uAC1C \uB354 \uC788\uC74C");
+                previewDiv.appendChild(moreDiv);
+            }
         }
     }
     /**

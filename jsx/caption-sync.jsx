@@ -237,6 +237,62 @@ function saveBase64ImageToFile(base64Data, filePath) {
 }
 
 /**
+ * 특정 시간 범위에 클립이 있는지 확인
+ */
+function hasClipInRange(track, startTime, endTime) {
+    try {
+        var clips = track.clips;
+        for (var i = 0; i < clips.numItems; i++) {
+            var clip = clips[i];
+            var clipStart = clip.start.seconds;
+            var clipEnd = clip.end.seconds;
+
+            // 시간 범위가 겹치는지 확인
+            if (clipStart < endTime && clipEnd > startTime) {
+                return true;
+            }
+        }
+        return false;
+    } catch (e) {
+        debugWriteln("hasClipInRange 오류: " + e.toString());
+        return true; // 에러 발생 시 안전하게 클립이 있는 것으로 간주
+    }
+}
+
+/**
+ * 빈 트랙 찾기
+ */
+function findEmptyTrack(videoTracks, startTime, endTime, preferredTrackIndex) {
+    try {
+        debugWriteln("빈 트랙 찾기 시작... (선호 트랙: V" + (preferredTrackIndex + 1) + ")");
+
+        // 1. 선호하는 트랙부터 확인
+        if (preferredTrackIndex >= 0 && preferredTrackIndex < videoTracks.numTracks) {
+            var preferredTrack = videoTracks[preferredTrackIndex];
+            if (!hasClipInRange(preferredTrack, startTime, endTime)) {
+                debugWriteln("선호 트랙 V" + (preferredTrackIndex + 1) + " 사용 가능");
+                return preferredTrackIndex;
+            }
+        }
+
+        // 2. 모든 트랙 검사 (V1부터)
+        for (var i = 0; i < videoTracks.numTracks; i++) {
+            var track = videoTracks[i];
+            if (!hasClipInRange(track, startTime, endTime)) {
+                debugWriteln("빈 트랙 발견: V" + (i + 1));
+                return i;
+            }
+        }
+
+        debugWriteln("모든 트랙이 차있음");
+        return -1; // 빈 트랙 없음
+    } catch (e) {
+        debugWriteln("findEmptyTrack 오류: " + e.toString());
+        return preferredTrackIndex; // 에러 발생 시 원래 트랙 사용
+    }
+}
+
+/**
  * 이미지를 타임라인에 삽입
  */
 function insertImageAtTime(imagePath, trackIndex, startTime, endTime) {
@@ -249,6 +305,30 @@ function insertImageAtTime(imagePath, trackIndex, startTime, endTime) {
                 success: false,
                 message: "활성 시퀀스가 없습니다"
             });
+        }
+
+        var videoTracks = seq.videoTracks;
+        if (trackIndex >= videoTracks.numTracks) {
+            debugWriteln("잘못된 트랙 인덱스: " + trackIndex);
+            return JSCEditHelperJSON.stringify({
+                success: false,
+                message: "잘못된 트랙 인덱스: " + trackIndex
+            });
+        }
+
+        // ✨ 빈 트랙 찾기 (자동)
+        var actualTrackIndex = findEmptyTrack(videoTracks, startTime, endTime, trackIndex);
+
+        if (actualTrackIndex === -1) {
+            debugWriteln("모든 트랙이 차있음 - 새 트랙 생성 시도");
+            // 새 비디오 트랙 추가
+            seq.addVideoTrack();
+            actualTrackIndex = videoTracks.numTracks - 1;
+            debugWriteln("새 트랙 생성됨: V" + (actualTrackIndex + 1));
+        }
+
+        if (actualTrackIndex !== trackIndex) {
+            debugWriteln("트랙 변경: V" + (trackIndex + 1) + " → V" + (actualTrackIndex + 1));
         }
 
         var imageFile = new File(imagePath);
@@ -285,17 +365,8 @@ function insertImageAtTime(imagePath, trackIndex, startTime, endTime) {
 
         debugWriteln("프로젝트 아이템 발견: " + projectItem.name);
 
-        var videoTracks = seq.videoTracks;
-        if (trackIndex >= videoTracks.numTracks) {
-            debugWriteln("잘못된 트랙 인덱스: " + trackIndex);
-            return JSCEditHelperJSON.stringify({
-                success: false,
-                message: "잘못된 트랙 인덱스: " + trackIndex
-            });
-        }
-
-        var targetTrack = videoTracks[trackIndex];
-        debugWriteln("대상 트랙: V" + (trackIndex + 1));
+        var targetTrack = videoTracks[actualTrackIndex];
+        debugWriteln("실제 삽입 트랙: V" + (actualTrackIndex + 1));
 
         var insertTime = new Time();
         insertTime.seconds = startTime;

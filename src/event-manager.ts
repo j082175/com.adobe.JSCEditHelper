@@ -916,13 +916,6 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         const utils = getUtils();
         utils.logDebug('Setting up caption-image sync event listeners...');
 
-        // 위치 확인 버튼
-        const testButton = document.getElementById('test-sync-method');
-        if (testButton) {
-            testButton.addEventListener('click', testSyncMethod);
-            utils.logDebug('Event listener added to test-sync-method button');
-        }
-
         // Paste 이벤트 리스너 (Ctrl+V 감지)
         // 사용자가 이미지를 복사하고 패널에서 Ctrl+V를 누르면 자동으로 이미지 큐에 추가됨
         document.addEventListener('paste', handlePasteEvent);
@@ -1688,56 +1681,6 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     }
 
     /**
-     * 선택한 동기화 방법 테스트
-     */
-    function testSyncMethod(): void {
-        const utils = getUtils();
-        const communication = getCommunication();
-        const resultDiv = document.getElementById('sync-test-result');
-
-        // 선택된 방법 확인
-        const selectedMethod = (document.querySelector('input[name="sync-method"]:checked') as HTMLInputElement)?.value;
-
-        if (!selectedMethod) {
-            if (resultDiv) resultDiv.textContent = '동기화 방법을 선택하세요';
-            return;
-        }
-
-        if (resultDiv) resultDiv.textContent = '확인 중...';
-
-        let scriptCall = '';
-        if (selectedMethod === 'selection') {
-            scriptCall = 'getSelectedClipsForImageSync()';
-        } else if (selectedMethod === 'markers') {
-            scriptCall = 'getMarkersForImageSync()';
-        } else {
-            if (resultDiv) resultDiv.textContent = '수동 입력 모드는 테스트할 수 없습니다';
-            return;
-        }
-
-        utils.logDebug('Testing sync method:', selectedMethod);
-
-        communication.callExtendScript(scriptCall, (result: string) => {
-            try {
-                utils.logDebug('Raw result from ExtendScript:', result);
-                const data = JSON.parse(result);
-                if (data.success) {
-                    const count = data.selectedItems ? data.selectedItems.length : data.markers ? data.markers.length : 0;
-                    if (resultDiv) resultDiv.textContent = `✓ ${data.message} (${count}개 위치)`;
-                    utils.logInfo('Sync test successful:', data.message);
-                } else {
-                    if (resultDiv) resultDiv.textContent = `✗ ${data.message}`;
-                    utils.logWarn('Sync test failed:', data.message);
-                }
-            } catch (e) {
-                if (resultDiv) resultDiv.textContent = `✗ 결과 파싱 실패: ${result}`;
-                utils.logError('Failed to parse sync test result:', result);
-                utils.logError('Parse error:', (e as Error).message);
-            }
-        });
-    }
-
-    /**
      * Base64 이미지를 프로젝트 폴더에 파일로 저장 (Node.js fs 사용 - 매우 빠름!)
      * @param base64Data Base64 인코딩된 이미지 데이터
      * @param fileName 파일명
@@ -2293,7 +2236,6 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     async function startCaptionImageSync(): Promise<void> {
         const utils = getUtils();
         const communication = getCommunication();
-        const resultDiv = document.getElementById('sync-test-result');
 
         // 디버그 정보 수집 시작
         let debugInfo = "=== 캡션-이미지 동기화 디버그 ===\n";
@@ -2301,36 +2243,22 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
 
         // imageMappings 배열 사용 (DOM 대신)
         if (!imageMappings || imageMappings.length === 0) {
-            if (resultDiv) resultDiv.textContent = '✗ 이미지를 먼저 추가하세요';
+            utils.logWarn('이미지를 먼저 추가하세요');
             debugInfo += "ERROR: 이미지가 선택되지 않음\n";
             (window as any).lastDebugInfo = debugInfo;
             return;
         }
 
-        const selectedMethod = (document.querySelector('input[name="sync-method"]:checked') as HTMLInputElement)?.value;
         const targetTrack = parseInt((document.getElementById('target-video-track') as HTMLSelectElement)?.value || '0');
 
-        debugInfo += `동기화 방법: ${selectedMethod}\n`;
         debugInfo += `대상 비디오 트랙: V${targetTrack + 1}\n`;
         debugInfo += `이미지 개수: ${imageMappings.length}\n\n`;
 
-        if (resultDiv) resultDiv.textContent = '동기화 중...';
-        utils.logInfo('Starting caption-image sync:', { method: selectedMethod, track: targetTrack });
+        utils.logInfo('Starting caption-image sync (selection-based):', { track: targetTrack });
 
-        // 위치 정보 가져오기
-        let scriptCall = '';
-        if (selectedMethod === 'selection') {
-            scriptCall = 'getSelectedClipsForImageSync()';
-            debugInfo += "위치 정보: 선택된 클립 기반\n";
-        } else if (selectedMethod === 'markers') {
-            scriptCall = 'getMarkersForImageSync()';
-            debugInfo += "위치 정보: 마커 기반\n";
-        } else {
-            if (resultDiv) resultDiv.textContent = '✗ 수동 입력 모드는 아직 지원되지 않습니다';
-            debugInfo += "ERROR: 수동 입력 모드는 지원되지 않음\n";
-            (window as any).lastDebugInfo = debugInfo;
-            return;
-        }
+        // 선택된 클립 기반으로 위치 정보 가져오기
+        const scriptCall = 'getSelectedClipsForImageSync()';
+        debugInfo += "위치 정보: 선택된 클립 기반\n";
 
         communication.callExtendScript(scriptCall, async (positionResult: string) => {
             try {
@@ -2338,16 +2266,16 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
 
                 const positionData = JSON.parse(positionResult);
                 if (!positionData.success) {
-                    if (resultDiv) resultDiv.textContent = `✗ ${positionData.message}`;
+                    utils.logError(`위치 정보 가져오기 실패: ${positionData.message}`);
                     debugInfo += `ERROR: ${positionData.message}\n`;
                     (window as any).lastDebugInfo = debugInfo;
                     return;
                 }
 
-                const positions = positionData.selectedItems || positionData.markers || [];
+                const positions = positionData.selectedItems || [];
                 if (positions.length === 0) {
-                    if (resultDiv) resultDiv.textContent = '✗ 위치 정보를 찾을 수 없습니다';
-                    debugInfo += "ERROR: 위치 정보를 찾을 수 없음\n";
+                    utils.logWarn('선택된 클립이 없습니다. C1 트랙의 캡션들을 먼저 선택하세요.');
+                    debugInfo += "ERROR: 선택된 클립이 없음\n";
                     (window as any).lastDebugInfo = debugInfo;
                     return;
                 }
@@ -2444,9 +2372,6 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 debugInfo += `총 ${successCount}개 이미지 삽입됨\n`;
                 debugInfo += `종료 시간: ${new Date().toISOString()}\n`;
 
-                if (resultDiv) {
-                    resultDiv.textContent = `✓ ${successCount}개 이미지 동기화 완료`;
-                }
                 utils.logInfo(`Caption-image sync completed: ${successCount} images inserted`);
 
                 // 디버그 정보 저장
@@ -2457,7 +2382,6 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 debugInfo += `Stack: ${(e as Error).stack}\n`;
                 (window as any).lastDebugInfo = debugInfo;
 
-                if (resultDiv) resultDiv.textContent = '✗ 동기화 실패';
                 utils.logError('Failed to sync caption-images:', (e as Error).message);
             }
         });

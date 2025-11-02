@@ -948,12 +948,6 @@ var JSCEventManager = (function () {
     function setupCaptionEventListeners() {
         var utils = getUtils();
         utils.logDebug('Setting up caption-image sync event listeners...');
-        // 위치 확인 버튼
-        var testButton = document.getElementById('test-sync-method');
-        if (testButton) {
-            testButton.addEventListener('click', testSyncMethod);
-            utils.logDebug('Event listener added to test-sync-method button');
-        }
         // Paste 이벤트 리스너 (Ctrl+V 감지)
         // 사용자가 이미지를 복사하고 패널에서 Ctrl+V를 누르면 자동으로 이미지 큐에 추가됨
         document.addEventListener('paste', handlePasteEvent);
@@ -1585,60 +1579,6 @@ var JSCEventManager = (function () {
         }
     }
     /**
-     * 선택한 동기화 방법 테스트
-     */
-    function testSyncMethod() {
-        var _a;
-        var utils = getUtils();
-        var communication = getCommunication();
-        var resultDiv = document.getElementById('sync-test-result');
-        // 선택된 방법 확인
-        var selectedMethod = (_a = document.querySelector('input[name="sync-method"]:checked')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!selectedMethod) {
-            if (resultDiv)
-                resultDiv.textContent = '동기화 방법을 선택하세요';
-            return;
-        }
-        if (resultDiv)
-            resultDiv.textContent = '확인 중...';
-        var scriptCall = '';
-        if (selectedMethod === 'selection') {
-            scriptCall = 'getSelectedClipsForImageSync()';
-        }
-        else if (selectedMethod === 'markers') {
-            scriptCall = 'getMarkersForImageSync()';
-        }
-        else {
-            if (resultDiv)
-                resultDiv.textContent = '수동 입력 모드는 테스트할 수 없습니다';
-            return;
-        }
-        utils.logDebug('Testing sync method:', selectedMethod);
-        communication.callExtendScript(scriptCall, function (result) {
-            try {
-                utils.logDebug('Raw result from ExtendScript:', result);
-                var data = JSON.parse(result);
-                if (data.success) {
-                    var count = data.selectedItems ? data.selectedItems.length : data.markers ? data.markers.length : 0;
-                    if (resultDiv)
-                        resultDiv.textContent = "\u2713 ".concat(data.message, " (").concat(count, "\uAC1C \uC704\uCE58)");
-                    utils.logInfo('Sync test successful:', data.message);
-                }
-                else {
-                    if (resultDiv)
-                        resultDiv.textContent = "\u2717 ".concat(data.message);
-                    utils.logWarn('Sync test failed:', data.message);
-                }
-            }
-            catch (e) {
-                if (resultDiv)
-                    resultDiv.textContent = "\u2717 \uACB0\uACFC \uD30C\uC2F1 \uC2E4\uD328: ".concat(result);
-                utils.logError('Failed to parse sync test result:', result);
-                utils.logError('Parse error:', e.message);
-            }
-        });
-    }
-    /**
      * Base64 이미지를 프로젝트 폴더에 파일로 저장 (Node.js fs 사용 - 매우 빠름!)
      * @param base64Data Base64 인코딩된 이미지 데이터
      * @param fileName 파일명
@@ -2200,47 +2140,27 @@ var JSCEventManager = (function () {
      */
     function startCaptionImageSync() {
         return __awaiter(this, void 0, void 0, function () {
-            var utils, communication, resultDiv, debugInfo, selectedMethod, targetTrack, scriptCall;
+            var utils, communication, debugInfo, targetTrack, scriptCall;
             var _this = this;
-            var _a, _b;
-            return __generator(this, function (_c) {
+            var _a;
+            return __generator(this, function (_b) {
                 utils = getUtils();
                 communication = getCommunication();
-                resultDiv = document.getElementById('sync-test-result');
                 debugInfo = "=== 캡션-이미지 동기화 디버그 ===\n";
                 debugInfo += "\uC2DC\uC791 \uC2DC\uAC04: ".concat(new Date().toISOString(), "\n");
                 // imageMappings 배열 사용 (DOM 대신)
                 if (!imageMappings || imageMappings.length === 0) {
-                    if (resultDiv)
-                        resultDiv.textContent = '✗ 이미지를 먼저 추가하세요';
+                    utils.logWarn('이미지를 먼저 추가하세요');
                     debugInfo += "ERROR: 이미지가 선택되지 않음\n";
                     window.lastDebugInfo = debugInfo;
                     return [2 /*return*/];
                 }
-                selectedMethod = (_a = document.querySelector('input[name="sync-method"]:checked')) === null || _a === void 0 ? void 0 : _a.value;
-                targetTrack = parseInt(((_b = document.getElementById('target-video-track')) === null || _b === void 0 ? void 0 : _b.value) || '0');
-                debugInfo += "\uB3D9\uAE30\uD654 \uBC29\uBC95: ".concat(selectedMethod, "\n");
+                targetTrack = parseInt(((_a = document.getElementById('target-video-track')) === null || _a === void 0 ? void 0 : _a.value) || '0');
                 debugInfo += "\uB300\uC0C1 \uBE44\uB514\uC624 \uD2B8\uB799: V".concat(targetTrack + 1, "\n");
                 debugInfo += "\uC774\uBBF8\uC9C0 \uAC1C\uC218: ".concat(imageMappings.length, "\n\n");
-                if (resultDiv)
-                    resultDiv.textContent = '동기화 중...';
-                utils.logInfo('Starting caption-image sync:', { method: selectedMethod, track: targetTrack });
-                scriptCall = '';
-                if (selectedMethod === 'selection') {
-                    scriptCall = 'getSelectedClipsForImageSync()';
-                    debugInfo += "위치 정보: 선택된 클립 기반\n";
-                }
-                else if (selectedMethod === 'markers') {
-                    scriptCall = 'getMarkersForImageSync()';
-                    debugInfo += "위치 정보: 마커 기반\n";
-                }
-                else {
-                    if (resultDiv)
-                        resultDiv.textContent = '✗ 수동 입력 모드는 아직 지원되지 않습니다';
-                    debugInfo += "ERROR: 수동 입력 모드는 지원되지 않음\n";
-                    window.lastDebugInfo = debugInfo;
-                    return [2 /*return*/];
-                }
+                utils.logInfo('Starting caption-image sync (selection-based):', { track: targetTrack });
+                scriptCall = 'getSelectedClipsForImageSync()';
+                debugInfo += "위치 정보: 선택된 클립 기반\n";
                 communication.callExtendScript(scriptCall, function (positionResult) { return __awaiter(_this, void 0, void 0, function () {
                     var positionData, positions, successCount_1, syncDebugMsg, cumulativeCaptionIndex, _loop_3, i, e_7;
                     return __generator(this, function (_a) {
@@ -2250,17 +2170,15 @@ var JSCEventManager = (function () {
                                 debugInfo += "\nJSX \uD638\uCD9C \uACB0\uACFC: ".concat(positionResult.substring(0, 100), "...\n");
                                 positionData = JSON.parse(positionResult);
                                 if (!positionData.success) {
-                                    if (resultDiv)
-                                        resultDiv.textContent = "\u2717 ".concat(positionData.message);
+                                    utils.logError("\uC704\uCE58 \uC815\uBCF4 \uAC00\uC838\uC624\uAE30 \uC2E4\uD328: ".concat(positionData.message));
                                     debugInfo += "ERROR: ".concat(positionData.message, "\n");
                                     window.lastDebugInfo = debugInfo;
                                     return [2 /*return*/];
                                 }
-                                positions = positionData.selectedItems || positionData.markers || [];
+                                positions = positionData.selectedItems || [];
                                 if (positions.length === 0) {
-                                    if (resultDiv)
-                                        resultDiv.textContent = '✗ 위치 정보를 찾을 수 없습니다';
-                                    debugInfo += "ERROR: 위치 정보를 찾을 수 없음\n";
+                                    utils.logWarn('선택된 클립이 없습니다. C1 트랙의 캡션들을 먼저 선택하세요.');
+                                    debugInfo += "ERROR: 선택된 클립이 없음\n";
                                     window.lastDebugInfo = debugInfo;
                                     return [2 /*return*/];
                                 }
@@ -2356,9 +2274,6 @@ var JSCEventManager = (function () {
                                 debugInfo += "\n===== \uB3D9\uAE30\uD654 \uC644\uB8CC =====\n";
                                 debugInfo += "\uCD1D ".concat(successCount_1, "\uAC1C \uC774\uBBF8\uC9C0 \uC0BD\uC785\uB428\n");
                                 debugInfo += "\uC885\uB8CC \uC2DC\uAC04: ".concat(new Date().toISOString(), "\n");
-                                if (resultDiv) {
-                                    resultDiv.textContent = "\u2713 ".concat(successCount_1, "\uAC1C \uC774\uBBF8\uC9C0 \uB3D9\uAE30\uD654 \uC644\uB8CC");
-                                }
                                 utils.logInfo("Caption-image sync completed: ".concat(successCount_1, " images inserted"));
                                 // 디버그 정보 저장
                                 window.lastDebugInfo = debugInfo;
@@ -2368,8 +2283,6 @@ var JSCEventManager = (function () {
                                 debugInfo += "\nERROR: ".concat(e_7.message, "\n");
                                 debugInfo += "Stack: ".concat(e_7.stack, "\n");
                                 window.lastDebugInfo = debugInfo;
-                                if (resultDiv)
-                                    resultDiv.textContent = '✗ 동기화 실패';
                                 utils.logError('Failed to sync caption-images:', e_7.message);
                                 return [3 /*break*/, 6];
                             case 6: return [2 /*return*/];

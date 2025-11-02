@@ -2472,8 +2472,63 @@ function insertImageAtTime(imagePath, trackIndex, startTime, endTime) {
             return JSCEditHelperJSON.stringify({success: false, message: "잘못된 트랙 인덱스", debug: debugLog});
         }
 
-        var targetTrack = videoTracks[trackIndex];
-        debugLog += "대상 트랙: V" + (trackIndex + 1) + "\n";
+        // ✨ 빈 트랙 찾기 (자동)
+        var actualTrackIndex = trackIndex;
+        debugLog += "빈 트랙 찾기 시작 (선호 트랙: V" + (trackIndex + 1) + ")...\n";
+
+        // 1. 선호하는 트랙 확인
+        var preferredTrack = videoTracks[trackIndex];
+        var hasClip = false;
+        for (var c = 0; c < preferredTrack.clips.numItems; c++) {
+            var clip = preferredTrack.clips[c];
+            var clipStart = clip.start.seconds;
+            var clipEnd = clip.end.seconds;
+            if (clipStart < endTime && clipEnd > startTime) {
+                hasClip = true;
+                debugLog += "  V" + (trackIndex + 1) + " 트랙에 클립 있음 (충돌)\n";
+                break;
+            }
+        }
+
+        // 2. 선호 트랙에 클립이 있으면 빈 트랙 찾기
+        if (hasClip) {
+            debugLog += "빈 트랙 검색 중...\n";
+            var foundEmpty = false;
+            for (var t = 0; t < videoTracks.numTracks; t++) {
+                var track = videoTracks[t];
+                var trackHasClip = false;
+                for (var tc = 0; tc < track.clips.numItems; tc++) {
+                    var tclip = track.clips[tc];
+                    var tclipStart = tclip.start.seconds;
+                    var tclipEnd = tclip.end.seconds;
+                    if (tclipStart < endTime && tclipEnd > startTime) {
+                        trackHasClip = true;
+                        break;
+                    }
+                }
+                if (!trackHasClip) {
+                    actualTrackIndex = t;
+                    foundEmpty = true;
+                    debugLog += "빈 트랙 발견: V" + (t + 1) + "\n";
+                    break;
+                }
+            }
+
+            // 3. 모든 트랙이 차있으면 새 트랙 생성
+            if (!foundEmpty) {
+                debugLog += "모든 트랙이 차있음 - 새 트랙 생성\n";
+                seq.addVideoTrack();
+                actualTrackIndex = videoTracks.numTracks - 1;
+                debugLog += "새 트랙 생성됨: V" + (actualTrackIndex + 1) + "\n";
+            }
+        }
+
+        if (actualTrackIndex !== trackIndex) {
+            debugLog += "트랙 변경: V" + (trackIndex + 1) + " → V" + (actualTrackIndex + 1) + "\n";
+        }
+
+        var targetTrack = videoTracks[actualTrackIndex];
+        debugLog += "실제 삽입 트랙: V" + (actualTrackIndex + 1) + "\n";
         debugLog += "삽입 전 트랙의 클립 수: " + targetTrack.clips.numItems + "\n";
 
         var insertTime = new Time();

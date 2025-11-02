@@ -2118,34 +2118,39 @@ var JSCEventManager = (function () {
                                 console.log("[SYNC] ".concat(syncDebugMsg));
                                 cumulativeCaptionIndex = 0;
                                 _loop_3 = function (i) {
-                                    var mapping, imagePath, positionIndex, captionStart, captionEnd, position, escapedPath, insertScript;
+                                    var mapping, imagePath, firstPositionIndex, lastPositionIndex, captionStart, captionEnd, firstPosition, lastPosition, startTime, endTime, escapedPath, insertScript;
                                     return __generator(this, function (_b) {
                                         switch (_b.label) {
                                             case 0:
                                                 debugInfo += "\n===== \uB8E8\uD504 ".concat(i + 1, "/").concat(imageMappings.length, " =====\n");
                                                 mapping = imageMappings[i];
                                                 imagePath = mapping.filePath;
-                                                positionIndex = cumulativeCaptionIndex;
+                                                firstPositionIndex = cumulativeCaptionIndex;
+                                                lastPositionIndex = cumulativeCaptionIndex + mapping.captionCount - 1;
                                                 captionStart = cumulativeCaptionIndex + 1;
                                                 captionEnd = cumulativeCaptionIndex + mapping.captionCount;
                                                 debugInfo += "\uCEA1\uC158 \uAC1C\uC218: ".concat(mapping.captionCount, "\uAC1C (\uBC94\uC704: ").concat(captionStart, "-").concat(captionEnd, ")\n");
                                                 // 다음 이미지를 위해 누적 카운터 업데이트
                                                 cumulativeCaptionIndex += mapping.captionCount;
-                                                position = positions[positionIndex];
+                                                firstPosition = positions[firstPositionIndex];
+                                                lastPosition = positions[lastPositionIndex];
                                                 debugInfo += "\uC774\uBBF8\uC9C0 \uC778\uB371\uC2A4: ".concat(i, "\n");
-                                                debugInfo += "\uC704\uCE58 \uC778\uB371\uC2A4: ".concat(positionIndex, "\n");
+                                                debugInfo += "\uCCAB \uCEA1\uC158 \uC778\uB371\uC2A4: ".concat(firstPositionIndex, "\n");
+                                                debugInfo += "\uB9C8\uC9C0\uB9C9 \uCEA1\uC158 \uC778\uB371\uC2A4: ".concat(lastPositionIndex, "\n");
                                                 debugInfo += "\uC774\uBBF8\uC9C0 \uD30C\uC77C: ".concat(mapping.fileName, "\n");
-                                                debugInfo += "\uC704\uCE58: ".concat(position ? position.start + 's ~ ' + position.end + 's' : 'undefined', "\n");
-                                                if (!position) {
-                                                    debugInfo += "ERROR: \uC704\uCE58 \uC815\uBCF4\uAC00 \uC5C6\uC74C (\uC778\uB371\uC2A4 ".concat(positionIndex, ")\n");
-                                                    utils.logWarn("[".concat(i, "] \uC704\uCE58 \uC815\uBCF4\uAC00 \uC5C6\uC74C (\uC704\uCE58 \uC778\uB371\uC2A4: ").concat(positionIndex, ")"));
+                                                if (!firstPosition || !lastPosition) {
+                                                    debugInfo += "ERROR: \uC704\uCE58 \uC815\uBCF4\uAC00 \uC5C6\uC74C (\uCCAB \uCEA1\uC158: ".concat(firstPositionIndex, ", \uB9C8\uC9C0\uB9C9 \uCEA1\uC158: ").concat(lastPositionIndex, ")\n");
+                                                    utils.logWarn("[".concat(i, "] \uC704\uCE58 \uC815\uBCF4\uAC00 \uC5C6\uC74C (\uCCAB \uCEA1\uC158: ").concat(firstPositionIndex, ", \uB9C8\uC9C0\uB9C9 \uCEA1\uC158: ").concat(lastPositionIndex, ")"));
                                                     return [2 /*return*/, "continue"];
                                                 }
+                                                startTime = firstPosition.start;
+                                                endTime = lastPosition.end;
+                                                debugInfo += "\uC704\uCE58: ".concat(startTime, "s ~ ").concat(endTime, "s (\uAE38\uC774: ").concat((endTime - startTime).toFixed(2), "s)\n");
                                                 // 파일 경로 처리
                                                 debugInfo += "\uD30C\uC77C \uACBD\uB85C: ".concat(imagePath, "\n");
                                                 escapedPath = imagePath.replace(/\\/g, '\\\\');
                                                 debugInfo += "\uC774\uC2A4\uCF00\uC774\uD504\uB41C \uACBD\uB85C: ".concat(escapedPath, "\n");
-                                                insertScript = "insertImageAtTime(\"".concat(escapedPath, "\", ").concat(targetTrack, ", ").concat(position.start, ", ").concat(position.end, ")");
+                                                insertScript = "insertImageAtTime(\"".concat(escapedPath, "\", ").concat(targetTrack, ", ").concat(startTime, ", ").concat(endTime, ")");
                                                 debugInfo += "JSX \uC2E4\uD589: ".concat(insertScript.substring(0, 100), "...\n");
                                                 return [4 /*yield*/, new Promise(function (resolve) {
                                                         communication.callExtendScript(insertScript, function (insertResult) {

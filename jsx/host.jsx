@@ -2495,9 +2495,40 @@ function insertImageAtTime(imagePath, trackIndex, startTime, endTime) {
             debugLog += "  클립[" + i + "]: start=" + clip.start.seconds + "s, end=" + clip.end.seconds + "s, name=" + clip.name + "\n";
             if (Math.abs(clip.start.seconds - startTime) < 0.1) {
                 debugLog += "  → 이 클립을 길이 조정합니다!\n";
-                clip.end.seconds = endTime;
+
+                // Time 객체를 생성해서 설정 시도
+                var newEndTime = new Time();
+                newEndTime.seconds = endTime;
+
+                // 방법 1: Time 객체로 직접 설정
+                try {
+                    clip.end = newEndTime;
+                    debugLog += "  → 방법1(clip.end = Time) 시도됨\n";
+                } catch (e) {
+                    debugLog += "  → 방법1 실패: " + e.toString() + "\n";
+                }
+
+                // 방법 2: seconds 속성으로 설정 (기존 방식)
+                try {
+                    clip.end.seconds = endTime;
+                    debugLog += "  → 방법2(clip.end.seconds) 시도됨\n";
+                } catch (e) {
+                    debugLog += "  → 방법2 실패: " + e.toString() + "\n";
+                }
+
+                // 확인: 실제로 변경되었는지 체크
+                var actualEnd = clip.end.seconds;
                 var duration = endTime - startTime;
-                debugLog += "  → 길이 조정 완료: " + duration + "초 (end=" + endTime + "s)\n";
+                var actualDuration = actualEnd - clip.start.seconds;
+                debugLog += "  → 목표 end: " + endTime + "s, 실제 end: " + actualEnd + "s\n";
+                debugLog += "  → 목표 길이: " + duration + "초, 실제 길이: " + actualDuration + "초\n";
+
+                if (Math.abs(actualEnd - endTime) < 0.01) {
+                    debugLog += "  → ✓ 길이 조정 성공!\n";
+                } else {
+                    debugLog += "  → ✗ 길이 조정 실패 (API가 변경을 무시함)\n";
+                }
+
                 adjustedClips++;
                 clipFound = true;
                 break;

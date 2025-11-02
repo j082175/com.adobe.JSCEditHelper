@@ -2204,7 +2204,8 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                     const imagePath = mapping.filePath;
 
                     // 위치 인덱스 결정 (누적 계산, 0-based)
-                    const positionIndex = cumulativeCaptionIndex;
+                    const firstPositionIndex = cumulativeCaptionIndex;
+                    const lastPositionIndex = cumulativeCaptionIndex + mapping.captionCount - 1;
                     const captionStart = cumulativeCaptionIndex + 1;
                     const captionEnd = cumulativeCaptionIndex + mapping.captionCount;
                     debugInfo += `캡션 개수: ${mapping.captionCount}개 (범위: ${captionStart}-${captionEnd})\n`;
@@ -2212,18 +2213,24 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                     // 다음 이미지를 위해 누적 카운터 업데이트
                     cumulativeCaptionIndex += mapping.captionCount;
 
-                    const position = positions[positionIndex];
+                    const firstPosition = positions[firstPositionIndex];
+                    const lastPosition = positions[lastPositionIndex];
 
                     debugInfo += `이미지 인덱스: ${i}\n`;
-                    debugInfo += `위치 인덱스: ${positionIndex}\n`;
+                    debugInfo += `첫 캡션 인덱스: ${firstPositionIndex}\n`;
+                    debugInfo += `마지막 캡션 인덱스: ${lastPositionIndex}\n`;
                     debugInfo += `이미지 파일: ${mapping.fileName}\n`;
-                    debugInfo += `위치: ${position ? position.start + 's ~ ' + position.end + 's' : 'undefined'}\n`;
 
-                    if (!position) {
-                        debugInfo += `ERROR: 위치 정보가 없음 (인덱스 ${positionIndex})\n`;
-                        utils.logWarn(`[${i}] 위치 정보가 없음 (위치 인덱스: ${positionIndex})`);
+                    if (!firstPosition || !lastPosition) {
+                        debugInfo += `ERROR: 위치 정보가 없음 (첫 캡션: ${firstPositionIndex}, 마지막 캡션: ${lastPositionIndex})\n`;
+                        utils.logWarn(`[${i}] 위치 정보가 없음 (첫 캡션: ${firstPositionIndex}, 마지막 캡션: ${lastPositionIndex})`);
                         continue;
                     }
+
+                    // 이미지는 첫 캡션 시작부터 마지막 캡션 끝까지 커버
+                    const startTime = firstPosition.start;
+                    const endTime = lastPosition.end;
+                    debugInfo += `위치: ${startTime}s ~ ${endTime}s (길이: ${(endTime - startTime).toFixed(2)}s)\n`;
 
                     // 파일 경로 처리
                     debugInfo += `파일 경로: ${imagePath}\n`;
@@ -2232,7 +2239,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                     const escapedPath = imagePath.replace(/\\/g, '\\\\');
                     debugInfo += `이스케이프된 경로: ${escapedPath}\n`;
 
-                    const insertScript = `insertImageAtTime("${escapedPath}", ${targetTrack}, ${position.start}, ${position.end})`;
+                    const insertScript = `insertImageAtTime("${escapedPath}", ${targetTrack}, ${startTime}, ${endTime})`;
 
                     debugInfo += `JSX 실행: ${insertScript.substring(0, 100)}...\n`;
 

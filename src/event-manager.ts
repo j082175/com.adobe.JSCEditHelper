@@ -125,6 +125,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             setupMagnetButton();
             setupFolderInput();
             setupDebugUI();
+            setupCaptionEventListeners(); // 캡션-이미지 동기화 이벤트
             utils.logDebug('Event listeners setup completed');
         } catch (e) {
             utils.logError('Event listeners setup failed:', (e as Error).message);
@@ -889,7 +890,399 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             }, 100);
         });
     }
-    
+
+    // ===== 캡션-이미지 동기화 기능 =====
+
+    /**
+     * 캡션-이미지 동기화 이벤트 리스너 설정
+     */
+    function setupCaptionEventListeners(): void {
+        const utils = getUtils();
+        utils.logDebug('Setting up caption-image sync event listeners...');
+
+        // 위치 확인 버튼
+        const testButton = document.getElementById('test-sync-method');
+        if (testButton) {
+            testButton.addEventListener('click', testSyncMethod);
+            utils.logDebug('Event listener added to test-sync-method button');
+        }
+
+        // 이미지 붙여넣기 버튼
+        const pasteButton = document.getElementById('paste-image');
+        if (pasteButton) {
+            pasteButton.addEventListener('click', pasteImageFromClipboard);
+            utils.logDebug('Event listener added to paste-image button');
+        }
+
+        // 이미지 찾기 버튼
+        const browseButton = document.getElementById('browse-images');
+        if (browseButton) {
+            browseButton.addEventListener('click', browseImagesForSync);
+            utils.logDebug('Event listener added to browse-images button');
+        }
+
+        // 동기화 시작 버튼
+        const syncButton = document.getElementById('sync-caption-images');
+        if (syncButton) {
+            syncButton.addEventListener('click', startCaptionImageSync);
+            utils.logDebug('Event listener added to sync-caption-images button');
+        }
+
+        // 이미지 큐 비우기 버튼
+        const clearQueueButton = document.getElementById('clear-image-queue');
+        if (clearQueueButton) {
+            clearQueueButton.addEventListener('click', clearImageQueue);
+            utils.logDebug('Event listener added to clear-image-queue button');
+        }
+    }
+
+    /**
+     * 선택한 동기화 방법 테스트
+     */
+    function testSyncMethod(): void {
+        const utils = getUtils();
+        const communication = getCommunication();
+        const resultDiv = document.getElementById('sync-test-result');
+
+        // 선택된 방법 확인
+        const selectedMethod = (document.querySelector('input[name="sync-method"]:checked') as HTMLInputElement)?.value;
+
+        if (!selectedMethod) {
+            if (resultDiv) resultDiv.textContent = '동기화 방법을 선택하세요';
+            return;
+        }
+
+        if (resultDiv) resultDiv.textContent = '확인 중...';
+
+        let scriptCall = '';
+        if (selectedMethod === 'selection') {
+            scriptCall = 'getSelectedClipsForImageSync()';
+        } else if (selectedMethod === 'markers') {
+            scriptCall = 'getMarkersForImageSync()';
+        } else {
+            if (resultDiv) resultDiv.textContent = '수동 입력 모드는 테스트할 수 없습니다';
+            return;
+        }
+
+        utils.logDebug('Testing sync method:', selectedMethod);
+
+        communication.callExtendScript(scriptCall, (result: string) => {
+            try {
+                utils.logDebug('Raw result from ExtendScript:', result);
+                const data = JSON.parse(result);
+                if (data.success) {
+                    const count = data.selectedItems ? data.selectedItems.length : data.markers ? data.markers.length : 0;
+                    if (resultDiv) resultDiv.textContent = `✓ ${data.message} (${count}개 위치)`;
+                    utils.logInfo('Sync test successful:', data.message);
+                } else {
+                    if (resultDiv) resultDiv.textContent = `✗ ${data.message}`;
+                    utils.logWarn('Sync test failed:', data.message);
+                }
+            } catch (e) {
+                if (resultDiv) resultDiv.textContent = `✗ 결과 파싱 실패: ${result}`;
+                utils.logError('Failed to parse sync test result:', result);
+                utils.logError('Parse error:', (e as Error).message);
+            }
+        });
+    }
+
+    /**
+     * 클립보드에서 이미지 붙여넣기 (CEP 환경에서 지원 안 됨)
+     */
+    async function pasteImageFromClipboard(): Promise<void> {
+        const resultDiv = document.getElementById('sync-test-result');
+        if (resultDiv) {
+            resultDiv.textContent = '✗ CEP 환경에서는 클립보드 붙여넣기가 지원되지 않습니다. "이미지 선택" 버튼을 사용하세요.';
+        }
+    }
+
+    /**
+     * 이미지 파일 찾기
+     */
+    function browseImagesForSync(): void {
+        const utils = getUtils();
+        const communication = getCommunication();
+        const resultDiv = document.getElementById('sync-test-result');
+
+        if (resultDiv) resultDiv.textContent = '이미지 선택 중...';
+
+        // JSX에서 파일 선택 다이얼로그 열기
+        const script = `
+            var files = File.openDialog("이미지 파일 선택", "Image Files:*.png;*.jpg;*.jpeg", true);
+            if (files) {
+                var result = [];
+                if (files instanceof Array) {
+                    for (var i = 0; i < files.length; i++) {
+                        result.push(files[i].fsName);
+                    }
+                } else {
+                    result.push(files.fsName);
+                }
+                JSON.stringify({ success: true, files: result });
+            } else {
+                JSON.stringify({ success: false, message: "취소됨" });
+            }
+        `;
+
+        communication.callExtendScript(script, (result: string) => {
+            try {
+                const data = JSON.parse(result);
+                if (data.success && data.files) {
+                    data.files.forEach((filePath: string) => {
+                        const fileName = filePath.split('\\').pop()?.split('/').pop() || 'image.png';
+                        // 파일 경로를 큐에 추가 (실제로는 base64로 변환 필요)
+                        addImageToQueue(filePath, fileName);
+                    });
+                    if (resultDiv) resultDiv.textContent = `✓ ${data.files.length}개 이미지 추가됨`;
+                } else {
+                    if (resultDiv) resultDiv.textContent = '이미지 선택 취소됨';
+                }
+            } catch (e) {
+                if (resultDiv) resultDiv.textContent = '✗ 이미지 선택 실패';
+                utils.logError('Failed to browse images:', (e as Error).message);
+            }
+        });
+    }
+
+    /**
+     * 이미지를 큐에 추가
+     */
+    function addImageToQueue(imageDataOrPath: string, fileName: string): void {
+        const queueDiv = document.getElementById('image-queue');
+        if (!queueDiv) return;
+
+        const imageItem = document.createElement('div');
+        imageItem.className = 'image-queue-item';
+        imageItem.innerHTML = `
+            <span>${fileName}</span>
+            <button class="btn-remove" onclick="this.parentElement.remove()">✕</button>
+        `;
+        imageItem.dataset.imageData = imageDataOrPath;
+        imageItem.dataset.fileName = fileName;
+
+        queueDiv.appendChild(imageItem);
+
+        // 동기화 버튼 활성화
+        const syncButton = document.getElementById('sync-caption-images') as HTMLButtonElement;
+        if (syncButton) {
+            syncButton.disabled = false;
+        }
+    }
+
+    /**
+     * 이미지 큐 비우기
+     */
+    function clearImageQueue(): void {
+        const utils = getUtils();
+        const queueDiv = document.getElementById('image-queue');
+
+        if (!queueDiv) {
+            utils.logWarn('Image queue element not found');
+            return;
+        }
+
+        const imageCount = queueDiv.querySelectorAll('.image-queue-item').length;
+
+        if (imageCount === 0) {
+            utils.logInfo('Image queue is already empty');
+            return;
+        }
+
+        // 큐 비우기
+        queueDiv.innerHTML = '';
+
+        // 동기화 버튼 비활성화
+        const syncButton = document.getElementById('sync-caption-images') as HTMLButtonElement;
+        if (syncButton) {
+            syncButton.disabled = true;
+        }
+
+        utils.logInfo(`Image queue cleared: ${imageCount} images removed`);
+
+        // 결과 메시지 표시
+        const resultDiv = document.getElementById('sync-test-result');
+        if (resultDiv) {
+            resultDiv.textContent = `✓ ${imageCount}개 이미지 제거됨`;
+        }
+    }
+
+    /**
+     * 캡션-이미지 동기화 시작
+     */
+    async function startCaptionImageSync(): Promise<void> {
+        const utils = getUtils();
+        const communication = getCommunication();
+        const resultDiv = document.getElementById('sync-test-result');
+
+        // 디버그 정보 수집 시작
+        let debugInfo = "=== 캡션-이미지 동기화 디버그 ===\n";
+        debugInfo += `시작 시간: ${new Date().toISOString()}\n`;
+
+        const queueDiv = document.getElementById('image-queue');
+        const imageItems = queueDiv?.querySelectorAll('.image-queue-item');
+
+        if (!imageItems || imageItems.length === 0) {
+            if (resultDiv) resultDiv.textContent = '✗ 이미지를 먼저 추가하세요';
+            debugInfo += "ERROR: 이미지가 선택되지 않음\n";
+            (window as any).lastDebugInfo = debugInfo;
+            return;
+        }
+
+        const selectedMethod = (document.querySelector('input[name="sync-method"]:checked') as HTMLInputElement)?.value;
+        const captionGroup = parseInt((document.getElementById('caption-group') as HTMLSelectElement)?.value || '1');
+        const targetTrack = parseInt((document.getElementById('target-video-track') as HTMLSelectElement)?.value || '0');
+
+        debugInfo += `동기화 방법: ${selectedMethod}\n`;
+        debugInfo += `캡션 그룹화: ${captionGroup}\n`;
+        debugInfo += `대상 비디오 트랙: V${targetTrack + 1}\n`;
+        debugInfo += `이미지 개수: ${imageItems.length}\n\n`;
+
+        if (resultDiv) resultDiv.textContent = '동기화 중...';
+        utils.logInfo('Starting caption-image sync:', { method: selectedMethod, group: captionGroup, track: targetTrack });
+
+        // 위치 정보 가져오기
+        let scriptCall = '';
+        if (selectedMethod === 'selection') {
+            scriptCall = 'getSelectedClipsForImageSync()';
+            debugInfo += "위치 정보: 선택된 클립 기반\n";
+        } else if (selectedMethod === 'markers') {
+            scriptCall = 'getMarkersForImageSync()';
+            debugInfo += "위치 정보: 마커 기반\n";
+        } else {
+            if (resultDiv) resultDiv.textContent = '✗ 수동 입력 모드는 아직 지원되지 않습니다';
+            debugInfo += "ERROR: 수동 입력 모드는 지원되지 않음\n";
+            (window as any).lastDebugInfo = debugInfo;
+            return;
+        }
+
+        communication.callExtendScript(scriptCall, async (positionResult: string) => {
+            try {
+                debugInfo += `\nJSX 호출 결과: ${positionResult.substring(0, 100)}...\n`;
+
+                const positionData = JSON.parse(positionResult);
+                if (!positionData.success) {
+                    if (resultDiv) resultDiv.textContent = `✗ ${positionData.message}`;
+                    debugInfo += `ERROR: ${positionData.message}\n`;
+                    (window as any).lastDebugInfo = debugInfo;
+                    return;
+                }
+
+                const positions = positionData.selectedItems || positionData.markers || [];
+                if (positions.length === 0) {
+                    if (resultDiv) resultDiv.textContent = '✗ 위치 정보를 찾을 수 없습니다';
+                    debugInfo += "ERROR: 위치 정보를 찾을 수 없음\n";
+                    (window as any).lastDebugInfo = debugInfo;
+                    return;
+                }
+
+                // 이미지와 위치 매칭
+                let successCount = 0;
+                debugInfo += `\n총 위치: ${positions.length}개\n`;
+                debugInfo += `루프 반복 횟수: ${imageItems.length}번\n\n`;
+
+                const syncDebugMsg = `총 이미지: ${imageItems.length}, 총 위치: ${positions.length}, 그룹화: ${captionGroup}`;
+                utils.logInfo(syncDebugMsg);
+                console.log(`[SYNC] ${syncDebugMsg}`);
+
+                for (let i = 0; i < imageItems.length && i < positions.length; i++) {
+                    debugInfo += `\n===== 루프 ${i+1}/${imageItems.length} =====\n`;
+
+                    const imageItem = imageItems[i] as HTMLElement;
+                    const imageData = imageItem.dataset.imageData || '';
+                    const positionIndex = i * captionGroup;
+                    const position = positions[positionIndex]; // 그룹화 적용
+
+                    debugInfo += `이미지 인덱스: ${i}\n`;
+                    debugInfo += `위치 인덱스: ${positionIndex} (그룹화=${captionGroup})\n`;
+                    debugInfo += `이미지: ${imageData.substring(0, 80)}...\n`;
+                    debugInfo += `위치: ${position ? position.start + 's ~ ' + position.end + 's' : 'undefined'}\n`;
+
+                    if (!position) {
+                        debugInfo += `ERROR: 위치 정보가 없음 (인덱스 ${positionIndex})\n`;
+                        utils.logWarn(`[${i}] 위치 정보가 없음 (그룹 인덱스: ${i * captionGroup})`);
+                        continue;
+                    }
+
+                    // imageData가 파일 경로인지 Base64인지 확인
+                    const isFilePath = imageData.includes('\\') || imageData.includes('/');
+                    debugInfo += `파일 경로 여부: ${isFilePath}\n`;
+
+                    let insertScript = '';
+                    if (isFilePath) {
+                        // 파일 경로인 경우 바로 삽입
+                        // 백슬래시 이스케이프: ExtendScript에서 제대로 인식하도록 \를 \\로 변경
+                        const escapedPath = imageData.replace(/\\/g, '\\\\');
+                        debugInfo += `이스케이프된 경로: ${escapedPath}\n`;
+                        insertScript = `insertImageAtTime("${escapedPath}", ${targetTrack}, ${position.start}, ${position.end})`;
+                    } else {
+                        // Base64인 경우 저장 후 삽입
+                        const tempPath = `C:\\\\temp\\\\caption_sync_${Date.now()}_${i}.png`;
+                        debugInfo += `임시 파일 경로: ${tempPath}\n`;
+                        insertScript = `
+                            var savedPath = saveBase64ImageToFile("${imageData}", "${tempPath}");
+                            if (savedPath) {
+                                insertImageAtTime(savedPath, ${targetTrack}, ${position.start}, ${position.end});
+                            } else {
+                                JSCEditHelperJSON.stringify({ success: false, message: "이미지 저장 실패" });
+                            }
+                        `;
+                    }
+
+                    debugInfo += `JSX 실행: ${insertScript.substring(0, 100)}...\n`;
+
+                    await new Promise<void>((resolve) => {
+                        communication.callExtendScript(insertScript, (insertResult: string) => {
+                            debugInfo += `JSX 결과: ${insertResult.substring(0, 150)}...\n`;
+                            try {
+                                const result = JSON.parse(insertResult);
+                                if (result.success) {
+                                    successCount++;
+                                    debugInfo += `✓ 성공! (총 ${successCount}개 삽입됨)\n`;
+                                    utils.logInfo(`[${i}] ✓ 이미지 삽입 성공! (총 ${successCount}개)`);
+                                } else {
+                                    debugInfo += `✗ 실패: ${result.message}\n`;
+                                    utils.logWarn(`[${i}] ✗ 이미지 삽입 실패: ${result.message}`);
+                                }
+
+                                // JSX의 디버그 로그 추가
+                                if (result.debug) {
+                                    debugInfo += "\n--- JSX 디버그 로그 ---\n";
+                                    debugInfo += result.debug;
+                                    debugInfo += "--- JSX 디버그 로그 끝 ---\n\n";
+                                }
+                            } catch (e) {
+                                debugInfo += `✗ JSON 파싱 실패: ${(e as Error).message}\n`;
+                                debugInfo += `원본 응답: ${insertResult}\n`;
+                                utils.logError(`[${i}] JSON 파싱 실패:`, (e as Error).message);
+                            }
+                            resolve();
+                        });
+                    });
+                }
+
+                debugInfo += `\n===== 동기화 완료 =====\n`;
+                debugInfo += `총 ${successCount}개 이미지 삽입됨\n`;
+                debugInfo += `종료 시간: ${new Date().toISOString()}\n`;
+
+                if (resultDiv) {
+                    resultDiv.textContent = `✓ ${successCount}개 이미지 동기화 완료`;
+                }
+                utils.logInfo(`Caption-image sync completed: ${successCount} images inserted`);
+
+                // 디버그 정보 저장
+                (window as any).lastDebugInfo = debugInfo;
+
+            } catch (e) {
+                debugInfo += `\nERROR: ${(e as Error).message}\n`;
+                debugInfo += `Stack: ${(e as Error).stack}\n`;
+                (window as any).lastDebugInfo = debugInfo;
+
+                if (resultDiv) resultDiv.textContent = '✗ 동기화 실패';
+                utils.logError('Failed to sync caption-images:', (e as Error).message);
+            }
+        });
+    }
+
     // DI 상태 확인 함수 (디버깅용)
     function getDIStatus() {
         const dependencies: string[] = [];

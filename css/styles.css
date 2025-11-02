@@ -689,3 +689,130 @@ body {
     font-size: 13px;
     padding: 0 16px;
 }
+
+/* ================================
+   캡션-이미지 동기화 스타일
+   ================================ */
+.image-list {
+    min-height: 100px;
+    max-height: 250px;
+    overflow-y: auto;
+    background: var(--color-bg-primary);
+    border: 1px solid #555;
+    border-radius: var(--radius-sm);
+    padding: var(--spacing-sm);
+    margin-top: var(--spacing-sm);
+}
+
+.image-list-items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.image-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: 8px;
+    background: var(--color-bg-card);
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+}
+
+.image-item:hover {
+    background: var(--color-bg-hover);
+    border-color: var(--color-accent-primary);
+}
+
+.image-number {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-accent-primary);
+    color: white;
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.image-name {
+    flex: 1;
+    color: var(--color-text-primary);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.btn-remove {
+    background: transparent;
+    border: none;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    font-size: 14px;
+}
+
+.btn-remove:hover {
+    color: #ff4444;
+}
+
+#caption-test-result,
+#sync-test-result {
+    margin-top: var(--spacing-sm);
+    padding: 8px 12px;
+    background: var(--color-bg-primary);
+    border-radius: var(--radius-sm);
+    border: 1px solid #555;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-line;
+}
+
+/* 동기화 방법 선택 라디오 버튼 */
+.sync-method-options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    margin: var(--spacing-md) 0;
+}
+
+.radio-option {
+    display: flex;
+    flex-direction: column;
+    padding: 10px 12px;
+    background: var(--color-bg-primary);
+    border: 1px solid #555;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.radio-option:hover {
+    background: var(--color-bg-hover);
+    border-color: var(--color-accent-primary);
+}
+
+.radio-option input[type="radio"] {
+    margin-right: 8px;
+}
+
+.radio-option span {
+    color: var(--color-text-primary);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.radio-option small {
+    color: var(--color-text-secondary);
+    font-size: 11px;
+    margin-left: 20px;
+    margin-top: 4px;
+}
+
+.radio-option input[type="radio"]:checked + span {
+    color: var(--color-accent-primary);
+}

@@ -2313,4 +2313,171 @@ function isAppOnline() {
     return app && app.project;
 }
 
+function getSelectedClipsForImageSync() {
+    try {
+        var result = {success: false, message: "", selectedItems: [], method: "selection"};
+        var seq = app.project.activeSequence;
+        if (!seq) {
+            result.message = "활성 시퀀스가 없습니다";
+            return JSCEditHelperJSON.stringify(result);
+        }
+        var selection = seq.getSelection();
+        if (selection.length === 0) {
+            result.message = "선택된 클립이 없습니다";
+            return JSCEditHelperJSON.stringify(result);
+        }
+        for (var i = 0; i < selection.length; i++) {
+            var item = selection[i];
+            result.selectedItems.push({
+                index: i,
+                name: item.name || ("항목 " + (i+1)),
+                start: item.start ? item.start.seconds : 0,
+                end: item.end ? item.end.seconds : 0,
+                duration: (item.end && item.start) ? (item.end.seconds - item.start.seconds) : 0
+            });
+        }
+        result.success = true;
+        result.message = selection.length + "개의 클립이 선택되었습니다";
+        return JSCEditHelperJSON.stringify(result);
+    } catch (e) {
+        return JSCEditHelperJSON.stringify({success: false, message: "오류: " + e.toString()});
+    }
+}
+
+function base64ToBinary(base64) {
+    var CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    var result = [];
+    for (var i = 0; i < base64.length; i += 4) {
+        var enc1 = CHARS.indexOf(base64.charAt(i));
+        var enc2 = CHARS.indexOf(base64.charAt(i + 1));
+        var enc3 = CHARS.indexOf(base64.charAt(i + 2));
+        var enc4 = CHARS.indexOf(base64.charAt(i + 3));
+        if (enc3 === -1) enc3 = 0;
+        if (enc4 === -1) enc4 = 0;
+        var chr1 = (enc1 << 2) | (enc2 >> 4);
+        var chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+        var chr3 = ((enc3 & 3) << 6) | enc4;
+        result.push(String.fromCharCode(chr1));
+        if (enc3 !== 0) result.push(String.fromCharCode(chr2));
+        if (enc4 !== 0) result.push(String.fromCharCode(chr3));
+    }
+    return result.join("");
+}
+
+function saveBase64ImageToFile(base64Data, filePath) {
+    try {
+        var binaryData = base64ToBinary(base64Data);
+        if (binaryData.length === 0) return null;
+        var file = new File(filePath);
+        file.encoding = "BINARY";
+        if (file.open("w")) {
+            file.write(binaryData);
+            file.close();
+            return filePath;
+        }
+        return null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function insertImageAtTime(imagePath, trackIndex, startTime, endTime) {
+    var debugLog = "";
+    try {
+        debugLog += "=== insertImageAtTime 호출됨 ===\n";
+        debugLog += "imagePath: " + imagePath + "\n";
+        debugLog += "trackIndex: " + trackIndex + "\n";
+        debugLog += "startTime: " + startTime + "\n";
+        debugLog += "endTime: " + endTime + "\n";
+
+        debugWriteln("=== insertImageAtTime 호출됨 ===");
+        debugWriteln("imagePath: " + imagePath);
+
+        var seq = app.project.activeSequence;
+        if (!seq) {
+            debugLog += "ERROR: 활성 시퀀스가 없습니다\n";
+            debugWriteln("ERROR: 활성 시퀀스가 없습니다");
+            return JSCEditHelperJSON.stringify({success: false, message: "활성 시퀀스가 없습니다", debug: debugLog});
+        }
+        debugLog += "활성 시퀀스: " + seq.name + "\n";
+
+        var imageFile = new File(imagePath);
+        debugLog += "File 객체 생성됨\n";
+        debugLog += "imageFile.exists: " + imageFile.exists + "\n";
+
+        if (!imageFile.exists) {
+            debugLog += "ERROR: 이미지 파일을 찾을 수 없습니다\n";
+            return JSCEditHelperJSON.stringify({success: false, message: "이미지 파일을 찾을 수 없습니다: " + imagePath, debug: debugLog});
+        }
+        debugLog += "이미지 파일 확인됨\n";
+
+        debugLog += "프로젝트에 임포트 시작...\n";
+        app.project.importFiles([imagePath], true, app.project.rootItem, false);
+        debugLog += "임포트 완료\n";
+
+        var fileName = imagePath.split("\\").pop().split("/").pop();
+        debugLog += "파일명: " + fileName + "\n";
+
+        var projectItem = findProjectItemByName(fileName);
+        if (!projectItem) {
+            debugLog += "ERROR: 프로젝트 아이템을 찾을 수 없음\n";
+            return JSCEditHelperJSON.stringify({success: false, message: "이미지를 임포트할 수 없습니다", debug: debugLog});
+        }
+        debugLog += "프로젝트 아이템 발견: " + projectItem.name + "\n";
+
+        var videoTracks = seq.videoTracks;
+        debugLog += "비디오 트랙 수: " + videoTracks.numTracks + "\n";
+
+        if (trackIndex >= videoTracks.numTracks) {
+            debugLog += "ERROR: 잘못된 트랙 인덱스: " + trackIndex + "\n";
+            return JSCEditHelperJSON.stringify({success: false, message: "잘못된 트랙 인덱스", debug: debugLog});
+        }
+
+        var targetTrack = videoTracks[trackIndex];
+        debugLog += "대상 트랙: V" + (trackIndex + 1) + "\n";
+        debugLog += "삽입 전 트랙의 클립 수: " + targetTrack.clips.numItems + "\n";
+
+        var insertTime = new Time();
+        insertTime.seconds = startTime;
+        debugLog += "삽입 시간: " + startTime + "초\n";
+
+        debugLog += "클립 삽입 시작 (overwriteClip 사용)...\n";
+        targetTrack.overwriteClip(projectItem, insertTime);
+        debugLog += "overwriteClip() 호출 완료\n";
+
+        var clips = targetTrack.clips;
+        debugLog += "삽입 후 트랙의 클립 수: " + clips.numItems + "\n";
+
+        var clipFound = false;
+        var adjustedClips = 0;
+        debugLog += "길이 조정 루프 시작 (총 " + clips.numItems + "개 클립 검사)\n";
+        for (var i = clips.numItems - 1; i >= 0; i--) {
+            var clip = clips[i];
+            debugLog += "  클립[" + i + "]: start=" + clip.start.seconds + "s, end=" + clip.end.seconds + "s, name=" + clip.name + "\n";
+            if (Math.abs(clip.start.seconds - startTime) < 0.1) {
+                debugLog += "  → 이 클립을 길이 조정합니다!\n";
+                clip.end.seconds = endTime;
+                var duration = endTime - startTime;
+                debugLog += "  → 길이 조정 완료: " + duration + "초 (end=" + endTime + "s)\n";
+                adjustedClips++;
+                clipFound = true;
+                break;
+            }
+        }
+
+        if (!clipFound) {
+            debugLog += "WARNING: 조정할 클립을 찾지 못함\n";
+        }
+        debugLog += "총 " + adjustedClips + "개 클립 길이 조정됨\n";
+
+        debugLog += "=== insertImageAtTime 성공 ===\n";
+        return JSCEditHelperJSON.stringify({success: true, message: "이미지 삽입 완료", debug: debugLog});
+    } catch (e) {
+        debugLog += "ERROR: 예외 발생: " + e.toString() + "\n";
+        debugLog += "Line: " + e.line + "\n";
+        debugWriteln("ERROR: insertImageAtTime 예외 발생: " + e.toString());
+        return JSCEditHelperJSON.stringify({success: false, message: "오류: " + e.toString(), debug: debugLog});
+    }
+}
+
 debugWriteln("JSCEditHelper 단순화된 Host Script 로드 완료");

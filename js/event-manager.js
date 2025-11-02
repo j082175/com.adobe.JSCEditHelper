@@ -180,6 +180,7 @@ var JSCEventManager = (function () {
             setupMagnetButton();
             setupFolderInput();
             setupDebugUI();
+            setupCaptionEventListeners(); // 캡션-이미지 동기화 이벤트
             utils.logDebug('Event listeners setup completed');
         }
         catch (e) {
@@ -932,6 +933,382 @@ var JSCEventManager = (function () {
                             });
                         }); }, 100);
                     })];
+            });
+        });
+    }
+    // ===== 캡션-이미지 동기화 기능 =====
+    /**
+     * 캡션-이미지 동기화 이벤트 리스너 설정
+     */
+    function setupCaptionEventListeners() {
+        var utils = getUtils();
+        utils.logDebug('Setting up caption-image sync event listeners...');
+        // 위치 확인 버튼
+        var testButton = document.getElementById('test-sync-method');
+        if (testButton) {
+            testButton.addEventListener('click', testSyncMethod);
+            utils.logDebug('Event listener added to test-sync-method button');
+        }
+        // 이미지 붙여넣기 버튼
+        var pasteButton = document.getElementById('paste-image');
+        if (pasteButton) {
+            pasteButton.addEventListener('click', pasteImageFromClipboard);
+            utils.logDebug('Event listener added to paste-image button');
+        }
+        // 이미지 찾기 버튼
+        var browseButton = document.getElementById('browse-images');
+        if (browseButton) {
+            browseButton.addEventListener('click', browseImagesForSync);
+            utils.logDebug('Event listener added to browse-images button');
+        }
+        // 동기화 시작 버튼
+        var syncButton = document.getElementById('sync-caption-images');
+        if (syncButton) {
+            syncButton.addEventListener('click', startCaptionImageSync);
+            utils.logDebug('Event listener added to sync-caption-images button');
+        }
+        // 이미지 큐 비우기 버튼
+        var clearQueueButton = document.getElementById('clear-image-queue');
+        if (clearQueueButton) {
+            clearQueueButton.addEventListener('click', clearImageQueue);
+            utils.logDebug('Event listener added to clear-image-queue button');
+        }
+    }
+    /**
+     * 선택한 동기화 방법 테스트
+     */
+    function testSyncMethod() {
+        var _a;
+        var utils = getUtils();
+        var communication = getCommunication();
+        var resultDiv = document.getElementById('sync-test-result');
+        // 선택된 방법 확인
+        var selectedMethod = (_a = document.querySelector('input[name="sync-method"]:checked')) === null || _a === void 0 ? void 0 : _a.value;
+        if (!selectedMethod) {
+            if (resultDiv)
+                resultDiv.textContent = '동기화 방법을 선택하세요';
+            return;
+        }
+        if (resultDiv)
+            resultDiv.textContent = '확인 중...';
+        var scriptCall = '';
+        if (selectedMethod === 'selection') {
+            scriptCall = 'getSelectedClipsForImageSync()';
+        }
+        else if (selectedMethod === 'markers') {
+            scriptCall = 'getMarkersForImageSync()';
+        }
+        else {
+            if (resultDiv)
+                resultDiv.textContent = '수동 입력 모드는 테스트할 수 없습니다';
+            return;
+        }
+        utils.logDebug('Testing sync method:', selectedMethod);
+        communication.callExtendScript(scriptCall, function (result) {
+            try {
+                utils.logDebug('Raw result from ExtendScript:', result);
+                var data = JSON.parse(result);
+                if (data.success) {
+                    var count = data.selectedItems ? data.selectedItems.length : data.markers ? data.markers.length : 0;
+                    if (resultDiv)
+                        resultDiv.textContent = "\u2713 ".concat(data.message, " (").concat(count, "\uAC1C \uC704\uCE58)");
+                    utils.logInfo('Sync test successful:', data.message);
+                }
+                else {
+                    if (resultDiv)
+                        resultDiv.textContent = "\u2717 ".concat(data.message);
+                    utils.logWarn('Sync test failed:', data.message);
+                }
+            }
+            catch (e) {
+                if (resultDiv)
+                    resultDiv.textContent = "\u2717 \uACB0\uACFC \uD30C\uC2F1 \uC2E4\uD328: ".concat(result);
+                utils.logError('Failed to parse sync test result:', result);
+                utils.logError('Parse error:', e.message);
+            }
+        });
+    }
+    /**
+     * 클립보드에서 이미지 붙여넣기 (CEP 환경에서 지원 안 됨)
+     */
+    function pasteImageFromClipboard() {
+        return __awaiter(this, void 0, void 0, function () {
+            var resultDiv;
+            return __generator(this, function (_a) {
+                resultDiv = document.getElementById('sync-test-result');
+                if (resultDiv) {
+                    resultDiv.textContent = '✗ CEP 환경에서는 클립보드 붙여넣기가 지원되지 않습니다. "이미지 선택" 버튼을 사용하세요.';
+                }
+                return [2 /*return*/];
+            });
+        });
+    }
+    /**
+     * 이미지 파일 찾기
+     */
+    function browseImagesForSync() {
+        var utils = getUtils();
+        var communication = getCommunication();
+        var resultDiv = document.getElementById('sync-test-result');
+        if (resultDiv)
+            resultDiv.textContent = '이미지 선택 중...';
+        // JSX에서 파일 선택 다이얼로그 열기
+        var script = "\n            var files = File.openDialog(\"\uC774\uBBF8\uC9C0 \uD30C\uC77C \uC120\uD0DD\", \"Image Files:*.png;*.jpg;*.jpeg\", true);\n            if (files) {\n                var result = [];\n                if (files instanceof Array) {\n                    for (var i = 0; i < files.length; i++) {\n                        result.push(files[i].fsName);\n                    }\n                } else {\n                    result.push(files.fsName);\n                }\n                JSON.stringify({ success: true, files: result });\n            } else {\n                JSON.stringify({ success: false, message: \"\uCDE8\uC18C\uB428\" });\n            }\n        ";
+        communication.callExtendScript(script, function (result) {
+            try {
+                var data = JSON.parse(result);
+                if (data.success && data.files) {
+                    data.files.forEach(function (filePath) {
+                        var _a;
+                        var fileName = ((_a = filePath.split('\\').pop()) === null || _a === void 0 ? void 0 : _a.split('/').pop()) || 'image.png';
+                        // 파일 경로를 큐에 추가 (실제로는 base64로 변환 필요)
+                        addImageToQueue(filePath, fileName);
+                    });
+                    if (resultDiv)
+                        resultDiv.textContent = "\u2713 ".concat(data.files.length, "\uAC1C \uC774\uBBF8\uC9C0 \uCD94\uAC00\uB428");
+                }
+                else {
+                    if (resultDiv)
+                        resultDiv.textContent = '이미지 선택 취소됨';
+                }
+            }
+            catch (e) {
+                if (resultDiv)
+                    resultDiv.textContent = '✗ 이미지 선택 실패';
+                utils.logError('Failed to browse images:', e.message);
+            }
+        });
+    }
+    /**
+     * 이미지를 큐에 추가
+     */
+    function addImageToQueue(imageDataOrPath, fileName) {
+        var queueDiv = document.getElementById('image-queue');
+        if (!queueDiv)
+            return;
+        var imageItem = document.createElement('div');
+        imageItem.className = 'image-queue-item';
+        imageItem.innerHTML = "\n            <span>".concat(fileName, "</span>\n            <button class=\"btn-remove\" onclick=\"this.parentElement.remove()\">\u2715</button>\n        ");
+        imageItem.dataset.imageData = imageDataOrPath;
+        imageItem.dataset.fileName = fileName;
+        queueDiv.appendChild(imageItem);
+        // 동기화 버튼 활성화
+        var syncButton = document.getElementById('sync-caption-images');
+        if (syncButton) {
+            syncButton.disabled = false;
+        }
+    }
+    /**
+     * 이미지 큐 비우기
+     */
+    function clearImageQueue() {
+        var utils = getUtils();
+        var queueDiv = document.getElementById('image-queue');
+        if (!queueDiv) {
+            utils.logWarn('Image queue element not found');
+            return;
+        }
+        var imageCount = queueDiv.querySelectorAll('.image-queue-item').length;
+        if (imageCount === 0) {
+            utils.logInfo('Image queue is already empty');
+            return;
+        }
+        // 큐 비우기
+        queueDiv.innerHTML = '';
+        // 동기화 버튼 비활성화
+        var syncButton = document.getElementById('sync-caption-images');
+        if (syncButton) {
+            syncButton.disabled = true;
+        }
+        utils.logInfo("Image queue cleared: ".concat(imageCount, " images removed"));
+        // 결과 메시지 표시
+        var resultDiv = document.getElementById('sync-test-result');
+        if (resultDiv) {
+            resultDiv.textContent = "\u2713 ".concat(imageCount, "\uAC1C \uC774\uBBF8\uC9C0 \uC81C\uAC70\uB428");
+        }
+    }
+    /**
+     * 캡션-이미지 동기화 시작
+     */
+    function startCaptionImageSync() {
+        return __awaiter(this, void 0, void 0, function () {
+            var utils, communication, resultDiv, debugInfo, queueDiv, imageItems, selectedMethod, captionGroup, targetTrack, scriptCall;
+            var _this = this;
+            var _a, _b, _c;
+            return __generator(this, function (_d) {
+                utils = getUtils();
+                communication = getCommunication();
+                resultDiv = document.getElementById('sync-test-result');
+                debugInfo = "=== 캡션-이미지 동기화 디버그 ===\n";
+                debugInfo += "\uC2DC\uC791 \uC2DC\uAC04: ".concat(new Date().toISOString(), "\n");
+                queueDiv = document.getElementById('image-queue');
+                imageItems = queueDiv === null || queueDiv === void 0 ? void 0 : queueDiv.querySelectorAll('.image-queue-item');
+                if (!imageItems || imageItems.length === 0) {
+                    if (resultDiv)
+                        resultDiv.textContent = '✗ 이미지를 먼저 추가하세요';
+                    debugInfo += "ERROR: 이미지가 선택되지 않음\n";
+                    window.lastDebugInfo = debugInfo;
+                    return [2 /*return*/];
+                }
+                selectedMethod = (_a = document.querySelector('input[name="sync-method"]:checked')) === null || _a === void 0 ? void 0 : _a.value;
+                captionGroup = parseInt(((_b = document.getElementById('caption-group')) === null || _b === void 0 ? void 0 : _b.value) || '1');
+                targetTrack = parseInt(((_c = document.getElementById('target-video-track')) === null || _c === void 0 ? void 0 : _c.value) || '0');
+                debugInfo += "\uB3D9\uAE30\uD654 \uBC29\uBC95: ".concat(selectedMethod, "\n");
+                debugInfo += "\uCEA1\uC158 \uADF8\uB8F9\uD654: ".concat(captionGroup, "\n");
+                debugInfo += "\uB300\uC0C1 \uBE44\uB514\uC624 \uD2B8\uB799: V".concat(targetTrack + 1, "\n");
+                debugInfo += "\uC774\uBBF8\uC9C0 \uAC1C\uC218: ".concat(imageItems.length, "\n\n");
+                if (resultDiv)
+                    resultDiv.textContent = '동기화 중...';
+                utils.logInfo('Starting caption-image sync:', { method: selectedMethod, group: captionGroup, track: targetTrack });
+                scriptCall = '';
+                if (selectedMethod === 'selection') {
+                    scriptCall = 'getSelectedClipsForImageSync()';
+                    debugInfo += "위치 정보: 선택된 클립 기반\n";
+                }
+                else if (selectedMethod === 'markers') {
+                    scriptCall = 'getMarkersForImageSync()';
+                    debugInfo += "위치 정보: 마커 기반\n";
+                }
+                else {
+                    if (resultDiv)
+                        resultDiv.textContent = '✗ 수동 입력 모드는 아직 지원되지 않습니다';
+                    debugInfo += "ERROR: 수동 입력 모드는 지원되지 않음\n";
+                    window.lastDebugInfo = debugInfo;
+                    return [2 /*return*/];
+                }
+                communication.callExtendScript(scriptCall, function (positionResult) { return __awaiter(_this, void 0, void 0, function () {
+                    var positionData, positions, successCount_1, syncDebugMsg, _loop_1, i, e_3;
+                    return __generator(this, function (_a) {
+                        switch (_a.label) {
+                            case 0:
+                                _a.trys.push([0, 5, , 6]);
+                                debugInfo += "\nJSX \uD638\uCD9C \uACB0\uACFC: ".concat(positionResult.substring(0, 100), "...\n");
+                                positionData = JSON.parse(positionResult);
+                                if (!positionData.success) {
+                                    if (resultDiv)
+                                        resultDiv.textContent = "\u2717 ".concat(positionData.message);
+                                    debugInfo += "ERROR: ".concat(positionData.message, "\n");
+                                    window.lastDebugInfo = debugInfo;
+                                    return [2 /*return*/];
+                                }
+                                positions = positionData.selectedItems || positionData.markers || [];
+                                if (positions.length === 0) {
+                                    if (resultDiv)
+                                        resultDiv.textContent = '✗ 위치 정보를 찾을 수 없습니다';
+                                    debugInfo += "ERROR: 위치 정보를 찾을 수 없음\n";
+                                    window.lastDebugInfo = debugInfo;
+                                    return [2 /*return*/];
+                                }
+                                successCount_1 = 0;
+                                debugInfo += "\n\uCD1D \uC704\uCE58: ".concat(positions.length, "\uAC1C\n");
+                                debugInfo += "\uB8E8\uD504 \uBC18\uBCF5 \uD69F\uC218: ".concat(imageItems.length, "\uBC88\n\n");
+                                syncDebugMsg = "\uCD1D \uC774\uBBF8\uC9C0: ".concat(imageItems.length, ", \uCD1D \uC704\uCE58: ").concat(positions.length, ", \uADF8\uB8F9\uD654: ").concat(captionGroup);
+                                utils.logInfo(syncDebugMsg);
+                                console.log("[SYNC] ".concat(syncDebugMsg));
+                                _loop_1 = function (i) {
+                                    var imageItem, imageData, positionIndex, position, isFilePath, insertScript, escapedPath, tempPath;
+                                    return __generator(this, function (_b) {
+                                        switch (_b.label) {
+                                            case 0:
+                                                debugInfo += "\n===== \uB8E8\uD504 ".concat(i + 1, "/").concat(imageItems.length, " =====\n");
+                                                imageItem = imageItems[i];
+                                                imageData = imageItem.dataset.imageData || '';
+                                                positionIndex = i * captionGroup;
+                                                position = positions[positionIndex];
+                                                debugInfo += "\uC774\uBBF8\uC9C0 \uC778\uB371\uC2A4: ".concat(i, "\n");
+                                                debugInfo += "\uC704\uCE58 \uC778\uB371\uC2A4: ".concat(positionIndex, " (\uADF8\uB8F9\uD654=").concat(captionGroup, ")\n");
+                                                debugInfo += "\uC774\uBBF8\uC9C0: ".concat(imageData.substring(0, 80), "...\n");
+                                                debugInfo += "\uC704\uCE58: ".concat(position ? position.start + 's ~ ' + position.end + 's' : 'undefined', "\n");
+                                                if (!position) {
+                                                    debugInfo += "ERROR: \uC704\uCE58 \uC815\uBCF4\uAC00 \uC5C6\uC74C (\uC778\uB371\uC2A4 ".concat(positionIndex, ")\n");
+                                                    utils.logWarn("[".concat(i, "] \uC704\uCE58 \uC815\uBCF4\uAC00 \uC5C6\uC74C (\uADF8\uB8F9 \uC778\uB371\uC2A4: ").concat(i * captionGroup, ")"));
+                                                    return [2 /*return*/, "continue"];
+                                                }
+                                                isFilePath = imageData.includes('\\') || imageData.includes('/');
+                                                debugInfo += "\uD30C\uC77C \uACBD\uB85C \uC5EC\uBD80: ".concat(isFilePath, "\n");
+                                                insertScript = '';
+                                                if (isFilePath) {
+                                                    escapedPath = imageData.replace(/\\/g, '\\\\');
+                                                    debugInfo += "\uC774\uC2A4\uCF00\uC774\uD504\uB41C \uACBD\uB85C: ".concat(escapedPath, "\n");
+                                                    insertScript = "insertImageAtTime(\"".concat(escapedPath, "\", ").concat(targetTrack, ", ").concat(position.start, ", ").concat(position.end, ")");
+                                                }
+                                                else {
+                                                    tempPath = "C:\\\\temp\\\\caption_sync_".concat(Date.now(), "_").concat(i, ".png");
+                                                    debugInfo += "\uC784\uC2DC \uD30C\uC77C \uACBD\uB85C: ".concat(tempPath, "\n");
+                                                    insertScript = "\n                            var savedPath = saveBase64ImageToFile(\"".concat(imageData, "\", \"").concat(tempPath, "\");\n                            if (savedPath) {\n                                insertImageAtTime(savedPath, ").concat(targetTrack, ", ").concat(position.start, ", ").concat(position.end, ");\n                            } else {\n                                JSCEditHelperJSON.stringify({ success: false, message: \"\uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC2E4\uD328\" });\n                            }\n                        ");
+                                                }
+                                                debugInfo += "JSX \uC2E4\uD589: ".concat(insertScript.substring(0, 100), "...\n");
+                                                return [4 /*yield*/, new Promise(function (resolve) {
+                                                        communication.callExtendScript(insertScript, function (insertResult) {
+                                                            debugInfo += "JSX \uACB0\uACFC: ".concat(insertResult.substring(0, 150), "...\n");
+                                                            try {
+                                                                var result = JSON.parse(insertResult);
+                                                                if (result.success) {
+                                                                    successCount_1++;
+                                                                    debugInfo += "\u2713 \uC131\uACF5! (\uCD1D ".concat(successCount_1, "\uAC1C \uC0BD\uC785\uB428)\n");
+                                                                    utils.logInfo("[".concat(i, "] \u2713 \uC774\uBBF8\uC9C0 \uC0BD\uC785 \uC131\uACF5! (\uCD1D ").concat(successCount_1, "\uAC1C)"));
+                                                                }
+                                                                else {
+                                                                    debugInfo += "\u2717 \uC2E4\uD328: ".concat(result.message, "\n");
+                                                                    utils.logWarn("[".concat(i, "] \u2717 \uC774\uBBF8\uC9C0 \uC0BD\uC785 \uC2E4\uD328: ").concat(result.message));
+                                                                }
+                                                                // JSX의 디버그 로그 추가
+                                                                if (result.debug) {
+                                                                    debugInfo += "\n--- JSX 디버그 로그 ---\n";
+                                                                    debugInfo += result.debug;
+                                                                    debugInfo += "--- JSX 디버그 로그 끝 ---\n\n";
+                                                                }
+                                                            }
+                                                            catch (e) {
+                                                                debugInfo += "\u2717 JSON \uD30C\uC2F1 \uC2E4\uD328: ".concat(e.message, "\n");
+                                                                debugInfo += "\uC6D0\uBCF8 \uC751\uB2F5: ".concat(insertResult, "\n");
+                                                                utils.logError("[".concat(i, "] JSON \uD30C\uC2F1 \uC2E4\uD328:"), e.message);
+                                                            }
+                                                            resolve();
+                                                        });
+                                                    })];
+                                            case 1:
+                                                _b.sent();
+                                                return [2 /*return*/];
+                                        }
+                                    });
+                                };
+                                i = 0;
+                                _a.label = 1;
+                            case 1:
+                                if (!(i < imageItems.length && i < positions.length)) return [3 /*break*/, 4];
+                                return [5 /*yield**/, _loop_1(i)];
+                            case 2:
+                                _a.sent();
+                                _a.label = 3;
+                            case 3:
+                                i++;
+                                return [3 /*break*/, 1];
+                            case 4:
+                                debugInfo += "\n===== \uB3D9\uAE30\uD654 \uC644\uB8CC =====\n";
+                                debugInfo += "\uCD1D ".concat(successCount_1, "\uAC1C \uC774\uBBF8\uC9C0 \uC0BD\uC785\uB428\n");
+                                debugInfo += "\uC885\uB8CC \uC2DC\uAC04: ".concat(new Date().toISOString(), "\n");
+                                if (resultDiv) {
+                                    resultDiv.textContent = "\u2713 ".concat(successCount_1, "\uAC1C \uC774\uBBF8\uC9C0 \uB3D9\uAE30\uD654 \uC644\uB8CC");
+                                }
+                                utils.logInfo("Caption-image sync completed: ".concat(successCount_1, " images inserted"));
+                                // 디버그 정보 저장
+                                window.lastDebugInfo = debugInfo;
+                                return [3 /*break*/, 6];
+                            case 5:
+                                e_3 = _a.sent();
+                                debugInfo += "\nERROR: ".concat(e_3.message, "\n");
+                                debugInfo += "Stack: ".concat(e_3.stack, "\n");
+                                window.lastDebugInfo = debugInfo;
+                                if (resultDiv)
+                                    resultDiv.textContent = '✗ 동기화 실패';
+                                utils.logError('Failed to sync caption-images:', e_3.message);
+                                return [3 /*break*/, 6];
+                            case 6: return [2 /*return*/];
+                        }
+                    });
+                }); });
+                return [2 /*return*/];
             });
         });
     }

@@ -110,6 +110,85 @@
             </div>
         </div>
 
+        <!-- 캡션-이미지 동기화 섹션 (새 기능) -->
+        <div class="workflow-section">
+            <div class="section-header">
+                <h2>🎬 캡션-이미지 동기화 (Beta)</h2>
+                <button class="btn-collapse" data-target="caption-image-sync">
+                    <span class="collapse-icon">−</span>
+                </button>
+            </div>
+
+            <div id="caption-image-sync" class="workflow-content">
+                <div class="action-card">
+                    <div class="card-header">
+                        <h3>📝 동기화 방법 선택</h3>
+                    </div>
+                    <p class="card-description">이미지를 삽입할 위치를 지정하는 방법을 선택하세요</p>
+
+                    <div class="sync-method-options">
+                        <label class="radio-option">
+                            <input type="radio" name="sync-method" value="selection" checked>
+                            <span>🎯 선택된 클립 기반</span>
+                            <small>C1 트랙의 캡션들을 선택 후 사용</small>
+                        </label>
+
+                        <label class="radio-option">
+                            <input type="radio" name="sync-method" value="markers">
+                            <span>📍 마커 기반</span>
+                            <small>이미지를 넣을 위치에 마커 추가 (M키)</small>
+                        </label>
+
+                        <label class="radio-option">
+                            <input type="radio" name="sync-method" value="manual">
+                            <span>⏱️ 타임코드 수동 입력</span>
+                            <small>시작/종료 시간 직접 입력</small>
+                        </label>
+                    </div>
+
+                    <button id="test-sync-method" class="btn-primary">위치 확인</button>
+                    <div id="sync-test-result" class="status-indicator"></div>
+                </div>
+
+                <div class="action-card">
+                    <div class="card-header">
+                        <h3>🖼️ 이미지 관리</h3>
+                    </div>
+                    <p class="card-description">로컬 이미지 파일을 선택하세요</p>
+                    <div class="input-group">
+                        <button id="paste-image" class="btn-secondary" disabled style="opacity: 0.5; cursor: not-allowed;">📋 이미지 붙여넣기 (지원 안 됨)</button>
+                        <button id="browse-images" class="btn-secondary">📁 이미지 선택</button>
+                        <button id="clear-image-queue" class="btn-text">🗑️ 이미지 큐 비우기</button>
+                    </div>
+                    <div id="image-queue" class="image-list"></div>
+                </div>
+
+                <div class="action-card">
+                    <div class="card-header">
+                        <h3>⚙️ 동기화 옵션</h3>
+                    </div>
+                    <div class="form-group compact">
+                        <label for="caption-group">캡션 그룹화:</label>
+                        <select id="caption-group" class="select-modern">
+                            <option value="1">캡션 개별 매칭</option>
+                            <option value="2">2개씩 그룹화</option>
+                            <option value="3">3개씩 그룹화</option>
+                        </select>
+                    </div>
+                    <div class="form-group compact">
+                        <label for="target-video-track">삽입할 비디오 트랙:</label>
+                        <select id="target-video-track" class="select-modern">
+                            <option value="0">V1 트랙</option>
+                            <option value="1">V2 트랙</option>
+                            <option value="2">V3 트랙</option>
+                            <option value="3">V4 트랙</option>
+                        </select>
+                    </div>
+                    <button id="sync-caption-images" class="btn-primary" disabled>🔄 동기화 시작</button>
+                </div>
+            </div>
+        </div>
+
         <!-- 개발자 도구 (접혀진 상태) -->
         <details class="developer-tools">
             <summary class="dev-tools-header">

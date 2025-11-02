@@ -1189,60 +1189,59 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             // 이 이미지의 캡션 범위 계산
             const captionStart = cumulativeCaptionIndex;
             const captionEnd = cumulativeCaptionIndex + mapping.captionCount - 1;
-
-            // 다음 이미지를 위해 누적 카운터 업데이트
             cumulativeCaptionIndex += mapping.captionCount;
 
             // 툴팁 텍스트 생성
             const tooltipText = `${mapping.fileName}\n캡션 ${captionStart}-${captionEnd} 범위 (${mapping.captionCount}개)`;
 
-            // 썸네일 + 캡션 개수 입력
-            const itemDiv = document.createElement('div');
-            itemDiv.className = 'image-queue-item-advanced';
-            itemDiv.draggable = true;
-            itemDiv.dataset.imageId = mapping.id;
+            // 미리보기와 동일한 스타일 사용 (크기만 더 크게)
+            const wrapper = document.createElement('div');
+            wrapper.className = 'preview-thumbnail-wrapper';
+            wrapper.draggable = true;
+            wrapper.dataset.imageId = mapping.id;
 
-            itemDiv.innerHTML = `
-                <div class="drag-handle" title="드래그하여 순서 변경">⋮</div>
-                <img class="image-thumbnail" src="data:image/png;base64,${mapping.thumbnail}" alt="${mapping.fileName}" title="${tooltipText}">
-                <div class="image-info">
-                    <div class="image-info-header">
-                        <span class="image-filename" title="${mapping.fileName}">${mapping.fileName}</span>
-                        <button class="image-remove-btn" data-image-id="${mapping.id}">✕</button>
-                    </div>
-                    <div class="caption-range">
-                        <label>캡션 개수:</label>
-                        <div class="caption-range-inputs">
-                            <select data-image-id="${mapping.id}" class="caption-count-input select-modern" style="width: 80px;">
-                                ${[1,2,3,4,5,6,7,8,9,10].map(n =>
-                                    `<option value="${n}" ${n === mapping.captionCount ? 'selected' : ''}>${n}개</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                    </div>
-                    <div class="caption-preview" id="caption-preview-${mapping.id}">
-                        캡션 ${captionStart}-${captionEnd} 범위
-                    </div>
-                </div>
-            `;
+            // 썸네일 이미지
+            const img = document.createElement('img');
+            img.className = 'preview-thumbnail';
+            img.src = `data:image/png;base64,${mapping.thumbnail}`;
+            img.alt = mapping.fileName;
+            img.title = tooltipText;
 
-            queueDiv.appendChild(itemDiv);
+            // 삭제 버튼
+            const removeBtn = document.createElement('div');
+            removeBtn.className = 'preview-remove-btn';
+            removeBtn.textContent = '✕';
+            removeBtn.title = `${mapping.fileName} 삭제`;
+            removeBtn.dataset.imageId = mapping.id;
+            removeBtn.addEventListener('click', handleRemoveImage);
 
-            // 드래그 이벤트 추가
-            itemDiv.addEventListener('dragstart', handleDragStart);
-            itemDiv.addEventListener('dragover', handleDragOver);
-            itemDiv.addEventListener('drop', handleDrop);
-            itemDiv.addEventListener('dragend', handleDragEnd);
-        });
+            wrapper.appendChild(img);
+            wrapper.appendChild(removeBtn);
 
-        // 제거 버튼 이벤트 추가
-        queueDiv.querySelectorAll('.image-remove-btn').forEach(btn => {
-            btn.addEventListener('click', handleRemoveImage);
-        });
+            // 캡션 개수 표시 (클릭하여 변경)
+            const captionCount = document.createElement('div');
+            captionCount.className = 'preview-caption-count';
+            captionCount.textContent = String(mapping.captionCount || 1);
+            captionCount.title = '캡션 개수 (클릭하여 변경)';
+            captionCount.dataset.imageId = mapping.id;
+            captionCount.addEventListener('click', handleModalCaptionClick);
+            wrapper.appendChild(captionCount);
 
-        // 캡션 개수 입력 이벤트 추가
-        queueDiv.querySelectorAll('.caption-count-input').forEach(input => {
-            input.addEventListener('change', handleCaptionCountChange);
+            // 캡션 범위 표시
+            const captionRange = document.createElement('div');
+            captionRange.className = 'preview-caption-range';
+            captionRange.textContent = `캡션 ${captionStart}-${captionEnd}`;
+            captionRange.dataset.imageId = mapping.id;
+            captionRange.id = `caption-preview-${mapping.id}`;
+            wrapper.appendChild(captionRange);
+
+            // 드래그 앤 드롭 이벤트 추가
+            wrapper.addEventListener('dragstart', handleDragStart);
+            wrapper.addEventListener('dragover', handleDragOver);
+            wrapper.addEventListener('drop', handleDrop);
+            wrapper.addEventListener('dragend', handleDragEnd);
+
+            queueDiv.appendChild(wrapper);
         });
 
         // 동기화 버튼 상태 업데이트
@@ -1531,6 +1530,81 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             select.addEventListener('blur', () => {
                 // blur 시 원래 div로 복원
                 updateImageSummary();
+            });
+        }
+    }
+
+    /**
+     * 모달 캡션 개수 클릭 핸들러 (드롭다운으로 변경)
+     */
+    function handleModalCaptionClick(e: Event): void {
+        e.stopPropagation();
+        const captionDiv = e.currentTarget as HTMLElement;
+        const imageId = captionDiv.dataset.imageId;
+        const currentValue = parseInt(captionDiv.textContent || '1', 10);
+
+        // 드롭다운으로 교체
+        const select = document.createElement('select');
+        select.className = 'preview-caption-select select-modern';
+        select.dataset.imageId = imageId || '';
+
+        // 옵션 추가 (1~10)
+        for (let i = 1; i <= 10; i++) {
+            const option = document.createElement('option');
+            option.value = String(i);
+            option.textContent = `${i}개`;
+            if (i === currentValue) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        }
+
+        // 부모에서 캡션 div 제거하고 select 추가
+        const wrapper = captionDiv.parentElement;
+        if (wrapper) {
+            wrapper.removeChild(captionDiv);
+            wrapper.appendChild(select);
+
+            // 클릭 이벤트 전파 방지
+            select.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+
+            // mousedown 이벤트 전파 방지
+            select.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+            });
+
+            select.focus();
+
+            // 드롭다운 자동으로 열기
+            setTimeout(() => {
+                const event = new MouseEvent('mousedown', {
+                    bubbles: false,
+                    cancelable: true,
+                    view: window
+                });
+                select.dispatchEvent(event);
+            }, 10);
+
+            // 선택 변경 시 즉시 저장 및 큐 재렌더링
+            const saveValue = () => {
+                const newValue = parseInt(select.value, 10);
+                if (imageId && newValue > 0) {
+                    const index = imageMappings.findIndex(m => m.id === imageId);
+                    if (index !== -1) {
+                        imageMappings[index].captionCount = newValue;
+                        updateImageSummary();
+                        updateCaptionRanges(index);
+                    }
+                }
+            };
+
+            select.addEventListener('change', saveValue);
+            select.addEventListener('blur', () => {
+                // blur 시 미리보기와 큐 모두 업데이트
+                updateImageSummary();
+                renderImageQueue();
             });
         }
     }

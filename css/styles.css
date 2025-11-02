@@ -1388,51 +1388,23 @@ body {
 }
 
 .image-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 16px;
-}
-
-/* 그리드용 이미지 아이템 스타일 (고급 모드) */
-.image-grid .image-queue-item-advanced {
     display: flex;
-    flex-direction: column;
+    gap: 12px;
+    justify-content: flex-start;
+    flex-wrap: wrap;
     padding: 12px;
-    background: var(--color-bg-card);
-    border-radius: var(--radius-md);
-    transition: all 0.2s;
-    border: 2px solid transparent;
+    align-items: flex-start;
 }
 
-.image-grid .image-queue-item-advanced:hover {
-    background: var(--color-bg-hover);
-    border-color: var(--color-accent-primary);
+/* 모달 이미지 큐의 썸네일 크기 - 미리보기보다 크게 */
+.image-grid .preview-thumbnail-wrapper {
+    width: 150px;
+    height: 150px;
 }
 
-.image-grid .drag-handle {
-    align-self: flex-start;
-    margin-bottom: 8px;
-}
-
-.image-grid .image-thumbnail {
-    width: 100%;
-    height: 200px;
-    object-fit: cover;
-    margin-bottom: 12px;
-}
-
-.image-grid .image-info {
-    width: 100%;
-}
-
-/* 그리드용 기본 모드 스타일 */
-.image-grid .image-queue-item-basic {
-    padding: 12px;
-    background: var(--color-bg-card);
-    border-radius: var(--radius-md);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+.image-grid .preview-thumbnail {
+    width: 150px;
+    height: 150px;
 }
 
 .modal-footer {

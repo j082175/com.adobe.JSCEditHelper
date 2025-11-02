@@ -1162,32 +1162,50 @@ var JSCEventManager = (function () {
             // 이 이미지의 캡션 범위 계산
             var captionStart = cumulativeCaptionIndex;
             var captionEnd = cumulativeCaptionIndex + mapping.captionCount - 1;
-            // 다음 이미지를 위해 누적 카운터 업데이트
             cumulativeCaptionIndex += mapping.captionCount;
             // 툴팁 텍스트 생성
             var tooltipText = "".concat(mapping.fileName, "\n\uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, " \uBC94\uC704 (").concat(mapping.captionCount, "\uAC1C)");
-            // 썸네일 + 캡션 개수 입력
-            var itemDiv = document.createElement('div');
-            itemDiv.className = 'image-queue-item-advanced';
-            itemDiv.draggable = true;
-            itemDiv.dataset.imageId = mapping.id;
-            itemDiv.innerHTML = "\n                <div class=\"drag-handle\" title=\"\uB4DC\uB798\uADF8\uD558\uC5EC \uC21C\uC11C \uBCC0\uACBD\">\u22EE</div>\n                <img class=\"image-thumbnail\" src=\"data:image/png;base64,".concat(mapping.thumbnail, "\" alt=\"").concat(mapping.fileName, "\" title=\"").concat(tooltipText, "\">\n                <div class=\"image-info\">\n                    <div class=\"image-info-header\">\n                        <span class=\"image-filename\" title=\"").concat(mapping.fileName, "\">").concat(mapping.fileName, "</span>\n                        <button class=\"image-remove-btn\" data-image-id=\"").concat(mapping.id, "\">\u2715</button>\n                    </div>\n                    <div class=\"caption-range\">\n                        <label>\uCEA1\uC158 \uAC1C\uC218:</label>\n                        <div class=\"caption-range-inputs\">\n                            <select data-image-id=\"").concat(mapping.id, "\" class=\"caption-count-input select-modern\" style=\"width: 80px;\">\n                                ").concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) {
-                return "<option value=\"".concat(n, "\" ").concat(n === mapping.captionCount ? 'selected' : '', ">").concat(n, "\uAC1C</option>");
-            }).join(''), "\n                            </select>\n                        </div>\n                    </div>\n                    <div class=\"caption-preview\" id=\"caption-preview-").concat(mapping.id, "\">\n                        \uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, " \uBC94\uC704\n                    </div>\n                </div>\n            ");
-            queueDiv.appendChild(itemDiv);
-            // 드래그 이벤트 추가
-            itemDiv.addEventListener('dragstart', handleDragStart);
-            itemDiv.addEventListener('dragover', handleDragOver);
-            itemDiv.addEventListener('drop', handleDrop);
-            itemDiv.addEventListener('dragend', handleDragEnd);
-        });
-        // 제거 버튼 이벤트 추가
-        queueDiv.querySelectorAll('.image-remove-btn').forEach(function (btn) {
-            btn.addEventListener('click', handleRemoveImage);
-        });
-        // 캡션 개수 입력 이벤트 추가
-        queueDiv.querySelectorAll('.caption-count-input').forEach(function (input) {
-            input.addEventListener('change', handleCaptionCountChange);
+            // 미리보기와 동일한 스타일 사용 (크기만 더 크게)
+            var wrapper = document.createElement('div');
+            wrapper.className = 'preview-thumbnail-wrapper';
+            wrapper.draggable = true;
+            wrapper.dataset.imageId = mapping.id;
+            // 썸네일 이미지
+            var img = document.createElement('img');
+            img.className = 'preview-thumbnail';
+            img.src = "data:image/png;base64,".concat(mapping.thumbnail);
+            img.alt = mapping.fileName;
+            img.title = tooltipText;
+            // 삭제 버튼
+            var removeBtn = document.createElement('div');
+            removeBtn.className = 'preview-remove-btn';
+            removeBtn.textContent = '✕';
+            removeBtn.title = "".concat(mapping.fileName, " \uC0AD\uC81C");
+            removeBtn.dataset.imageId = mapping.id;
+            removeBtn.addEventListener('click', handleRemoveImage);
+            wrapper.appendChild(img);
+            wrapper.appendChild(removeBtn);
+            // 캡션 개수 표시 (클릭하여 변경)
+            var captionCount = document.createElement('div');
+            captionCount.className = 'preview-caption-count';
+            captionCount.textContent = String(mapping.captionCount || 1);
+            captionCount.title = '캡션 개수 (클릭하여 변경)';
+            captionCount.dataset.imageId = mapping.id;
+            captionCount.addEventListener('click', handleModalCaptionClick);
+            wrapper.appendChild(captionCount);
+            // 캡션 범위 표시
+            var captionRange = document.createElement('div');
+            captionRange.className = 'preview-caption-range';
+            captionRange.textContent = "\uCEA1\uC158 ".concat(captionStart, "-").concat(captionEnd);
+            captionRange.dataset.imageId = mapping.id;
+            captionRange.id = "caption-preview-".concat(mapping.id);
+            wrapper.appendChild(captionRange);
+            // 드래그 앤 드롭 이벤트 추가
+            wrapper.addEventListener('dragstart', handleDragStart);
+            wrapper.addEventListener('dragover', handleDragOver);
+            wrapper.addEventListener('drop', handleDrop);
+            wrapper.addEventListener('dragend', handleDragEnd);
+            queueDiv.appendChild(wrapper);
         });
         // 동기화 버튼 상태 업데이트
         var syncButton = document.getElementById('sync-caption-images');
@@ -1438,6 +1456,71 @@ var JSCEventManager = (function () {
             select.addEventListener('blur', function () {
                 // blur 시 원래 div로 복원
                 updateImageSummary();
+            });
+        }
+    }
+    /**
+     * 모달 캡션 개수 클릭 핸들러 (드롭다운으로 변경)
+     */
+    function handleModalCaptionClick(e) {
+        e.stopPropagation();
+        var captionDiv = e.currentTarget;
+        var imageId = captionDiv.dataset.imageId;
+        var currentValue = parseInt(captionDiv.textContent || '1', 10);
+        // 드롭다운으로 교체
+        var select = document.createElement('select');
+        select.className = 'preview-caption-select select-modern';
+        select.dataset.imageId = imageId || '';
+        // 옵션 추가 (1~10)
+        for (var i = 1; i <= 10; i++) {
+            var option = document.createElement('option');
+            option.value = String(i);
+            option.textContent = "".concat(i, "\uAC1C");
+            if (i === currentValue) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        }
+        // 부모에서 캡션 div 제거하고 select 추가
+        var wrapper = captionDiv.parentElement;
+        if (wrapper) {
+            wrapper.removeChild(captionDiv);
+            wrapper.appendChild(select);
+            // 클릭 이벤트 전파 방지
+            select.addEventListener('click', function (e) {
+                e.stopPropagation();
+            });
+            // mousedown 이벤트 전파 방지
+            select.addEventListener('mousedown', function (e) {
+                e.stopPropagation();
+            });
+            select.focus();
+            // 드롭다운 자동으로 열기
+            setTimeout(function () {
+                var event = new MouseEvent('mousedown', {
+                    bubbles: false,
+                    cancelable: true,
+                    view: window
+                });
+                select.dispatchEvent(event);
+            }, 10);
+            // 선택 변경 시 즉시 저장 및 큐 재렌더링
+            var saveValue = function () {
+                var newValue = parseInt(select.value, 10);
+                if (imageId && newValue > 0) {
+                    var index = imageMappings.findIndex(function (m) { return m.id === imageId; });
+                    if (index !== -1) {
+                        imageMappings[index].captionCount = newValue;
+                        updateImageSummary();
+                        updateCaptionRanges(index);
+                    }
+                }
+            };
+            select.addEventListener('change', saveValue);
+            select.addEventListener('blur', function () {
+                // blur 시 미리보기와 큐 모두 업데이트
+                updateImageSummary();
+                renderImageQueue();
             });
         }
     }

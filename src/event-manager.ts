@@ -999,29 +999,33 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             countText.textContent = `이미지 ${imageMappings.length}개`;
             openModalBtn.disabled = false;
 
-            // 미리보기 썸네일 렌더링 (최대 5개)
+            // 미리보기 썸네일 렌더링 (모든 이미지)
             previewDiv.innerHTML = '';
-            const maxPreview = 5;
-            const previewCount = Math.min(imageMappings.length, maxPreview);
 
-            for (let i = 0; i < previewCount; i++) {
-                const mapping = imageMappings[i];
+            imageMappings.forEach((mapping) => {
+                // 래퍼 생성
+                const wrapper = document.createElement('div');
+                wrapper.className = 'preview-thumbnail-wrapper';
+
+                // 썸네일 이미지
                 const img = document.createElement('img');
                 img.className = 'preview-thumbnail';
                 img.src = `data:image/png;base64,${mapping.thumbnail}`;
                 img.alt = mapping.fileName;
                 img.title = mapping.fileName;
-                previewDiv.appendChild(img);
-            }
 
-            // 5개 넘으면 "+N" 표시
-            if (imageMappings.length > maxPreview) {
-                const moreDiv = document.createElement('div');
-                moreDiv.className = 'preview-more';
-                moreDiv.textContent = `+${imageMappings.length - maxPreview}`;
-                moreDiv.title = `${imageMappings.length - maxPreview}개 더 있음`;
-                previewDiv.appendChild(moreDiv);
-            }
+                // 삭제 버튼
+                const removeBtn = document.createElement('div');
+                removeBtn.className = 'preview-remove-btn';
+                removeBtn.textContent = '✕';
+                removeBtn.title = `${mapping.fileName} 삭제`;
+                removeBtn.dataset.imageId = mapping.id;
+                removeBtn.addEventListener('click', handleRemoveImage);
+
+                wrapper.appendChild(img);
+                wrapper.appendChild(removeBtn);
+                previewDiv.appendChild(wrapper);
+            });
         }
     }
 

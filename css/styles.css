@@ -1084,6 +1084,12 @@ body {
     align-items: center;
 }
 
+.preview-thumbnail-wrapper {
+    position: relative;
+    width: 50px;
+    height: 50px;
+}
+
 .preview-thumbnail {
     width: 50px;
     height: 50px;
@@ -1091,26 +1097,42 @@ body {
     border-radius: var(--radius-sm);
     border: 2px solid var(--color-border);
     transition: all 0.2s;
-    cursor: pointer;
+    display: block;
 }
 
-.preview-thumbnail:hover {
+.preview-thumbnail-wrapper:hover .preview-thumbnail {
     border-color: var(--color-primary);
     transform: scale(1.05);
 }
 
-.preview-more {
+.preview-remove-btn {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 18px;
+    height: 18px;
+    background: var(--color-error);
+    color: white;
+    border: 2px solid var(--color-bg-primary);
+    border-radius: 50%;
+    font-size: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 50px;
-    height: 50px;
-    background: var(--color-bg-secondary);
-    border-radius: var(--radius-sm);
-    border: 2px solid var(--color-border);
-    font-size: 12px;
-    color: var(--color-text-muted);
-    font-weight: 600;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.2s;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.preview-thumbnail-wrapper:hover .preview-remove-btn {
+    opacity: 1;
+}
+
+.preview-remove-btn:hover {
+    background: #c0392b;
+    transform: scale(1.1);
 }
 
 /* ============================================

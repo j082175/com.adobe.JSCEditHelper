@@ -264,11 +264,16 @@ function insertImageAtTime(imagePath, trackIndex, startTime, endTime) {
         var normalizedPath = imageFile.fsName;
         debugWriteln("원본 경로: " + imagePath);
         debugWriteln("정규화된 경로 (fsName): " + normalizedPath);
+
+        // 임포트 전 아이템 개수 저장
+        var itemCountBefore = app.project.rootItem.children.numItems;
+        debugWriteln("임포트 전 프로젝트 아이템 개수: " + itemCountBefore);
+
         debugWriteln("프로젝트에 임포트 시작...");
         app.project.importFiles([normalizedPath], true, app.project.rootItem, false);
 
-        var fileName = imagePath.split("\\").pop().split("/").pop();
-        var projectItem = findProjectItemByName(fileName);
+        // 방금 임포트된 아이템은 마지막에 추가됨 (O(1) 접근, 검색 불필요!)
+        var projectItem = app.project.rootItem.children[itemCountBefore];
 
         if (!projectItem) {
             debugWriteln("프로젝트 아이템을 찾을 수 없음");

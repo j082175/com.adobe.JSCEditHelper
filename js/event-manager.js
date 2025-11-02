@@ -1016,6 +1016,16 @@ var JSCEventManager = (function () {
                 lineNumbers.scrollTop = textArea.scrollTop;
             }
         });
+        // 텍스트 영역 클릭 시 해당 이미지 강조
+        textArea.addEventListener('click', function (e) {
+            handleTextLineClick(e, textArea);
+        });
+        // 줄 번호 클릭 시 해당 이미지 강조
+        if (lineNumbers) {
+            lineNumbers.addEventListener('click', function (e) {
+                handleLineNumberClick(e, textArea);
+            });
+        }
         // 초기 줄 번호 업데이트
         updateLineNumbers();
         utils.logDebug('Text list input setup completed');
@@ -1039,16 +1049,34 @@ var JSCEventManager = (function () {
         updateImageTextLabels();
     }
     /**
-     * 줄 번호 업데이트
+     * 줄 번호 업데이트 (이미지 번호로 표시)
      */
     function updateLineNumbers() {
         var textArea = document.getElementById('text-list');
         var lineNumbers = document.getElementById('line-numbers');
         if (!textArea || !lineNumbers)
             return;
-        var lines = textArea.value.split('\n');
-        var lineNumbersText = lines.map(function (_, i) { return i + 1; }).join('\n');
-        lineNumbers.textContent = lineNumbersText;
+        var allLines = textArea.value.split('\n');
+        var textIndex = 0; // textList에서의 인덱스 (빈 줄 제외)
+        var lineNumbersArray = allLines.map(function (line) {
+            if (line.trim() === '') {
+                // 빈 줄
+                return '';
+            }
+            else {
+                // 실제 텍스트가 있는 줄
+                textIndex++;
+                if (textIndex <= imageMappings.length) {
+                    // 이미지와 매칭됨
+                    return "#".concat(textIndex);
+                }
+                else {
+                    // 이미지보다 텍스트가 많음 (매칭 안 됨)
+                    return '-';
+                }
+            }
+        });
+        lineNumbers.textContent = lineNumbersArray.join('\n');
     }
     /**
      * 이미지에 텍스트 라벨 매칭
@@ -1065,6 +1093,116 @@ var JSCEventManager = (function () {
         });
         // UI 업데이트
         updateImageGrid();
+    }
+    /**
+     * 텍스트 영역 클릭 핸들러 (해당 이미지 강조)
+     */
+    function handleTextLineClick(_e, textArea) {
+        var utils = getUtils();
+        // 클릭한 위치에서 줄 번호 계산
+        var textBeforeCursor = textArea.value.substring(0, textArea.selectionStart);
+        var lineNumber = textBeforeCursor.split('\n').length;
+        // 해당 줄의 텍스트 인덱스 계산 (빈 줄 제외)
+        var lines = textArea.value.split('\n');
+        var textIndex = 0;
+        for (var i = 0; i < lineNumber; i++) {
+            if (lines[i].trim() !== '') {
+                textIndex++;
+            }
+        }
+        // 유효한 이미지 인덱스인지 확인
+        if (textIndex > 0 && textIndex <= imageMappings.length) {
+            highlightImageCard(textIndex - 1);
+            utils.logDebug("\uD14D\uC2A4\uD2B8 \uC904 ".concat(lineNumber, " \uD074\uB9AD \u2192 \uC774\uBBF8\uC9C0 #").concat(textIndex, " \uAC15\uC870"));
+        }
+    }
+    /**
+     * 줄 번호 클릭 핸들러 (해당 이미지 강조)
+     */
+    function handleLineNumberClick(e, textArea) {
+        var utils = getUtils();
+        var lineNumbers = document.getElementById('line-numbers');
+        if (!lineNumbers)
+            return;
+        // 클릭 위치에서 줄 번호 계산
+        var clickY = e.offsetY;
+        var lineHeight = parseFloat(getComputedStyle(lineNumbers).lineHeight);
+        var lineNumber = Math.floor(clickY / lineHeight) + 1;
+        // 해당 줄의 텍스트 인덱스 계산
+        var lines = textArea.value.split('\n');
+        var textIndex = 0;
+        for (var i = 0; i < Math.min(lineNumber, lines.length); i++) {
+            if (lines[i].trim() !== '') {
+                textIndex++;
+            }
+        }
+        // 유효한 이미지 인덱스인지 확인
+        if (textIndex > 0 && textIndex <= imageMappings.length) {
+            highlightImageCard(textIndex - 1);
+            utils.logDebug("\uC904 \uBC88\uD638 #".concat(textIndex, " \uD074\uB9AD \u2192 \uC774\uBBF8\uC9C0 #").concat(textIndex, " \uAC15\uC870"));
+        }
+    }
+    /**
+     * 이미지 카드 강조
+     */
+    function highlightImageCard(imageIndex) {
+        var _a;
+        var gridDiv = document.getElementById('image-grid');
+        if (!gridDiv)
+            return;
+        // 기존 강조 제거
+        var previousHighlighted = gridDiv.querySelectorAll('.image-card.highlight');
+        previousHighlighted.forEach(function (card) { return card.classList.remove('highlight'); });
+        // 해당 이미지 카드 찾기
+        var imageId = (_a = imageMappings[imageIndex]) === null || _a === void 0 ? void 0 : _a.id;
+        if (!imageId)
+            return;
+        var targetCard = gridDiv.querySelector("[data-image-id=\"".concat(imageId, "\"]"));
+        if (targetCard) {
+            // 강조 효과 추가
+            targetCard.classList.add('highlight');
+            // 스크롤하여 보이게
+            targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // 3초 후 자동 제거
+            setTimeout(function () {
+                targetCard.classList.remove('highlight');
+            }, 3000);
+        }
+    }
+    /**
+     * 이미지 카드 클릭 핸들러 (해당 텍스트 강조)
+     */
+    function handleImageCardClick(imageIndex) {
+        var utils = getUtils();
+        var textArea = document.getElementById('text-list');
+        if (!textArea)
+            return;
+        // 해당 텍스트 줄 찾기 (빈 줄 포함)
+        var lines = textArea.value.split('\n');
+        var textCount = 0;
+        var targetLineIndex = -1;
+        for (var i = 0; i < lines.length; i++) {
+            if (lines[i].trim() !== '') {
+                textCount++;
+                if (textCount === imageIndex + 1) {
+                    targetLineIndex = i;
+                    break;
+                }
+            }
+        }
+        if (targetLineIndex === -1)
+            return;
+        // 해당 줄로 스크롤
+        var lineHeight = parseFloat(getComputedStyle(textArea).lineHeight);
+        var scrollTop = targetLineIndex * lineHeight;
+        textArea.scrollTop = scrollTop;
+        // 텍스트 영역에 일시적인 배경색 효과 (CSS 애니메이션 활용)
+        textArea.classList.add('highlight-line');
+        // 3초 후 자동 제거
+        setTimeout(function () {
+            textArea.classList.remove('highlight-line');
+        }, 3000);
+        utils.logDebug("\uC774\uBBF8\uC9C0 #".concat(imageIndex + 1, " \uD074\uB9AD \u2192 \uD14D\uC2A4\uD2B8 \uC904 ").concat(targetLineIndex + 1, " \uAC15\uC870"));
     }
     /**
      * 이미지 그리드 렌더링
@@ -1115,6 +1253,15 @@ var JSCEventManager = (function () {
                 if (captionSelect) {
                     captionSelect.addEventListener('change', handleCaptionCountChange);
                 }
+                // 이미지 카드 클릭 이벤트 (텍스트 강조)
+                card.addEventListener('click', function (e) {
+                    // 버튼이나 select 클릭은 무시
+                    var target = e.target;
+                    if (target.tagName === 'BUTTON' || target.tagName === 'SELECT') {
+                        return;
+                    }
+                    handleImageCardClick(index);
+                });
                 // 드래그 이벤트
                 card.addEventListener('dragstart', handlePreviewDragStart);
                 card.addEventListener('dragover', handlePreviewDragOver);

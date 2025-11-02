@@ -998,6 +998,18 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             }
         });
 
+        // 텍스트 영역 클릭 시 해당 이미지 강조
+        textArea.addEventListener('click', (e) => {
+            handleTextLineClick(e, textArea);
+        });
+
+        // 줄 번호 클릭 시 해당 이미지 강조
+        if (lineNumbers) {
+            lineNumbers.addEventListener('click', (e) => {
+                handleLineNumberClick(e, textArea);
+            });
+        }
+
         // 초기 줄 번호 업데이트
         updateLineNumbers();
 
@@ -1027,7 +1039,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     }
 
     /**
-     * 줄 번호 업데이트
+     * 줄 번호 업데이트 (이미지 번호로 표시)
      */
     function updateLineNumbers(): void {
         const textArea = document.getElementById('text-list') as HTMLTextAreaElement;
@@ -1035,10 +1047,27 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
 
         if (!textArea || !lineNumbers) return;
 
-        const lines = textArea.value.split('\n');
-        const lineNumbersText = lines.map((_, i) => i + 1).join('\n');
+        const allLines = textArea.value.split('\n');
+        let textIndex = 0; // textList에서의 인덱스 (빈 줄 제외)
 
-        lineNumbers.textContent = lineNumbersText;
+        const lineNumbersArray = allLines.map((line) => {
+            if (line.trim() === '') {
+                // 빈 줄
+                return '';
+            } else {
+                // 실제 텍스트가 있는 줄
+                textIndex++;
+                if (textIndex <= imageMappings.length) {
+                    // 이미지와 매칭됨
+                    return `#${textIndex}`;
+                } else {
+                    // 이미지보다 텍스트가 많음 (매칭 안 됨)
+                    return '-';
+                }
+            }
+        });
+
+        lineNumbers.textContent = lineNumbersArray.join('\n');
     }
 
     /**
@@ -1057,6 +1086,134 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
 
         // UI 업데이트
         updateImageGrid();
+    }
+
+    /**
+     * 텍스트 영역 클릭 핸들러 (해당 이미지 강조)
+     */
+    function handleTextLineClick(_e: MouseEvent, textArea: HTMLTextAreaElement): void {
+        const utils = getUtils();
+
+        // 클릭한 위치에서 줄 번호 계산
+        const textBeforeCursor = textArea.value.substring(0, textArea.selectionStart);
+        const lineNumber = textBeforeCursor.split('\n').length;
+
+        // 해당 줄의 텍스트 인덱스 계산 (빈 줄 제외)
+        const lines = textArea.value.split('\n');
+        let textIndex = 0;
+
+        for (let i = 0; i < lineNumber; i++) {
+            if (lines[i].trim() !== '') {
+                textIndex++;
+            }
+        }
+
+        // 유효한 이미지 인덱스인지 확인
+        if (textIndex > 0 && textIndex <= imageMappings.length) {
+            highlightImageCard(textIndex - 1);
+            utils.logDebug(`텍스트 줄 ${lineNumber} 클릭 → 이미지 #${textIndex} 강조`);
+        }
+    }
+
+    /**
+     * 줄 번호 클릭 핸들러 (해당 이미지 강조)
+     */
+    function handleLineNumberClick(e: MouseEvent, textArea: HTMLTextAreaElement): void {
+        const utils = getUtils();
+        const lineNumbers = document.getElementById('line-numbers');
+        if (!lineNumbers) return;
+
+        // 클릭 위치에서 줄 번호 계산
+        const clickY = e.offsetY;
+        const lineHeight = parseFloat(getComputedStyle(lineNumbers).lineHeight);
+        const lineNumber = Math.floor(clickY / lineHeight) + 1;
+
+        // 해당 줄의 텍스트 인덱스 계산
+        const lines = textArea.value.split('\n');
+        let textIndex = 0;
+
+        for (let i = 0; i < Math.min(lineNumber, lines.length); i++) {
+            if (lines[i].trim() !== '') {
+                textIndex++;
+            }
+        }
+
+        // 유효한 이미지 인덱스인지 확인
+        if (textIndex > 0 && textIndex <= imageMappings.length) {
+            highlightImageCard(textIndex - 1);
+            utils.logDebug(`줄 번호 #${textIndex} 클릭 → 이미지 #${textIndex} 강조`);
+        }
+    }
+
+    /**
+     * 이미지 카드 강조
+     */
+    function highlightImageCard(imageIndex: number): void {
+        const gridDiv = document.getElementById('image-grid');
+        if (!gridDiv) return;
+
+        // 기존 강조 제거
+        const previousHighlighted = gridDiv.querySelectorAll('.image-card.highlight');
+        previousHighlighted.forEach(card => card.classList.remove('highlight'));
+
+        // 해당 이미지 카드 찾기
+        const imageId = imageMappings[imageIndex]?.id;
+        if (!imageId) return;
+
+        const targetCard = gridDiv.querySelector(`[data-image-id="${imageId}"]`);
+        if (targetCard) {
+            // 강조 효과 추가
+            targetCard.classList.add('highlight');
+
+            // 스크롤하여 보이게
+            targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            // 3초 후 자동 제거
+            setTimeout(() => {
+                targetCard.classList.remove('highlight');
+            }, 3000);
+        }
+    }
+
+    /**
+     * 이미지 카드 클릭 핸들러 (해당 텍스트 강조)
+     */
+    function handleImageCardClick(imageIndex: number): void {
+        const utils = getUtils();
+        const textArea = document.getElementById('text-list') as HTMLTextAreaElement;
+        if (!textArea) return;
+
+        // 해당 텍스트 줄 찾기 (빈 줄 포함)
+        const lines = textArea.value.split('\n');
+        let textCount = 0;
+        let targetLineIndex = -1;
+
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].trim() !== '') {
+                textCount++;
+                if (textCount === imageIndex + 1) {
+                    targetLineIndex = i;
+                    break;
+                }
+            }
+        }
+
+        if (targetLineIndex === -1) return;
+
+        // 해당 줄로 스크롤
+        const lineHeight = parseFloat(getComputedStyle(textArea).lineHeight);
+        const scrollTop = targetLineIndex * lineHeight;
+        textArea.scrollTop = scrollTop;
+
+        // 텍스트 영역에 일시적인 배경색 효과 (CSS 애니메이션 활용)
+        textArea.classList.add('highlight-line');
+
+        // 3초 후 자동 제거
+        setTimeout(() => {
+            textArea.classList.remove('highlight-line');
+        }, 3000);
+
+        utils.logDebug(`이미지 #${imageIndex + 1} 클릭 → 텍스트 줄 ${targetLineIndex + 1} 강조`);
     }
 
     /**
@@ -1135,6 +1292,16 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 if (captionSelect) {
                     captionSelect.addEventListener('change', handleCaptionCountChange);
                 }
+
+                // 이미지 카드 클릭 이벤트 (텍스트 강조)
+                card.addEventListener('click', (e) => {
+                    // 버튼이나 select 클릭은 무시
+                    const target = e.target as HTMLElement;
+                    if (target.tagName === 'BUTTON' || target.tagName === 'SELECT') {
+                        return;
+                    }
+                    handleImageCardClick(index);
+                });
 
                 // 드래그 이벤트
                 card.addEventListener('dragstart', handlePreviewDragStart);

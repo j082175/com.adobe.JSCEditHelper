@@ -1855,3 +1855,69 @@ body {
 .modal-footer button {
     min-width: 150px;
 }
+
+/* ==============================================
+   텍스트-이미지 매칭 강조 효과
+   ============================================== */
+
+/* 텍스트 에디터를 클릭 가능하게 */
+.text-editor {
+    cursor: text;
+}
+
+/* 텍스트 줄 강조 (이미지 클릭 시) */
+.text-editor.highlight-line {
+    background: linear-gradient(
+        to right,
+        rgba(0, 122, 204, 0.25) 0%,
+        rgba(0, 122, 204, 0.15) 100%
+    );
+    animation: highlightFadeOut 3s ease forwards;
+}
+
+/* 이미지 카드 강조 (텍스트 클릭 시) */
+.image-card.highlight {
+    border-color: #00aaff;
+    border-width: 3px;
+    box-shadow: 0 0 20px rgba(0, 170, 255, 0.5);
+    animation: highlightPulse 3s ease forwards;
+}
+
+/* 강조 애니메이션 */
+@keyframes highlightFadeOut {
+    0% {
+        background: rgba(0, 122, 204, 0.3);
+    }
+    70% {
+        background: rgba(0, 122, 204, 0.3);
+    }
+    100% {
+        background: transparent;
+    }
+}
+
+@keyframes highlightPulse {
+    0% {
+        border-color: #00aaff;
+        box-shadow: 0 0 20px rgba(0, 170, 255, 0.6);
+    }
+    50% {
+        border-color: #00aaff;
+        box-shadow: 0 0 25px rgba(0, 170, 255, 0.8);
+    }
+    100% {
+        border-color: #444;
+        box-shadow: none;
+    }
+}
+
+/* 줄 번호 스타일 개선 */
+.line-numbers {
+    cursor: pointer;
+    user-select: none;
+}
+
+/* 매칭 안 된 줄 번호 (회색) */
+.line-numbers.unmatched {
+    color: #444;
+}

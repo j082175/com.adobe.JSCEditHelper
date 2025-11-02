@@ -18,6 +18,7 @@
             <button class="tab-button active" data-tab="clip">🧲 클립 정렬</button>
             <button class="tab-button" data-tab="sound">🎵 효과음</button>
             <button class="tab-button" data-tab="image">🎬 이미지 매칭</button>
+            <button class="tab-button" data-tab="dev">🛠️ 개발자</button>
         </div>
 
         <!-- 탭 1: 클립 정렬 -->
@@ -222,18 +223,23 @@
 
         </div>
 
-        <!-- 개발자 도구 (모든 탭에서 접근 가능) -->
-        <details class="developer-tools">
-            <summary class="dev-tools-header">
-                <span>🛠️ 개발자 도구</span>
-            </summary>
-            <div class="dev-tools-content">
-                <button id="test-sound-engine" class="btn-dev">🔧 SoundEngine 테스트</button>
-                <button id="debug-button" class="btn-dev">📋 디버그 정보</button>
-                <button id="close-debug-button" class="btn-dev" style="display: none;">❌ 디버그 닫기</button>
-                <pre id="debug-info" class="debug-output"></pre>
+        <!-- 탭 4: 개발자 도구 -->
+        <div class="tab-content" id="tab-dev">
+            <div class="workflow-section">
+                <div class="action-card">
+                    <div class="card-header">
+                        <h2>🛠️ 개발자 도구</h2>
+                    </div>
+                    <p class="card-description">디버깅 및 테스트 도구</p>
+                    <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;">
+                        <button id="test-sound-engine" class="btn-secondary">🔧 SoundEngine 테스트</button>
+                        <button id="debug-button" class="btn-secondary">📋 디버그 정보</button>
+                        <button id="close-debug-button" class="btn-secondary" style="display: none;">❌ 디버그 닫기</button>
+                    </div>
+                    <pre id="debug-info" class="debug-output" style="margin-top: 12px;"></pre>
+                </div>
             </div>
-        </details>
+        </div>
     </div>
     
     <script src="lib/CSInterface.js"></script>

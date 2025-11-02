@@ -984,7 +984,18 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             // 미리보기 썸네일 렌더링 (모든 이미지)
             previewDiv.innerHTML = '';
 
+            // 캡션 범위 계산을 위한 누적 카운터
+            let cumulativeCaptionIndex = 1;
+
             imageMappings.forEach((mapping) => {
+                // 이 이미지의 캡션 범위 계산
+                const captionStart = cumulativeCaptionIndex;
+                const captionEnd = cumulativeCaptionIndex + mapping.captionCount - 1;
+                cumulativeCaptionIndex += mapping.captionCount;
+
+                // 툴팁 텍스트 생성
+                const tooltipText = `${mapping.fileName}\n캡션 ${captionStart}-${captionEnd} 범위 (${mapping.captionCount}개)`;
+
                 // 래퍼 생성
                 const wrapper = document.createElement('div');
                 wrapper.className = 'preview-thumbnail-wrapper';
@@ -996,7 +1007,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 img.className = 'preview-thumbnail';
                 img.src = `data:image/png;base64,${mapping.thumbnail}`;
                 img.alt = mapping.fileName;
-                img.title = mapping.fileName;
+                img.title = tooltipText;
 
                 // 삭제 버튼
                 const removeBtn = document.createElement('div');
@@ -1018,6 +1029,14 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 captionCount.addEventListener('click', handlePreviewCaptionClick);
                 wrapper.appendChild(captionCount);
 
+                // 캡션 범위 표시 (항상)
+                const captionRange = document.createElement('div');
+                captionRange.className = 'preview-caption-range';
+                captionRange.textContent = `캡션 ${captionStart}-${captionEnd}`;
+                captionRange.dataset.imageId = mapping.id;
+                captionRange.id = `preview-caption-range-${mapping.id}`;
+                wrapper.appendChild(captionRange);
+
                 // 드래그 앤 드롭 이벤트 추가
                 wrapper.addEventListener('dragstart', handlePreviewDragStart);
                 wrapper.addEventListener('dragover', handlePreviewDragOver);
@@ -1034,9 +1053,6 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
      * @param startIndex 업데이트 시작 인덱스
      */
     function updateCaptionRanges(startIndex: number): void {
-        const queueDiv = document.getElementById('image-queue');
-        if (!queueDiv) return;
-
         // 시작 인덱스까지의 누적 캡션 개수 계산
         let cumulativeCaptionIndex = 1;
         for (let i = 0; i < startIndex; i++) {
@@ -1049,10 +1065,26 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             const captionStart = cumulativeCaptionIndex;
             const captionEnd = cumulativeCaptionIndex + mapping.captionCount - 1;
 
-            // DOM 요소 찾아서 텍스트만 업데이트
+            // 모달 큐의 캡션 범위 업데이트
             const captionPreview = document.getElementById(`caption-preview-${mapping.id}`);
             if (captionPreview) {
                 captionPreview.textContent = `캡션 ${captionStart}-${captionEnd} 범위`;
+            }
+
+            // 미리보기 패널의 캡션 범위 업데이트
+            const previewCaptionRange = document.getElementById(`preview-caption-range-${mapping.id}`);
+            if (previewCaptionRange) {
+                previewCaptionRange.textContent = `캡션 ${captionStart}-${captionEnd}`;
+            }
+
+            // 미리보기 이미지의 툴팁도 업데이트
+            const previewWrapper = document.querySelector(`[data-image-id="${mapping.id}"]`);
+            if (previewWrapper) {
+                const previewImg = previewWrapper.querySelector('.preview-thumbnail');
+                if (previewImg) {
+                    const tooltipText = `${mapping.fileName}\n캡션 ${captionStart}-${captionEnd} 범위 (${mapping.captionCount}개)`;
+                    previewImg.setAttribute('title', tooltipText);
+                }
             }
 
             cumulativeCaptionIndex += mapping.captionCount;
@@ -1161,6 +1193,9 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             // 다음 이미지를 위해 누적 카운터 업데이트
             cumulativeCaptionIndex += mapping.captionCount;
 
+            // 툴팁 텍스트 생성
+            const tooltipText = `${mapping.fileName}\n캡션 ${captionStart}-${captionEnd} 범위 (${mapping.captionCount}개)`;
+
             // 썸네일 + 캡션 개수 입력
             const itemDiv = document.createElement('div');
             itemDiv.className = 'image-queue-item-advanced';
@@ -1169,7 +1204,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
 
             itemDiv.innerHTML = `
                 <div class="drag-handle" title="드래그하여 순서 변경">⋮</div>
-                <img class="image-thumbnail" src="data:image/png;base64,${mapping.thumbnail}" alt="${mapping.fileName}">
+                <img class="image-thumbnail" src="data:image/png;base64,${mapping.thumbnail}" alt="${mapping.fileName}" title="${tooltipText}">
                 <div class="image-info">
                     <div class="image-info-header">
                         <span class="image-filename" title="${mapping.fileName}">${mapping.fileName}</span>

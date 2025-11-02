@@ -1007,7 +1007,15 @@ var JSCEventManager = (function () {
             openModalBtn.disabled = false;
             // 미리보기 썸네일 렌더링 (모든 이미지)
             previewDiv.innerHTML = '';
+            // 캡션 범위 계산을 위한 누적 카운터
+            var cumulativeCaptionIndex_1 = 1;
             imageMappings.forEach(function (mapping) {
+                // 이 이미지의 캡션 범위 계산
+                var captionStart = cumulativeCaptionIndex_1;
+                var captionEnd = cumulativeCaptionIndex_1 + mapping.captionCount - 1;
+                cumulativeCaptionIndex_1 += mapping.captionCount;
+                // 툴팁 텍스트 생성
+                var tooltipText = "".concat(mapping.fileName, "\n\uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, " \uBC94\uC704 (").concat(mapping.captionCount, "\uAC1C)");
                 // 래퍼 생성
                 var wrapper = document.createElement('div');
                 wrapper.className = 'preview-thumbnail-wrapper';
@@ -1018,7 +1026,7 @@ var JSCEventManager = (function () {
                 img.className = 'preview-thumbnail';
                 img.src = "data:image/png;base64,".concat(mapping.thumbnail);
                 img.alt = mapping.fileName;
-                img.title = mapping.fileName;
+                img.title = tooltipText;
                 // 삭제 버튼
                 var removeBtn = document.createElement('div');
                 removeBtn.className = 'preview-remove-btn';
@@ -1036,6 +1044,13 @@ var JSCEventManager = (function () {
                 captionCount.dataset.imageId = mapping.id;
                 captionCount.addEventListener('click', handlePreviewCaptionClick);
                 wrapper.appendChild(captionCount);
+                // 캡션 범위 표시 (항상)
+                var captionRange = document.createElement('div');
+                captionRange.className = 'preview-caption-range';
+                captionRange.textContent = "\uCEA1\uC158 ".concat(captionStart, "-").concat(captionEnd);
+                captionRange.dataset.imageId = mapping.id;
+                captionRange.id = "preview-caption-range-".concat(mapping.id);
+                wrapper.appendChild(captionRange);
                 // 드래그 앤 드롭 이벤트 추가
                 wrapper.addEventListener('dragstart', handlePreviewDragStart);
                 wrapper.addEventListener('dragover', handlePreviewDragOver);
@@ -1050,9 +1065,6 @@ var JSCEventManager = (function () {
      * @param startIndex 업데이트 시작 인덱스
      */
     function updateCaptionRanges(startIndex) {
-        var queueDiv = document.getElementById('image-queue');
-        if (!queueDiv)
-            return;
         // 시작 인덱스까지의 누적 캡션 개수 계산
         var cumulativeCaptionIndex = 1;
         for (var i = 0; i < startIndex; i++) {
@@ -1063,10 +1075,24 @@ var JSCEventManager = (function () {
             var mapping = imageMappings[i];
             var captionStart = cumulativeCaptionIndex;
             var captionEnd = cumulativeCaptionIndex + mapping.captionCount - 1;
-            // DOM 요소 찾아서 텍스트만 업데이트
+            // 모달 큐의 캡션 범위 업데이트
             var captionPreview = document.getElementById("caption-preview-".concat(mapping.id));
             if (captionPreview) {
                 captionPreview.textContent = "\uCEA1\uC158 ".concat(captionStart, "-").concat(captionEnd, " \uBC94\uC704");
+            }
+            // 미리보기 패널의 캡션 범위 업데이트
+            var previewCaptionRange = document.getElementById("preview-caption-range-".concat(mapping.id));
+            if (previewCaptionRange) {
+                previewCaptionRange.textContent = "\uCEA1\uC158 ".concat(captionStart, "-").concat(captionEnd);
+            }
+            // 미리보기 이미지의 툴팁도 업데이트
+            var previewWrapper = document.querySelector("[data-image-id=\"".concat(mapping.id, "\"]"));
+            if (previewWrapper) {
+                var previewImg = previewWrapper.querySelector('.preview-thumbnail');
+                if (previewImg) {
+                    var tooltipText = "".concat(mapping.fileName, "\n\uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, " \uBC94\uC704 (").concat(mapping.captionCount, "\uAC1C)");
+                    previewImg.setAttribute('title', tooltipText);
+                }
             }
             cumulativeCaptionIndex += mapping.captionCount;
         }
@@ -1138,12 +1164,14 @@ var JSCEventManager = (function () {
             var captionEnd = cumulativeCaptionIndex + mapping.captionCount - 1;
             // 다음 이미지를 위해 누적 카운터 업데이트
             cumulativeCaptionIndex += mapping.captionCount;
+            // 툴팁 텍스트 생성
+            var tooltipText = "".concat(mapping.fileName, "\n\uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, " \uBC94\uC704 (").concat(mapping.captionCount, "\uAC1C)");
             // 썸네일 + 캡션 개수 입력
             var itemDiv = document.createElement('div');
             itemDiv.className = 'image-queue-item-advanced';
             itemDiv.draggable = true;
             itemDiv.dataset.imageId = mapping.id;
-            itemDiv.innerHTML = "\n                <div class=\"drag-handle\" title=\"\uB4DC\uB798\uADF8\uD558\uC5EC \uC21C\uC11C \uBCC0\uACBD\">\u22EE</div>\n                <img class=\"image-thumbnail\" src=\"data:image/png;base64,".concat(mapping.thumbnail, "\" alt=\"").concat(mapping.fileName, "\">\n                <div class=\"image-info\">\n                    <div class=\"image-info-header\">\n                        <span class=\"image-filename\" title=\"").concat(mapping.fileName, "\">").concat(mapping.fileName, "</span>\n                        <button class=\"image-remove-btn\" data-image-id=\"").concat(mapping.id, "\">\u2715</button>\n                    </div>\n                    <div class=\"caption-range\">\n                        <label>\uCEA1\uC158 \uAC1C\uC218:</label>\n                        <div class=\"caption-range-inputs\">\n                            <select data-image-id=\"").concat(mapping.id, "\" class=\"caption-count-input select-modern\" style=\"width: 80px;\">\n                                ").concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) {
+            itemDiv.innerHTML = "\n                <div class=\"drag-handle\" title=\"\uB4DC\uB798\uADF8\uD558\uC5EC \uC21C\uC11C \uBCC0\uACBD\">\u22EE</div>\n                <img class=\"image-thumbnail\" src=\"data:image/png;base64,".concat(mapping.thumbnail, "\" alt=\"").concat(mapping.fileName, "\" title=\"").concat(tooltipText, "\">\n                <div class=\"image-info\">\n                    <div class=\"image-info-header\">\n                        <span class=\"image-filename\" title=\"").concat(mapping.fileName, "\">").concat(mapping.fileName, "</span>\n                        <button class=\"image-remove-btn\" data-image-id=\"").concat(mapping.id, "\">\u2715</button>\n                    </div>\n                    <div class=\"caption-range\">\n                        <label>\uCEA1\uC158 \uAC1C\uC218:</label>\n                        <div class=\"caption-range-inputs\">\n                            <select data-image-id=\"").concat(mapping.id, "\" class=\"caption-count-input select-modern\" style=\"width: 80px;\">\n                                ").concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) {
                 return "<option value=\"".concat(n, "\" ").concat(n === mapping.captionCount ? 'selected' : '', ">").concat(n, "\uAC1C</option>");
             }).join(''), "\n                            </select>\n                        </div>\n                    </div>\n                    <div class=\"caption-preview\" id=\"caption-preview-").concat(mapping.id, "\">\n                        \uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, " \uBC94\uC704\n                    </div>\n                </div>\n            ");
             queueDiv.appendChild(itemDiv);

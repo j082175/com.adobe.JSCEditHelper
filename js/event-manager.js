@@ -46,8 +46,6 @@ var JSCEventManager = (function () {
     var DIHelpers = window.DIHelpers;
     // 이미지 파일명 고유성을 위한 카운터
     var imageCounter = 0;
-    // 고급 모드 상태 및 이미지 매칭 데이터
-    var isAdvancedMode = false;
     // 이미지 매핑 배열 (고급 모드용)
     var imageMappings = [];
     // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
@@ -949,12 +947,6 @@ var JSCEventManager = (function () {
     function setupCaptionEventListeners() {
         var utils = getUtils();
         utils.logDebug('Setting up caption-image sync event listeners...');
-        // 고급 모드 토글
-        var advancedModeToggle = document.getElementById('advanced-mode-toggle');
-        if (advancedModeToggle) {
-            advancedModeToggle.addEventListener('change', handleAdvancedModeToggle);
-            utils.logDebug('Event listener added to advanced-mode-toggle');
-        }
         // 위치 확인 버튼
         var testButton = document.getElementById('test-sync-method');
         if (testButton) {
@@ -997,24 +989,6 @@ var JSCEventManager = (function () {
         }
     }
     /**
-     * 고급 모드 토글 핸들러
-     */
-    function handleAdvancedModeToggle() {
-        var utils = getUtils();
-        var toggle = document.getElementById('advanced-mode-toggle');
-        if (!toggle)
-            return;
-        isAdvancedMode = toggle.checked;
-        utils.logInfo("Advanced mode: ".concat(isAdvancedMode ? 'ON' : 'OFF'));
-        // 기본 모드 옵션 표시/숨김
-        var basicModeOptions = document.getElementById('basic-mode-options');
-        if (basicModeOptions) {
-            basicModeOptions.style.display = isAdvancedMode ? 'none' : 'block';
-        }
-        // 이미지 큐 다시 렌더링
-        renderImageQueue();
-    }
-    /**
      * 패널 요약 정보 업데이트
      */
     function updateImageSummary() {
@@ -1031,9 +1005,6 @@ var JSCEventManager = (function () {
         else {
             countText.textContent = "\uC774\uBBF8\uC9C0 ".concat(imageMappings.length, "\uAC1C");
             openModalBtn.disabled = false;
-            // 고급 모드 확인
-            var advancedModeToggle = document.getElementById('advanced-mode-toggle');
-            var isAdvancedMode_1 = (advancedModeToggle === null || advancedModeToggle === void 0 ? void 0 : advancedModeToggle.checked) || false;
             // 미리보기 썸네일 렌더링 (모든 이미지)
             previewDiv.innerHTML = '';
             imageMappings.forEach(function (mapping) {
@@ -1057,16 +1028,14 @@ var JSCEventManager = (function () {
                 removeBtn.addEventListener('click', handleRemoveImage);
                 wrapper.appendChild(img);
                 wrapper.appendChild(removeBtn);
-                // 고급 모드일 때 캡션 개수 표시
-                if (isAdvancedMode_1) {
-                    var captionCount = document.createElement('div');
-                    captionCount.className = 'preview-caption-count';
-                    captionCount.textContent = String(mapping.captionCount || 1);
-                    captionCount.title = '캡션 개수 (클릭하여 변경)';
-                    captionCount.dataset.imageId = mapping.id;
-                    captionCount.addEventListener('click', handlePreviewCaptionClick);
-                    wrapper.appendChild(captionCount);
-                }
+                // 캡션 개수 표시 (항상)
+                var captionCount = document.createElement('div');
+                captionCount.className = 'preview-caption-count';
+                captionCount.textContent = String(mapping.captionCount || 1);
+                captionCount.title = '캡션 개수 (클릭하여 변경)';
+                captionCount.dataset.imageId = mapping.id;
+                captionCount.addEventListener('click', handlePreviewCaptionClick);
+                wrapper.appendChild(captionCount);
                 // 드래그 앤 드롭 이벤트 추가
                 wrapper.addEventListener('dragstart', handlePreviewDragStart);
                 wrapper.addEventListener('dragover', handlePreviewDragOver);
@@ -1092,47 +1061,35 @@ var JSCEventManager = (function () {
         }
         // 자동 캡션 범위 계산을 위한 누적 카운터
         var cumulativeCaptionIndex = 1;
-        imageMappings.forEach(function (mapping, index) {
-            if (isAdvancedMode) {
-                // 이 이미지의 캡션 범위 계산
-                var captionStart = cumulativeCaptionIndex;
-                var captionEnd = cumulativeCaptionIndex + mapping.captionCount - 1;
-                // 다음 이미지를 위해 누적 카운터 업데이트
-                cumulativeCaptionIndex += mapping.captionCount;
-                // 고급 모드: 썸네일 + 캡션 개수 입력
-                var itemDiv = document.createElement('div');
-                itemDiv.className = 'image-queue-item-advanced';
-                itemDiv.draggable = true;
-                itemDiv.dataset.imageId = mapping.id;
-                itemDiv.innerHTML = "\n                    <div class=\"drag-handle\" title=\"\uB4DC\uB798\uADF8\uD558\uC5EC \uC21C\uC11C \uBCC0\uACBD\">\u22EE</div>\n                    <img class=\"image-thumbnail\" src=\"data:image/png;base64,".concat(mapping.thumbnail, "\" alt=\"").concat(mapping.fileName, "\">\n                    <div class=\"image-info\">\n                        <div class=\"image-info-header\">\n                            <span class=\"image-filename\" title=\"").concat(mapping.fileName, "\">").concat(mapping.fileName, "</span>\n                            <button class=\"image-remove-btn\" data-image-id=\"").concat(mapping.id, "\">\u2715</button>\n                        </div>\n                        <div class=\"caption-range\">\n                            <label>\uCEA1\uC158 \uAC1C\uC218:</label>\n                            <div class=\"caption-range-inputs\">\n                                <select data-image-id=\"").concat(mapping.id, "\" class=\"caption-count-input select-modern\" style=\"width: 80px;\">\n                                    ").concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) {
-                    return "<option value=\"".concat(n, "\" ").concat(n === mapping.captionCount ? 'selected' : '', ">").concat(n, "\uAC1C</option>");
-                }).join(''), "\n                                </select>\n                            </div>\n                        </div>\n                        <div class=\"caption-preview\" id=\"caption-preview-").concat(mapping.id, "\">\n                            \uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, " \uBC94\uC704\n                        </div>\n                    </div>\n                ");
-                queueDiv.appendChild(itemDiv);
-                // 드래그 이벤트 추가
-                itemDiv.addEventListener('dragstart', handleDragStart);
-                itemDiv.addEventListener('dragover', handleDragOver);
-                itemDiv.addEventListener('drop', handleDrop);
-                itemDiv.addEventListener('dragend', handleDragEnd);
-            }
-            else {
-                // 기본 모드: 간단한 리스트
-                var itemDiv = document.createElement('div');
-                itemDiv.className = 'image-queue-item-basic';
-                itemDiv.dataset.imageId = mapping.id;
-                itemDiv.innerHTML = "\n                    <span>".concat(index + 1, ". ").concat(mapping.fileName, "</span>\n                    <button class=\"btn-remove\" data-image-id=\"").concat(mapping.id, "\">\u2715</button>\n                ");
-                queueDiv.appendChild(itemDiv);
-            }
+        imageMappings.forEach(function (mapping) {
+            // 이 이미지의 캡션 범위 계산
+            var captionStart = cumulativeCaptionIndex;
+            var captionEnd = cumulativeCaptionIndex + mapping.captionCount - 1;
+            // 다음 이미지를 위해 누적 카운터 업데이트
+            cumulativeCaptionIndex += mapping.captionCount;
+            // 썸네일 + 캡션 개수 입력
+            var itemDiv = document.createElement('div');
+            itemDiv.className = 'image-queue-item-advanced';
+            itemDiv.draggable = true;
+            itemDiv.dataset.imageId = mapping.id;
+            itemDiv.innerHTML = "\n                <div class=\"drag-handle\" title=\"\uB4DC\uB798\uADF8\uD558\uC5EC \uC21C\uC11C \uBCC0\uACBD\">\u22EE</div>\n                <img class=\"image-thumbnail\" src=\"data:image/png;base64,".concat(mapping.thumbnail, "\" alt=\"").concat(mapping.fileName, "\">\n                <div class=\"image-info\">\n                    <div class=\"image-info-header\">\n                        <span class=\"image-filename\" title=\"").concat(mapping.fileName, "\">").concat(mapping.fileName, "</span>\n                        <button class=\"image-remove-btn\" data-image-id=\"").concat(mapping.id, "\">\u2715</button>\n                    </div>\n                    <div class=\"caption-range\">\n                        <label>\uCEA1\uC158 \uAC1C\uC218:</label>\n                        <div class=\"caption-range-inputs\">\n                            <select data-image-id=\"").concat(mapping.id, "\" class=\"caption-count-input select-modern\" style=\"width: 80px;\">\n                                ").concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) {
+                return "<option value=\"".concat(n, "\" ").concat(n === mapping.captionCount ? 'selected' : '', ">").concat(n, "\uAC1C</option>");
+            }).join(''), "\n                            </select>\n                        </div>\n                    </div>\n                    <div class=\"caption-preview\" id=\"caption-preview-").concat(mapping.id, "\">\n                        \uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, " \uBC94\uC704\n                    </div>\n                </div>\n            ");
+            queueDiv.appendChild(itemDiv);
+            // 드래그 이벤트 추가
+            itemDiv.addEventListener('dragstart', handleDragStart);
+            itemDiv.addEventListener('dragover', handleDragOver);
+            itemDiv.addEventListener('drop', handleDrop);
+            itemDiv.addEventListener('dragend', handleDragEnd);
         });
         // 제거 버튼 이벤트 추가
-        queueDiv.querySelectorAll('.image-remove-btn, .btn-remove').forEach(function (btn) {
+        queueDiv.querySelectorAll('.image-remove-btn').forEach(function (btn) {
             btn.addEventListener('click', handleRemoveImage);
         });
-        // 캡션 개수 입력 이벤트 추가 (고급 모드)
-        if (isAdvancedMode) {
-            queueDiv.querySelectorAll('.caption-count-input').forEach(function (input) {
-                input.addEventListener('change', handleCaptionCountChange);
-            });
-        }
+        // 캡션 개수 입력 이벤트 추가
+        queueDiv.querySelectorAll('.caption-count-input').forEach(function (input) {
+            input.addEventListener('change', handleCaptionCountChange);
+        });
         // 동기화 버튼 상태 업데이트
         var syncButton = document.getElementById('sync-caption-images');
         if (syncButton) {
@@ -1831,10 +1788,10 @@ var JSCEventManager = (function () {
      */
     function startCaptionImageSync() {
         return __awaiter(this, void 0, void 0, function () {
-            var utils, communication, resultDiv, debugInfo, selectedMethod, captionGroup, targetTrack, scriptCall;
+            var utils, communication, resultDiv, debugInfo, selectedMethod, targetTrack, scriptCall;
             var _this = this;
-            var _a, _b, _c;
-            return __generator(this, function (_d) {
+            var _a, _b;
+            return __generator(this, function (_c) {
                 utils = getUtils();
                 communication = getCommunication();
                 resultDiv = document.getElementById('sync-test-result');
@@ -1849,16 +1806,13 @@ var JSCEventManager = (function () {
                     return [2 /*return*/];
                 }
                 selectedMethod = (_a = document.querySelector('input[name="sync-method"]:checked')) === null || _a === void 0 ? void 0 : _a.value;
-                captionGroup = parseInt(((_b = document.getElementById('caption-group')) === null || _b === void 0 ? void 0 : _b.value) || '1');
-                targetTrack = parseInt(((_c = document.getElementById('target-video-track')) === null || _c === void 0 ? void 0 : _c.value) || '0');
+                targetTrack = parseInt(((_b = document.getElementById('target-video-track')) === null || _b === void 0 ? void 0 : _b.value) || '0');
                 debugInfo += "\uB3D9\uAE30\uD654 \uBC29\uBC95: ".concat(selectedMethod, "\n");
-                debugInfo += "\uBAA8\uB4DC: ".concat(isAdvancedMode ? '고급' : '기본', "\n");
-                debugInfo += "\uCEA1\uC158 \uADF8\uB8F9\uD654: ".concat(captionGroup, "\n");
                 debugInfo += "\uB300\uC0C1 \uBE44\uB514\uC624 \uD2B8\uB799: V".concat(targetTrack + 1, "\n");
                 debugInfo += "\uC774\uBBF8\uC9C0 \uAC1C\uC218: ".concat(imageMappings.length, "\n\n");
                 if (resultDiv)
                     resultDiv.textContent = '동기화 중...';
-                utils.logInfo('Starting caption-image sync:', { method: selectedMethod, group: captionGroup, track: targetTrack });
+                utils.logInfo('Starting caption-image sync:', { method: selectedMethod, track: targetTrack });
                 scriptCall = '';
                 if (selectedMethod === 'selection') {
                     scriptCall = 'getSelectedClipsForImageSync()';
@@ -1901,7 +1855,7 @@ var JSCEventManager = (function () {
                                 successCount_1 = 0;
                                 debugInfo += "\n\uCD1D \uC704\uCE58: ".concat(positions.length, "\uAC1C\n");
                                 debugInfo += "\uB8E8\uD504 \uBC18\uBCF5 \uD69F\uC218: ".concat(imageMappings.length, "\uBC88\n\n");
-                                syncDebugMsg = "\uCD1D \uC774\uBBF8\uC9C0: ".concat(imageMappings.length, ", \uCD1D \uC704\uCE58: ").concat(positions.length, ", \uBAA8\uB4DC: ").concat(isAdvancedMode ? '고급' : '기본', ", \uADF8\uB8F9\uD654: ").concat(captionGroup);
+                                syncDebugMsg = "\uCD1D \uC774\uBBF8\uC9C0: ".concat(imageMappings.length, ", \uCD1D \uC704\uCE58: ").concat(positions.length);
                                 utils.logInfo(syncDebugMsg);
                                 console.log("[SYNC] ".concat(syncDebugMsg));
                                 cumulativeCaptionIndex = 0;
@@ -1913,21 +1867,12 @@ var JSCEventManager = (function () {
                                                 debugInfo += "\n===== \uB8E8\uD504 ".concat(i + 1, "/").concat(imageMappings.length, " =====\n");
                                                 mapping = imageMappings[i];
                                                 imagePath = mapping.filePath;
-                                                positionIndex = void 0;
-                                                if (isAdvancedMode) {
-                                                    // 고급 모드: 누적 계산 (0-based)
-                                                    positionIndex = cumulativeCaptionIndex;
-                                                    captionStart = cumulativeCaptionIndex + 1;
-                                                    captionEnd = cumulativeCaptionIndex + mapping.captionCount;
-                                                    debugInfo += "\uACE0\uAE09 \uBAA8\uB4DC: \uCEA1\uC158 \uAC1C\uC218 ".concat(mapping.captionCount, "\uAC1C (\uBC94\uC704: ").concat(captionStart, "-").concat(captionEnd, ")\n");
-                                                    // 다음 이미지를 위해 누적 카운터 업데이트
-                                                    cumulativeCaptionIndex += mapping.captionCount;
-                                                }
-                                                else {
-                                                    // 기본 모드: 그룹화 적용
-                                                    positionIndex = i * captionGroup;
-                                                    debugInfo += "\uAE30\uBCF8 \uBAA8\uB4DC: \uADF8\uB8F9\uD654 ".concat(captionGroup, "\n");
-                                                }
+                                                positionIndex = cumulativeCaptionIndex;
+                                                captionStart = cumulativeCaptionIndex + 1;
+                                                captionEnd = cumulativeCaptionIndex + mapping.captionCount;
+                                                debugInfo += "\uCEA1\uC158 \uAC1C\uC218: ".concat(mapping.captionCount, "\uAC1C (\uBC94\uC704: ").concat(captionStart, "-").concat(captionEnd, ")\n");
+                                                // 다음 이미지를 위해 누적 카운터 업데이트
+                                                cumulativeCaptionIndex += mapping.captionCount;
                                                 position = positions[positionIndex];
                                                 debugInfo += "\uC774\uBBF8\uC9C0 \uC778\uB371\uC2A4: ".concat(i, "\n");
                                                 debugInfo += "\uC704\uCE58 \uC778\uB371\uC2A4: ".concat(positionIndex, "\n");

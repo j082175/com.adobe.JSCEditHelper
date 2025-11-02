@@ -20,9 +20,6 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     // 이미지 파일명 고유성을 위한 카운터
     let imageCounter = 0;
 
-    // 고급 모드 상태 및 이미지 매칭 데이터
-    let isAdvancedMode = false;
-
     // 이미지 매칭 데이터 구조
     interface ImageMapping {
         id: string;              // 고유 ID
@@ -918,13 +915,6 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         const utils = getUtils();
         utils.logDebug('Setting up caption-image sync event listeners...');
 
-        // 고급 모드 토글
-        const advancedModeToggle = document.getElementById('advanced-mode-toggle') as HTMLInputElement;
-        if (advancedModeToggle) {
-            advancedModeToggle.addEventListener('change', handleAdvancedModeToggle);
-            utils.logDebug('Event listener added to advanced-mode-toggle');
-        }
-
         // 위치 확인 버튼
         const testButton = document.getElementById('test-sync-method');
         if (testButton) {
@@ -974,28 +964,6 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     }
 
     /**
-     * 고급 모드 토글 핸들러
-     */
-    function handleAdvancedModeToggle(): void {
-        const utils = getUtils();
-        const toggle = document.getElementById('advanced-mode-toggle') as HTMLInputElement;
-
-        if (!toggle) return;
-
-        isAdvancedMode = toggle.checked;
-        utils.logInfo(`Advanced mode: ${isAdvancedMode ? 'ON' : 'OFF'}`);
-
-        // 기본 모드 옵션 표시/숨김
-        const basicModeOptions = document.getElementById('basic-mode-options');
-        if (basicModeOptions) {
-            basicModeOptions.style.display = isAdvancedMode ? 'none' : 'block';
-        }
-
-        // 이미지 큐 다시 렌더링
-        renderImageQueue();
-    }
-
-    /**
      * 패널 요약 정보 업데이트
      */
     function updateImageSummary(): void {
@@ -1012,10 +980,6 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         } else {
             countText.textContent = `이미지 ${imageMappings.length}개`;
             openModalBtn.disabled = false;
-
-            // 고급 모드 확인
-            const advancedModeToggle = document.getElementById('advanced-mode-toggle') as HTMLInputElement;
-            const isAdvancedMode = advancedModeToggle?.checked || false;
 
             // 미리보기 썸네일 렌더링 (모든 이미지)
             previewDiv.innerHTML = '';
@@ -1045,16 +1009,14 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 wrapper.appendChild(img);
                 wrapper.appendChild(removeBtn);
 
-                // 고급 모드일 때 캡션 개수 표시
-                if (isAdvancedMode) {
-                    const captionCount = document.createElement('div');
-                    captionCount.className = 'preview-caption-count';
-                    captionCount.textContent = String(mapping.captionCount || 1);
-                    captionCount.title = '캡션 개수 (클릭하여 변경)';
-                    captionCount.dataset.imageId = mapping.id;
-                    captionCount.addEventListener('click', handlePreviewCaptionClick);
-                    wrapper.appendChild(captionCount);
-                }
+                // 캡션 개수 표시 (항상)
+                const captionCount = document.createElement('div');
+                captionCount.className = 'preview-caption-count';
+                captionCount.textContent = String(mapping.captionCount || 1);
+                captionCount.title = '캡션 개수 (클릭하여 변경)';
+                captionCount.dataset.imageId = mapping.id;
+                captionCount.addEventListener('click', handlePreviewCaptionClick);
+                wrapper.appendChild(captionCount);
 
                 // 드래그 앤 드롭 이벤트 추가
                 wrapper.addEventListener('dragstart', handlePreviewDragStart);
@@ -1087,79 +1049,62 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         // 자동 캡션 범위 계산을 위한 누적 카운터
         let cumulativeCaptionIndex = 1;
 
-        imageMappings.forEach((mapping, index) => {
-            if (isAdvancedMode) {
-                // 이 이미지의 캡션 범위 계산
-                const captionStart = cumulativeCaptionIndex;
-                const captionEnd = cumulativeCaptionIndex + mapping.captionCount - 1;
+        imageMappings.forEach((mapping) => {
+            // 이 이미지의 캡션 범위 계산
+            const captionStart = cumulativeCaptionIndex;
+            const captionEnd = cumulativeCaptionIndex + mapping.captionCount - 1;
 
-                // 다음 이미지를 위해 누적 카운터 업데이트
-                cumulativeCaptionIndex += mapping.captionCount;
+            // 다음 이미지를 위해 누적 카운터 업데이트
+            cumulativeCaptionIndex += mapping.captionCount;
 
-                // 고급 모드: 썸네일 + 캡션 개수 입력
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'image-queue-item-advanced';
-                itemDiv.draggable = true;
-                itemDiv.dataset.imageId = mapping.id;
+            // 썸네일 + 캡션 개수 입력
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'image-queue-item-advanced';
+            itemDiv.draggable = true;
+            itemDiv.dataset.imageId = mapping.id;
 
-                itemDiv.innerHTML = `
-                    <div class="drag-handle" title="드래그하여 순서 변경">⋮</div>
-                    <img class="image-thumbnail" src="data:image/png;base64,${mapping.thumbnail}" alt="${mapping.fileName}">
-                    <div class="image-info">
-                        <div class="image-info-header">
-                            <span class="image-filename" title="${mapping.fileName}">${mapping.fileName}</span>
-                            <button class="image-remove-btn" data-image-id="${mapping.id}">✕</button>
-                        </div>
-                        <div class="caption-range">
-                            <label>캡션 개수:</label>
-                            <div class="caption-range-inputs">
-                                <select data-image-id="${mapping.id}" class="caption-count-input select-modern" style="width: 80px;">
-                                    ${[1,2,3,4,5,6,7,8,9,10].map(n =>
-                                        `<option value="${n}" ${n === mapping.captionCount ? 'selected' : ''}>${n}개</option>`
-                                    ).join('')}
-                                </select>
-                            </div>
-                        </div>
-                        <div class="caption-preview" id="caption-preview-${mapping.id}">
-                            캡션 ${captionStart}-${captionEnd} 범위
+            itemDiv.innerHTML = `
+                <div class="drag-handle" title="드래그하여 순서 변경">⋮</div>
+                <img class="image-thumbnail" src="data:image/png;base64,${mapping.thumbnail}" alt="${mapping.fileName}">
+                <div class="image-info">
+                    <div class="image-info-header">
+                        <span class="image-filename" title="${mapping.fileName}">${mapping.fileName}</span>
+                        <button class="image-remove-btn" data-image-id="${mapping.id}">✕</button>
+                    </div>
+                    <div class="caption-range">
+                        <label>캡션 개수:</label>
+                        <div class="caption-range-inputs">
+                            <select data-image-id="${mapping.id}" class="caption-count-input select-modern" style="width: 80px;">
+                                ${[1,2,3,4,5,6,7,8,9,10].map(n =>
+                                    `<option value="${n}" ${n === mapping.captionCount ? 'selected' : ''}>${n}개</option>`
+                                ).join('')}
+                            </select>
                         </div>
                     </div>
-                `;
+                    <div class="caption-preview" id="caption-preview-${mapping.id}">
+                        캡션 ${captionStart}-${captionEnd} 범위
+                    </div>
+                </div>
+            `;
 
-                queueDiv.appendChild(itemDiv);
+            queueDiv.appendChild(itemDiv);
 
-                // 드래그 이벤트 추가
-                itemDiv.addEventListener('dragstart', handleDragStart);
-                itemDiv.addEventListener('dragover', handleDragOver);
-                itemDiv.addEventListener('drop', handleDrop);
-                itemDiv.addEventListener('dragend', handleDragEnd);
-
-            } else {
-                // 기본 모드: 간단한 리스트
-                const itemDiv = document.createElement('div');
-                itemDiv.className = 'image-queue-item-basic';
-                itemDiv.dataset.imageId = mapping.id;
-
-                itemDiv.innerHTML = `
-                    <span>${index + 1}. ${mapping.fileName}</span>
-                    <button class="btn-remove" data-image-id="${mapping.id}">✕</button>
-                `;
-
-                queueDiv.appendChild(itemDiv);
-            }
+            // 드래그 이벤트 추가
+            itemDiv.addEventListener('dragstart', handleDragStart);
+            itemDiv.addEventListener('dragover', handleDragOver);
+            itemDiv.addEventListener('drop', handleDrop);
+            itemDiv.addEventListener('dragend', handleDragEnd);
         });
 
         // 제거 버튼 이벤트 추가
-        queueDiv.querySelectorAll('.image-remove-btn, .btn-remove').forEach(btn => {
+        queueDiv.querySelectorAll('.image-remove-btn').forEach(btn => {
             btn.addEventListener('click', handleRemoveImage);
         });
 
-        // 캡션 개수 입력 이벤트 추가 (고급 모드)
-        if (isAdvancedMode) {
-            queueDiv.querySelectorAll('.caption-count-input').forEach(input => {
-                input.addEventListener('change', handleCaptionCountChange);
-            });
-        }
+        // 캡션 개수 입력 이벤트 추가
+        queueDiv.querySelectorAll('.caption-count-input').forEach(input => {
+            input.addEventListener('change', handleCaptionCountChange);
+        });
 
         // 동기화 버튼 상태 업데이트
         const syncButton = document.getElementById('sync-caption-images') as HTMLButtonElement;
@@ -1915,17 +1860,14 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         }
 
         const selectedMethod = (document.querySelector('input[name="sync-method"]:checked') as HTMLInputElement)?.value;
-        const captionGroup = parseInt((document.getElementById('caption-group') as HTMLSelectElement)?.value || '1');
         const targetTrack = parseInt((document.getElementById('target-video-track') as HTMLSelectElement)?.value || '0');
 
         debugInfo += `동기화 방법: ${selectedMethod}\n`;
-        debugInfo += `모드: ${isAdvancedMode ? '고급' : '기본'}\n`;
-        debugInfo += `캡션 그룹화: ${captionGroup}\n`;
         debugInfo += `대상 비디오 트랙: V${targetTrack + 1}\n`;
         debugInfo += `이미지 개수: ${imageMappings.length}\n\n`;
 
         if (resultDiv) resultDiv.textContent = '동기화 중...';
-        utils.logInfo('Starting caption-image sync:', { method: selectedMethod, group: captionGroup, track: targetTrack });
+        utils.logInfo('Starting caption-image sync:', { method: selectedMethod, track: targetTrack });
 
         // 위치 정보 가져오기
         let scriptCall = '';
@@ -1967,11 +1909,11 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 debugInfo += `\n총 위치: ${positions.length}개\n`;
                 debugInfo += `루프 반복 횟수: ${imageMappings.length}번\n\n`;
 
-                const syncDebugMsg = `총 이미지: ${imageMappings.length}, 총 위치: ${positions.length}, 모드: ${isAdvancedMode ? '고급' : '기본'}, 그룹화: ${captionGroup}`;
+                const syncDebugMsg = `총 이미지: ${imageMappings.length}, 총 위치: ${positions.length}`;
                 utils.logInfo(syncDebugMsg);
                 console.log(`[SYNC] ${syncDebugMsg}`);
 
-                // 고급 모드를 위한 누적 카운터
+                // 누적 캡션 인덱스 카운터
                 let cumulativeCaptionIndex = 0;
 
                 for (let i = 0; i < imageMappings.length; i++) {
@@ -1980,22 +1922,14 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                     const mapping = imageMappings[i];
                     const imagePath = mapping.filePath;
 
-                    // 위치 인덱스 결정
-                    let positionIndex: number;
-                    if (isAdvancedMode) {
-                        // 고급 모드: 누적 계산 (0-based)
-                        positionIndex = cumulativeCaptionIndex;
-                        const captionStart = cumulativeCaptionIndex + 1;
-                        const captionEnd = cumulativeCaptionIndex + mapping.captionCount;
-                        debugInfo += `고급 모드: 캡션 개수 ${mapping.captionCount}개 (범위: ${captionStart}-${captionEnd})\n`;
+                    // 위치 인덱스 결정 (누적 계산, 0-based)
+                    const positionIndex = cumulativeCaptionIndex;
+                    const captionStart = cumulativeCaptionIndex + 1;
+                    const captionEnd = cumulativeCaptionIndex + mapping.captionCount;
+                    debugInfo += `캡션 개수: ${mapping.captionCount}개 (범위: ${captionStart}-${captionEnd})\n`;
 
-                        // 다음 이미지를 위해 누적 카운터 업데이트
-                        cumulativeCaptionIndex += mapping.captionCount;
-                    } else {
-                        // 기본 모드: 그룹화 적용
-                        positionIndex = i * captionGroup;
-                        debugInfo += `기본 모드: 그룹화 ${captionGroup}\n`;
-                    }
+                    // 다음 이미지를 위해 누적 카운터 업데이트
+                    cumulativeCaptionIndex += mapping.captionCount;
 
                     const position = positions[positionIndex];
 

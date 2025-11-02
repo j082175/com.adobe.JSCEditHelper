@@ -2162,11 +2162,11 @@ var JSCEventManager = (function () {
                 scriptCall = 'getSelectedClipsForImageSync()';
                 debugInfo += "위치 정보: 선택된 클립 기반\n";
                 communication.callExtendScript(scriptCall, function (positionResult) { return __awaiter(_this, void 0, void 0, function () {
-                    var positionData, positions, successCount_1, syncDebugMsg, cumulativeCaptionIndex, _loop_3, i, e_7;
+                    var positionData, positions, simplifiedPositions, checkVideoScript_1, videoCheckResult, hasVideoFlags, videoCount, successCount_1, syncDebugMsg, insertTasks, currentCaptionIndex, i, mapping, assignedCaptions, searchIndex, firstPositionIndex, lastPositionIndex, firstPosition, lastPosition, _loop_3, i, e_7;
                     return __generator(this, function (_a) {
                         switch (_a.label) {
                             case 0:
-                                _a.trys.push([0, 5, , 6]);
+                                _a.trys.push([0, 6, , 7]);
                                 debugInfo += "\nJSX \uD638\uCD9C \uACB0\uACFC: ".concat(positionResult.substring(0, 100), "...\n");
                                 positionData = JSON.parse(positionResult);
                                 if (!positionData.success) {
@@ -2182,47 +2182,102 @@ var JSCEventManager = (function () {
                                     window.lastDebugInfo = debugInfo;
                                     return [2 /*return*/];
                                 }
+                                // 🎬 비디오 클립 검사 (자동 스킵)
+                                debugInfo += "\n=== \uBE44\uB514\uC624 \uD074\uB9BD \uAC80\uC0AC \uC2DC\uC791 ===\n";
+                                simplifiedPositions = positions.map(function (p) { return [p.start, p.end]; });
+                                checkVideoScript_1 = "checkCaptionsForVideos(".concat(JSON.stringify(simplifiedPositions), ", ").concat(targetTrack, ")");
+                                debugInfo += "\uBE44\uB514\uC624 \uAC80\uC0AC \uC2A4\uD06C\uB9BD\uD2B8: ".concat(checkVideoScript_1.substring(0, 150), "...\n");
+                                utils.logInfo('Checking for video clips in caption positions...');
+                                return [4 /*yield*/, new Promise(function (resolve) {
+                                        communication.callExtendScript(checkVideoScript_1, function (result) {
+                                            debugInfo += "\uBE44\uB514\uC624 \uAC80\uC0AC JSX \uC751\uB2F5: ".concat(result.substring(0, 200), "...\n");
+                                            try {
+                                                var parsed = JSON.parse(result);
+                                                resolve(parsed);
+                                            }
+                                            catch (e) {
+                                                debugInfo += "\uBE44\uB514\uC624 \uAC80\uC0AC JSON \uD30C\uC2F1 \uC2E4\uD328: ".concat(e.message, "\n");
+                                                debugInfo += "\uC6D0\uBCF8 \uC751\uB2F5: ".concat(result, "\n");
+                                                utils.logError('비디오 검사 실패:', e.message);
+                                                resolve({ success: false });
+                                            }
+                                        });
+                                    })];
+                            case 1:
+                                videoCheckResult = _a.sent();
+                                hasVideoFlags = [];
+                                if (videoCheckResult.success) {
+                                    hasVideoFlags = videoCheckResult.hasVideo || [];
+                                    debugInfo += "\uBE44\uB514\uC624 \uAC80\uC0AC \uC644\uB8CC: ".concat(hasVideoFlags.length, "\uAC1C \uCEA1\uC158 \uD655\uC778\uB428\n");
+                                    videoCount = hasVideoFlags.filter(function (v) { return v; }).length;
+                                    debugInfo += "\uBE44\uB514\uC624 \uC788\uB294 \uCEA1\uC158: ".concat(videoCount, "\uAC1C\n");
+                                    debugInfo += "\uBE44\uC5B4\uC788\uB294 \uCEA1\uC158: ".concat(hasVideoFlags.length - videoCount, "\uAC1C\n");
+                                }
+                                else {
+                                    // 검사 실패 시 모든 캡션을 비어있는 것으로 간주 (기존 동작)
+                                    debugInfo += "WARNING: \uBE44\uB514\uC624 \uAC80\uC0AC \uC2E4\uD328, \uBAA8\uB4E0 \uCEA1\uC158\uC744 \uBE44\uC5B4\uC788\uB294 \uAC83\uC73C\uB85C \uAC04\uC8FC\n";
+                                    hasVideoFlags = new Array(positions.length).fill(false);
+                                }
                                 successCount_1 = 0;
                                 debugInfo += "\n\uCD1D \uC704\uCE58: ".concat(positions.length, "\uAC1C\n");
                                 debugInfo += "\uB8E8\uD504 \uBC18\uBCF5 \uD69F\uC218: ".concat(imageMappings.length, "\uBC88\n\n");
                                 syncDebugMsg = "\uCD1D \uC774\uBBF8\uC9C0: ".concat(imageMappings.length, ", \uCD1D \uC704\uCE58: ").concat(positions.length);
                                 utils.logInfo(syncDebugMsg);
                                 console.log("[SYNC] ".concat(syncDebugMsg));
-                                cumulativeCaptionIndex = 0;
+                                // 1단계: 모든 이미지-캡션 매핑 계산
+                                debugInfo += "\n=== 1\uB2E8\uACC4: \uC774\uBBF8\uC9C0-\uCEA1\uC158 \uB9E4\uD551 \uACC4\uC0B0 ===\n";
+                                insertTasks = [];
+                                currentCaptionIndex = 0;
+                                for (i = 0; i < imageMappings.length; i++) {
+                                    mapping = imageMappings[i];
+                                    debugInfo += "\n\uC774\uBBF8\uC9C0 ".concat(i + 1, ": ").concat(mapping.fileName, " (\uCEA1\uC158 ").concat(mapping.captionCount, "\uAC1C \uD544\uC694)\n");
+                                    assignedCaptions = [];
+                                    searchIndex = currentCaptionIndex;
+                                    while (assignedCaptions.length < mapping.captionCount && searchIndex < positions.length) {
+                                        if (!hasVideoFlags[searchIndex]) {
+                                            assignedCaptions.push(searchIndex);
+                                        }
+                                        else {
+                                            debugInfo += "  \uCEA1\uC158 ".concat(searchIndex + 1, " \uC2A4\uD0B5 (\uBE44\uB514\uC624 \uC788\uC74C)\n");
+                                        }
+                                        searchIndex++;
+                                    }
+                                    if (assignedCaptions.length === 0) {
+                                        debugInfo += "  ERROR: \uB0A8\uC740 \uBE48 \uCEA1\uC158\uC774 \uC5C6\uC74C\n";
+                                        utils.logWarn("[".concat(i, "] \uB0A8\uC740 \uBE48 \uCEA1\uC158\uC774 \uC5C6\uC5B4 \uC774\uBBF8\uC9C0\uB97C \uC0BD\uC785\uD560 \uC218 \uC5C6\uC2B5\uB2C8\uB2E4"));
+                                        break;
+                                    }
+                                    currentCaptionIndex = searchIndex;
+                                    firstPositionIndex = assignedCaptions[0];
+                                    lastPositionIndex = assignedCaptions[assignedCaptions.length - 1];
+                                    firstPosition = positions[firstPositionIndex];
+                                    lastPosition = positions[lastPositionIndex];
+                                    insertTasks.push({
+                                        imageIndex: i,
+                                        imagePath: mapping.filePath,
+                                        fileName: mapping.fileName,
+                                        assignedCaptions: assignedCaptions,
+                                        startTime: firstPosition.start,
+                                        endTime: lastPosition.end
+                                    });
+                                    debugInfo += "  \u2192 \uD560\uB2F9: \uCEA1\uC158 ".concat(assignedCaptions.map(function (idx) { return idx + 1; }).join(', '), "\n");
+                                    debugInfo += "  \u2192 \uC2DC\uAC04: ".concat(firstPosition.start, "s ~ ").concat(lastPosition.end, "s\n");
+                                }
+                                // 2단계: 순차 삽입 (앞→뒤)
+                                debugInfo += "\n=== 2\uB2E8\uACC4: \uC21C\uCC28 \uC0BD\uC785 (\uCD1D ".concat(insertTasks.length, "\uAC1C) ===\n");
+                                debugInfo += "\uC55E\uC5D0\uC11C\uBD80\uD130 \uC21C\uC11C\uB300\uB85C \uC0BD\uC785\uD569\uB2C8\uB2E4\n\n";
                                 _loop_3 = function (i) {
-                                    var mapping, imagePath, firstPositionIndex, lastPositionIndex, captionStart, captionEnd, firstPosition, lastPosition, startTime, endTime, escapedPath, insertScript;
+                                    var task, escapedPath, insertScript;
                                     return __generator(this, function (_b) {
                                         switch (_b.label) {
                                             case 0:
-                                                debugInfo += "\n===== \uB8E8\uD504 ".concat(i + 1, "/").concat(imageMappings.length, " =====\n");
-                                                mapping = imageMappings[i];
-                                                imagePath = mapping.filePath;
-                                                firstPositionIndex = cumulativeCaptionIndex;
-                                                lastPositionIndex = cumulativeCaptionIndex + mapping.captionCount - 1;
-                                                captionStart = cumulativeCaptionIndex + 1;
-                                                captionEnd = cumulativeCaptionIndex + mapping.captionCount;
-                                                debugInfo += "\uCEA1\uC158 \uAC1C\uC218: ".concat(mapping.captionCount, "\uAC1C (\uBC94\uC704: ").concat(captionStart, "-").concat(captionEnd, ")\n");
-                                                // 다음 이미지를 위해 누적 카운터 업데이트
-                                                cumulativeCaptionIndex += mapping.captionCount;
-                                                firstPosition = positions[firstPositionIndex];
-                                                lastPosition = positions[lastPositionIndex];
-                                                debugInfo += "\uC774\uBBF8\uC9C0 \uC778\uB371\uC2A4: ".concat(i, "\n");
-                                                debugInfo += "\uCCAB \uCEA1\uC158 \uC778\uB371\uC2A4: ".concat(firstPositionIndex, "\n");
-                                                debugInfo += "\uB9C8\uC9C0\uB9C9 \uCEA1\uC158 \uC778\uB371\uC2A4: ".concat(lastPositionIndex, "\n");
-                                                debugInfo += "\uC774\uBBF8\uC9C0 \uD30C\uC77C: ".concat(mapping.fileName, "\n");
-                                                if (!firstPosition || !lastPosition) {
-                                                    debugInfo += "ERROR: \uC704\uCE58 \uC815\uBCF4\uAC00 \uC5C6\uC74C (\uCCAB \uCEA1\uC158: ".concat(firstPositionIndex, ", \uB9C8\uC9C0\uB9C9 \uCEA1\uC158: ").concat(lastPositionIndex, ")\n");
-                                                    utils.logWarn("[".concat(i, "] \uC704\uCE58 \uC815\uBCF4\uAC00 \uC5C6\uC74C (\uCCAB \uCEA1\uC158: ").concat(firstPositionIndex, ", \uB9C8\uC9C0\uB9C9 \uCEA1\uC158: ").concat(lastPositionIndex, ")"));
-                                                    return [2 /*return*/, "continue"];
-                                                }
-                                                startTime = firstPosition.start;
-                                                endTime = lastPosition.end;
-                                                debugInfo += "\uC704\uCE58: ".concat(startTime, "s ~ ").concat(endTime, "s (\uAE38\uC774: ").concat((endTime - startTime).toFixed(2), "s)\n");
-                                                // 파일 경로 처리
-                                                debugInfo += "\uD30C\uC77C \uACBD\uB85C: ".concat(imagePath, "\n");
-                                                escapedPath = imagePath.replace(/\\/g, '\\\\');
-                                                debugInfo += "\uC774\uC2A4\uCF00\uC774\uD504\uB41C \uACBD\uB85C: ".concat(escapedPath, "\n");
-                                                insertScript = "insertImageAtTime(\"".concat(escapedPath, "\", ").concat(targetTrack, ", ").concat(startTime, ", ").concat(endTime, ")");
+                                                task = insertTasks[i];
+                                                debugInfo += "\n===== \uC0BD\uC785 ".concat(i + 1, "/").concat(insertTasks.length, " =====\n");
+                                                debugInfo += "\uC774\uBBF8\uC9C0: ".concat(task.fileName, "\n");
+                                                debugInfo += "\uCEA1\uC158: ".concat(task.assignedCaptions.map(function (idx) { return idx + 1; }).join(', '), "\n");
+                                                debugInfo += "\uC2DC\uAC04: ".concat(task.startTime, "s ~ ").concat(task.endTime, "s (\uAE38\uC774: ").concat((task.endTime - task.startTime).toFixed(2), "s)\n");
+                                                escapedPath = task.imagePath.replace(/\\/g, '\\\\');
+                                                insertScript = "insertImageAtTime(\"".concat(escapedPath, "\", ").concat(targetTrack, ", ").concat(task.startTime, ", ").concat(task.endTime, ")");
                                                 debugInfo += "JSX \uC2E4\uD589: ".concat(insertScript.substring(0, 100), "...\n");
                                                 return [4 /*yield*/, new Promise(function (resolve) {
                                                         communication.callExtendScript(insertScript, function (insertResult) {
@@ -2232,11 +2287,11 @@ var JSCEventManager = (function () {
                                                                 if (result.success) {
                                                                     successCount_1++;
                                                                     debugInfo += "\u2713 \uC131\uACF5! (\uCD1D ".concat(successCount_1, "\uAC1C \uC0BD\uC785\uB428)\n");
-                                                                    utils.logInfo("[".concat(i, "] \u2713 \uC774\uBBF8\uC9C0 \uC0BD\uC785 \uC131\uACF5! (\uCD1D ").concat(successCount_1, "\uAC1C)"));
+                                                                    utils.logInfo("[".concat(task.imageIndex, "] \u2713 \uC774\uBBF8\uC9C0 \uC0BD\uC785 \uC131\uACF5! (\uCD1D ").concat(successCount_1, "\uAC1C)"));
                                                                 }
                                                                 else {
                                                                     debugInfo += "\u2717 \uC2E4\uD328: ".concat(result.message, "\n");
-                                                                    utils.logWarn("[".concat(i, "] \u2717 \uC774\uBBF8\uC9C0 \uC0BD\uC785 \uC2E4\uD328: ").concat(result.message));
+                                                                    utils.logWarn("[".concat(task.imageIndex, "] \u2717 \uC774\uBBF8\uC9C0 \uC0BD\uC785 \uC2E4\uD328: ").concat(result.message));
                                                                 }
                                                                 // JSX의 디버그 로그 추가
                                                                 if (result.debug) {
@@ -2248,7 +2303,7 @@ var JSCEventManager = (function () {
                                                             catch (e) {
                                                                 debugInfo += "\u2717 JSON \uD30C\uC2F1 \uC2E4\uD328: ".concat(e.message, "\n");
                                                                 debugInfo += "\uC6D0\uBCF8 \uC751\uB2F5: ".concat(insertResult, "\n");
-                                                                utils.logError("[".concat(i, "] JSON \uD30C\uC2F1 \uC2E4\uD328:"), e.message);
+                                                                utils.logError("[".concat(task.imageIndex, "] JSON \uD30C\uC2F1 \uC2E4\uD328:"), e.message);
                                                             }
                                                             resolve();
                                                         });
@@ -2260,32 +2315,32 @@ var JSCEventManager = (function () {
                                     });
                                 };
                                 i = 0;
-                                _a.label = 1;
-                            case 1:
-                                if (!(i < imageMappings.length)) return [3 /*break*/, 4];
-                                return [5 /*yield**/, _loop_3(i)];
+                                _a.label = 2;
                             case 2:
-                                _a.sent();
-                                _a.label = 3;
+                                if (!(i < insertTasks.length)) return [3 /*break*/, 5];
+                                return [5 /*yield**/, _loop_3(i)];
                             case 3:
-                                i++;
-                                return [3 /*break*/, 1];
+                                _a.sent();
+                                _a.label = 4;
                             case 4:
+                                i++;
+                                return [3 /*break*/, 2];
+                            case 5:
                                 debugInfo += "\n===== \uB3D9\uAE30\uD654 \uC644\uB8CC =====\n";
                                 debugInfo += "\uCD1D ".concat(successCount_1, "\uAC1C \uC774\uBBF8\uC9C0 \uC0BD\uC785\uB428\n");
                                 debugInfo += "\uC885\uB8CC \uC2DC\uAC04: ".concat(new Date().toISOString(), "\n");
                                 utils.logInfo("Caption-image sync completed: ".concat(successCount_1, " images inserted"));
                                 // 디버그 정보 저장
                                 window.lastDebugInfo = debugInfo;
-                                return [3 /*break*/, 6];
-                            case 5:
+                                return [3 /*break*/, 7];
+                            case 6:
                                 e_7 = _a.sent();
                                 debugInfo += "\nERROR: ".concat(e_7.message, "\n");
                                 debugInfo += "Stack: ".concat(e_7.stack, "\n");
                                 window.lastDebugInfo = debugInfo;
                                 utils.logError('Failed to sync caption-images:', e_7.message);
-                                return [3 /*break*/, 6];
-                            case 6: return [2 /*return*/];
+                                return [3 /*break*/, 7];
+                            case 7: return [2 /*return*/];
                         }
                     });
                 }); });

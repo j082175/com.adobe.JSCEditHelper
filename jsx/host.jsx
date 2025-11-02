@@ -2464,6 +2464,32 @@ function insertImageAtTime(imagePath, trackIndex, startTime, endTime) {
         }
         debugLog += "프로젝트 아이템 발견: " + projectItem.name + "\n";
 
+        // ✨ 사전 트림: 프로젝트 아이템의 길이를 미리 설정 (사운드 로직과 동일)
+        debugLog += "=== 삽입 전 사전 트림 시도 ===\n";
+        var preTrimSuccess = false;
+        var desiredDuration = endTime - startTime;
+
+        try {
+            if (projectItem.setInPoint && projectItem.setOutPoint) {
+                debugLog += "프로젝트 아이템에 인/아웃 포인트 설정 시도\n";
+                debugWriteln("프로젝트 아이템에 인/아웃 포인트 설정: 0s ~ " + desiredDuration + "s");
+
+                // 프로젝트 아이템 레벨에서 인/아웃 포인트 설정
+                projectItem.setInPoint(0, 4); // 0초부터 시작
+                projectItem.setOutPoint(desiredDuration, 4); // 원하는 길이만큼
+
+                debugLog += "프로젝트 아이템 인/아웃 포인트 설정 완료: 0s ~ " + desiredDuration.toFixed(2) + "s\n";
+                debugWriteln("사전 트림 성공!");
+                preTrimSuccess = true;
+            } else {
+                debugLog += "프로젝트 아이템에 setInPoint/setOutPoint 메서드 없음\n";
+                debugWriteln("프로젝트 아이템에 setInPoint/setOutPoint 메서드 없음");
+            }
+        } catch (preTrimError) {
+            debugLog += "사전 트림 실패: " + preTrimError.toString() + "\n";
+            debugWriteln("사전 트림 실패: " + preTrimError.toString());
+        }
+
         var videoTracks = seq.videoTracks;
         debugLog += "비디오 트랙 수: " + videoTracks.numTracks + "\n";
 
@@ -2472,72 +2498,25 @@ function insertImageAtTime(imagePath, trackIndex, startTime, endTime) {
             return JSCEditHelperJSON.stringify({success: false, message: "잘못된 트랙 인덱스", debug: debugLog});
         }
 
-        // ✨ 빈 트랙 찾기 (자동)
-        var actualTrackIndex = trackIndex;
-        debugLog += "빈 트랙 찾기 시작 (선호 트랙: V" + (trackIndex + 1) + ")...\n";
-
-        // 1. 선호하는 트랙 확인
-        var preferredTrack = videoTracks[trackIndex];
-        var hasClip = false;
-        for (var c = 0; c < preferredTrack.clips.numItems; c++) {
-            var clip = preferredTrack.clips[c];
-            var clipStart = clip.start.seconds;
-            var clipEnd = clip.end.seconds;
-            if (clipStart < endTime && clipEnd > startTime) {
-                hasClip = true;
-                debugLog += "  V" + (trackIndex + 1) + " 트랙에 클립 있음 (충돌)\n";
-                break;
-            }
-        }
-
-        // 2. 선호 트랙에 클립이 있으면 빈 트랙 찾기
-        if (hasClip) {
-            debugLog += "빈 트랙 검색 중...\n";
-            var foundEmpty = false;
-            for (var t = 0; t < videoTracks.numTracks; t++) {
-                var track = videoTracks[t];
-                var trackHasClip = false;
-                for (var tc = 0; tc < track.clips.numItems; tc++) {
-                    var tclip = track.clips[tc];
-                    var tclipStart = tclip.start.seconds;
-                    var tclipEnd = tclip.end.seconds;
-                    if (tclipStart < endTime && tclipEnd > startTime) {
-                        trackHasClip = true;
-                        break;
-                    }
-                }
-                if (!trackHasClip) {
-                    actualTrackIndex = t;
-                    foundEmpty = true;
-                    debugLog += "빈 트랙 발견: V" + (t + 1) + "\n";
-                    break;
-                }
-            }
-
-            // 3. 모든 트랙이 차있으면 새 트랙 생성
-            if (!foundEmpty) {
-                debugLog += "모든 트랙이 차있음 - 새 트랙 생성\n";
-                seq.addVideoTrack();
-                actualTrackIndex = videoTracks.numTracks - 1;
-                debugLog += "새 트랙 생성됨: V" + (actualTrackIndex + 1) + "\n";
-            }
-        }
-
-        if (actualTrackIndex !== trackIndex) {
-            debugLog += "트랙 변경: V" + (trackIndex + 1) + " → V" + (actualTrackIndex + 1) + "\n";
-        }
-
-        var targetTrack = videoTracks[actualTrackIndex];
-        debugLog += "실제 삽입 트랙: V" + (actualTrackIndex + 1) + "\n";
+        var targetTrack = videoTracks[trackIndex];
+        debugLog += "삽입 트랙: V" + (trackIndex + 1) + "\n";
         debugLog += "삽입 전 트랙의 클립 수: " + targetTrack.clips.numItems + "\n";
 
         var insertTime = new Time();
         insertTime.seconds = startTime;
         debugLog += "삽입 시간: " + startTime + "초\n";
+        debugLog += "사전 트림 적용됨: " + (preTrimSuccess ? "YES (정확한 길이로 삽입)" : "NO (삽입 후 길이 조정 필요)") + "\n";
 
-        debugLog += "클립 삽입 시작 (overwriteClip 사용)...\n";
-        targetTrack.overwriteClip(projectItem, insertTime);
-        debugLog += "overwriteClip() 호출 완료\n";
+        debugLog += "클립 삽입 시작 (insertClip 사용 - 기존 클립 보존)...\n";
+
+        // insertClip: 기존 클립을 보존하고 새 클립 삽입
+        var insertResult = targetTrack.insertClip(projectItem, insertTime);
+
+        if (insertResult) {
+            debugLog += "insertClip() 성공\n";
+        } else {
+            debugLog += "WARNING: insertClip()이 false 반환\n";
+        }
 
         var clips = targetTrack.clips;
         debugLog += "삽입 후 트랙의 클립 수: " + clips.numItems + "\n";
@@ -2602,6 +2581,124 @@ function insertImageAtTime(imagePath, trackIndex, startTime, endTime) {
         debugLog += "Line: " + e.line + "\n";
         debugWriteln("ERROR: insertImageAtTime 예외 발생: " + e.toString());
         return JSCEditHelperJSON.stringify({success: false, message: "오류: " + e.toString(), debug: debugLog});
+    }
+}
+
+/**
+ * 특정 비디오 트랙에 빈 공간이 있는지 확인 (사운드 로직 참고)
+ * 캡션 클립은 무시합니다.
+ */
+function hasEmptySpaceInVideoTrack(videoTrack, startTime, endTime) {
+    try {
+        var tolerance = 0.001; // 부동소수점 허용 오차
+
+        if (!videoTrack || !videoTrack.clips) {
+            return true; // 트랙이 없으면 빈 공간으로 간주
+        }
+
+        for (var clipIdx = 0; clipIdx < videoTrack.clips.numItems; clipIdx++) {
+            var clip = videoTrack.clips[clipIdx];
+            if (!clip) continue;
+
+            // 🎬 캡션 클립은 무시 (SyntheticCaption)
+            var clipName = clip.name || "";
+            if (clipName === "SyntheticCaption" || stringContains(clipName, "Caption")) {
+                continue; // 캡션은 스킵
+            }
+
+            var clipStart = clip.start.seconds;
+            var clipEnd = clip.end.seconds;
+
+            // 겹침 조건: (새로운 시작 < 기존 끝 - 허용오차) && (새로운 끝 > 기존 시작 + 허용오차)
+            var hasOverlap = (startTime < (clipEnd - tolerance)) && (endTime > (clipStart + tolerance));
+
+            if (hasOverlap) {
+                return false; // 겹침 있음 = 빈 공간 아님
+            }
+        }
+
+        return true; // 겹침 없음 = 빈 공간
+
+    } catch (e) {
+        debugWriteln("빈 공간 검사 중 오류: " + e.toString());
+        return false; // 오류 시 안전하게 false 반환
+    }
+}
+
+/**
+ * 캡션 위치들에 비디오 클립이 있는지 검사
+ * @param {Array} positionArray - [[start, end], [start, end], ...] 형태의 배열
+ * @param {number} targetTrackIndex - 검사할 트랙 인덱스 (이미지를 삽입할 트랙)
+ * @returns {string} JSON - { success, hasVideo: [boolean...] }
+ */
+function checkCaptionsForVideos(positionArray, targetTrackIndex) {
+    try {
+        debugWriteln("=== checkCaptionsForVideos 시작 ===");
+        debugWriteln("targetTrackIndex: " + targetTrackIndex + " (V" + (targetTrackIndex + 1) + " 트랙만 검사)");
+        debugWriteln("positionArray 길이: " + positionArray.length);
+
+        var seq = app.project.activeSequence;
+        if (!seq) {
+            debugWriteln("ERROR: 활성 시퀀스가 없습니다");
+            return JSCEditHelperJSON.stringify({
+                success: false,
+                message: "활성 시퀀스가 없습니다"
+            });
+        }
+
+        var videoTracks = seq.videoTracks;
+        debugWriteln("총 비디오 트랙 수: " + videoTracks.numTracks);
+
+        if (targetTrackIndex >= videoTracks.numTracks) {
+            debugWriteln("ERROR: 잘못된 트랙 인덱스");
+            return JSCEditHelperJSON.stringify({
+                success: false,
+                message: "잘못된 트랙 인덱스"
+            });
+        }
+
+        var targetTrack = videoTracks[targetTrackIndex];
+        var hasVideo = [];
+
+        debugWriteln("검사 대상: V" + (targetTrackIndex + 1) + " 트랙만");
+        debugWriteln("V" + (targetTrackIndex + 1) + " 트랙의 총 클립 수: " + targetTrack.clips.numItems);
+
+        // 각 캡션 위치마다 선택한 트랙만 검사
+        for (var i = 0; i < positionArray.length; i++) {
+            var position = positionArray[i];
+            var startTime = position[0];
+            var endTime = position[1];
+
+            debugWriteln("\n캡션 " + (i+1) + ": " + startTime.toFixed(3) + "s ~ " + endTime.toFixed(3) + "s");
+
+            // 선택한 트랙만 검사 (다른 트랙은 무시)
+            var isEmpty = hasEmptySpaceInVideoTrack(targetTrack, startTime, endTime);
+            var foundVideo = !isEmpty;
+
+            debugWriteln("  V" + (targetTrackIndex + 1) + " 트랙 검사: " + (isEmpty ? "비어있음 → 삽입 가능" : "클립 있음 → 스킵"));
+
+            hasVideo.push(foundVideo);
+        }
+
+        debugWriteln("\n=== checkCaptionsForVideos 완료 ===");
+        var videoCount = 0;
+        for (var v = 0; v < hasVideo.length; v++) {
+            if (hasVideo[v]) videoCount++;
+        }
+        debugWriteln("결과 요약: " + hasVideo.length + "개 캡션 중 " + videoCount + "개에 비디오 있음");
+
+        return JSCEditHelperJSON.stringify({
+            success: true,
+            hasVideo: hasVideo
+        });
+
+    } catch (e) {
+        debugWriteln("ERROR: checkCaptionsForVideos 예외: " + e.toString());
+        debugWriteln("ERROR: Line: " + (e.line || "알 수 없음"));
+        return JSCEditHelperJSON.stringify({
+            success: false,
+            message: "오류: " + e.toString()
+        });
     }
 }
 

@@ -2280,6 +2280,45 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                     return;
                 }
 
+                // 🎬 비디오 클립 검사 (자동 스킵)
+                debugInfo += `\n=== 비디오 클립 검사 시작 ===\n`;
+
+                // positions를 간단한 배열로 변환 [[start, end], [start, end], ...]
+                const simplifiedPositions = positions.map((p: any) => [p.start, p.end]);
+                const checkVideoScript = `checkCaptionsForVideos(${JSON.stringify(simplifiedPositions)}, ${targetTrack})`;
+
+                debugInfo += `비디오 검사 스크립트: ${checkVideoScript.substring(0, 150)}...\n`;
+                utils.logInfo('Checking for video clips in caption positions...');
+
+                const videoCheckResult = await new Promise<any>((resolve) => {
+                    communication.callExtendScript(checkVideoScript, (result: string) => {
+                        debugInfo += `비디오 검사 JSX 응답: ${result.substring(0, 200)}...\n`;
+                        try {
+                            const parsed = JSON.parse(result);
+                            resolve(parsed);
+                        } catch (e) {
+                            debugInfo += `비디오 검사 JSON 파싱 실패: ${(e as Error).message}\n`;
+                            debugInfo += `원본 응답: ${result}\n`;
+                            utils.logError('비디오 검사 실패:', (e as Error).message);
+                            resolve({ success: false });
+                        }
+                    });
+                });
+
+                let hasVideoFlags: boolean[] = [];
+                if (videoCheckResult.success) {
+                    hasVideoFlags = videoCheckResult.hasVideo || [];
+                    debugInfo += `비디오 검사 완료: ${hasVideoFlags.length}개 캡션 확인됨\n`;
+
+                    const videoCount = hasVideoFlags.filter((v: boolean) => v).length;
+                    debugInfo += `비디오 있는 캡션: ${videoCount}개\n`;
+                    debugInfo += `비어있는 캡션: ${hasVideoFlags.length - videoCount}개\n`;
+                } else {
+                    // 검사 실패 시 모든 캡션을 비어있는 것으로 간주 (기존 동작)
+                    debugInfo += `WARNING: 비디오 검사 실패, 모든 캡션을 비어있는 것으로 간주\n`;
+                    hasVideoFlags = new Array(positions.length).fill(false);
+                }
+
                 // 이미지와 위치 매칭
                 let successCount = 0;
                 debugInfo += `\n총 위치: ${positions.length}개\n`;
@@ -2289,52 +2328,77 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 utils.logInfo(syncDebugMsg);
                 console.log(`[SYNC] ${syncDebugMsg}`);
 
-                // 누적 캡션 인덱스 카운터
-                let cumulativeCaptionIndex = 0;
+                // 1단계: 모든 이미지-캡션 매핑 계산
+                debugInfo += `\n=== 1단계: 이미지-캡션 매핑 계산 ===\n`;
+                interface InsertTask {
+                    imageIndex: number;
+                    imagePath: string;
+                    fileName: string;
+                    assignedCaptions: number[];
+                    startTime: number;
+                    endTime: number;
+                }
+                const insertTasks: InsertTask[] = [];
+                let currentCaptionIndex = 0;
 
                 for (let i = 0; i < imageMappings.length; i++) {
-                    debugInfo += `\n===== 루프 ${i+1}/${imageMappings.length} =====\n`;
-
                     const mapping = imageMappings[i];
-                    const imagePath = mapping.filePath;
+                    debugInfo += `\n이미지 ${i+1}: ${mapping.fileName} (캡션 ${mapping.captionCount}개 필요)\n`;
 
-                    // 위치 인덱스 결정 (누적 계산, 0-based)
-                    const firstPositionIndex = cumulativeCaptionIndex;
-                    const lastPositionIndex = cumulativeCaptionIndex + mapping.captionCount - 1;
-                    const captionStart = cumulativeCaptionIndex + 1;
-                    const captionEnd = cumulativeCaptionIndex + mapping.captionCount;
-                    debugInfo += `캡션 개수: ${mapping.captionCount}개 (범위: ${captionStart}-${captionEnd})\n`;
+                    // 비디오가 없는 캡션들을 찾아서 할당
+                    const assignedCaptions: number[] = [];
+                    let searchIndex = currentCaptionIndex;
 
-                    // 다음 이미지를 위해 누적 카운터 업데이트
-                    cumulativeCaptionIndex += mapping.captionCount;
+                    while (assignedCaptions.length < mapping.captionCount && searchIndex < positions.length) {
+                        if (!hasVideoFlags[searchIndex]) {
+                            assignedCaptions.push(searchIndex);
+                        } else {
+                            debugInfo += `  캡션 ${searchIndex + 1} 스킵 (비디오 있음)\n`;
+                        }
+                        searchIndex++;
+                    }
 
+                    if (assignedCaptions.length === 0) {
+                        debugInfo += `  ERROR: 남은 빈 캡션이 없음\n`;
+                        utils.logWarn(`[${i}] 남은 빈 캡션이 없어 이미지를 삽입할 수 없습니다`);
+                        break;
+                    }
+
+                    currentCaptionIndex = searchIndex;
+
+                    const firstPositionIndex = assignedCaptions[0];
+                    const lastPositionIndex = assignedCaptions[assignedCaptions.length - 1];
                     const firstPosition = positions[firstPositionIndex];
                     const lastPosition = positions[lastPositionIndex];
 
-                    debugInfo += `이미지 인덱스: ${i}\n`;
-                    debugInfo += `첫 캡션 인덱스: ${firstPositionIndex}\n`;
-                    debugInfo += `마지막 캡션 인덱스: ${lastPositionIndex}\n`;
-                    debugInfo += `이미지 파일: ${mapping.fileName}\n`;
+                    insertTasks.push({
+                        imageIndex: i,
+                        imagePath: mapping.filePath,
+                        fileName: mapping.fileName,
+                        assignedCaptions: assignedCaptions,
+                        startTime: firstPosition.start,
+                        endTime: lastPosition.end
+                    });
 
-                    if (!firstPosition || !lastPosition) {
-                        debugInfo += `ERROR: 위치 정보가 없음 (첫 캡션: ${firstPositionIndex}, 마지막 캡션: ${lastPositionIndex})\n`;
-                        utils.logWarn(`[${i}] 위치 정보가 없음 (첫 캡션: ${firstPositionIndex}, 마지막 캡션: ${lastPositionIndex})`);
-                        continue;
-                    }
+                    debugInfo += `  → 할당: 캡션 ${assignedCaptions.map(idx => idx + 1).join(', ')}\n`;
+                    debugInfo += `  → 시간: ${firstPosition.start}s ~ ${lastPosition.end}s\n`;
+                }
 
-                    // 이미지는 첫 캡션 시작부터 마지막 캡션 끝까지 커버
-                    const startTime = firstPosition.start;
-                    const endTime = lastPosition.end;
-                    debugInfo += `위치: ${startTime}s ~ ${endTime}s (길이: ${(endTime - startTime).toFixed(2)}s)\n`;
+                // 2단계: 순차 삽입 (앞→뒤)
+                debugInfo += `\n=== 2단계: 순차 삽입 (총 ${insertTasks.length}개) ===\n`;
+                debugInfo += `앞에서부터 순서대로 삽입합니다\n\n`;
 
-                    // 파일 경로 처리
-                    debugInfo += `파일 경로: ${imagePath}\n`;
+                for (let i = 0; i < insertTasks.length; i++) {
+                    const task = insertTasks[i];
+                    debugInfo += `\n===== 삽입 ${i + 1}/${insertTasks.length} =====\n`;
+                    debugInfo += `이미지: ${task.fileName}\n`;
+                    debugInfo += `캡션: ${task.assignedCaptions.map(idx => idx + 1).join(', ')}\n`;
+                    debugInfo += `시간: ${task.startTime}s ~ ${task.endTime}s (길이: ${(task.endTime - task.startTime).toFixed(2)}s)\n`;
 
                     // 백슬래시 이스케이프: ExtendScript에서 제대로 인식하도록 \를 \\로 변경
-                    const escapedPath = imagePath.replace(/\\/g, '\\\\');
-                    debugInfo += `이스케이프된 경로: ${escapedPath}\n`;
+                    const escapedPath = task.imagePath.replace(/\\/g, '\\\\');
 
-                    const insertScript = `insertImageAtTime("${escapedPath}", ${targetTrack}, ${startTime}, ${endTime})`;
+                    const insertScript = `insertImageAtTime("${escapedPath}", ${targetTrack}, ${task.startTime}, ${task.endTime})`;
 
                     debugInfo += `JSX 실행: ${insertScript.substring(0, 100)}...\n`;
 
@@ -2346,10 +2410,10 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                                 if (result.success) {
                                     successCount++;
                                     debugInfo += `✓ 성공! (총 ${successCount}개 삽입됨)\n`;
-                                    utils.logInfo(`[${i}] ✓ 이미지 삽입 성공! (총 ${successCount}개)`);
+                                    utils.logInfo(`[${task.imageIndex}] ✓ 이미지 삽입 성공! (총 ${successCount}개)`);
                                 } else {
                                     debugInfo += `✗ 실패: ${result.message}\n`;
-                                    utils.logWarn(`[${i}] ✗ 이미지 삽입 실패: ${result.message}`);
+                                    utils.logWarn(`[${task.imageIndex}] ✗ 이미지 삽입 실패: ${result.message}`);
                                 }
 
                                 // JSX의 디버그 로그 추가
@@ -2361,7 +2425,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                             } catch (e) {
                                 debugInfo += `✗ JSON 파싱 실패: ${(e as Error).message}\n`;
                                 debugInfo += `원본 응답: ${insertResult}\n`;
-                                utils.logError(`[${i}] JSON 파싱 실패:`, (e as Error).message);
+                                utils.logError(`[${task.imageIndex}] JSON 파싱 실패:`, (e as Error).message);
                             }
                             resolve();
                         });

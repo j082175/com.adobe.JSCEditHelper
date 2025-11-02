@@ -987,12 +987,17 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     }
 
     /**
-     * 클립보드에서 이미지 붙여넣기 (CEP 환경에서 지원 안 됨)
+     * 클립보드에서 이미지 붙여넣기 (CEP 환경에서 차단됨)
+     *
+     * CEP의 보안 정책으로 인해 navigator.clipboard.read() 권한이 거부됩니다.
+     * 테스트 결과: NotAllowedError - Read permission denied.
+     *
+     * 대안: "📁 이미지 선택" 버튼 사용
      */
     async function pasteImageFromClipboard(): Promise<void> {
         const resultDiv = document.getElementById('sync-test-result');
         if (resultDiv) {
-            resultDiv.textContent = '✗ CEP 환경에서는 클립보드 붙여넣기가 지원되지 않습니다. "이미지 선택" 버튼을 사용하세요.';
+            resultDiv.textContent = '✗ CEP 보안 정책으로 클립보드 읽기가 차단됩니다. "이미지 선택" 버튼을 사용하세요.';
         }
     }
 

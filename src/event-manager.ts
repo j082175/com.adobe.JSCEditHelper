@@ -17,6 +17,9 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     // di-helpers.ts에서 제공하는 공통 헬퍼 사용
     const DIHelpers = (window as any).DIHelpers;
 
+    // 이미지 파일명 고유성을 위한 카운터
+    let imageCounter = 0;
+
     // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
     // DIHelpers가 로드되어 있으면 사용, 아니면 직접 fallback 사용
     function getUtils(): JSCUtilsInterface {
@@ -907,12 +910,10 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             utils.logDebug('Event listener added to test-sync-method button');
         }
 
-        // 이미지 붙여넣기 버튼
-        const pasteButton = document.getElementById('paste-image');
-        if (pasteButton) {
-            pasteButton.addEventListener('click', pasteImageFromClipboard);
-            utils.logDebug('Event listener added to paste-image button');
-        }
+        // Paste 이벤트 리스너 (Ctrl+V 감지)
+        // 사용자가 이미지를 복사하고 패널에서 Ctrl+V를 누르면 자동으로 이미지 큐에 추가됨
+        document.addEventListener('paste', handlePasteEvent);
+        utils.logDebug('Global paste event listener added');
 
         // 이미지 찾기 버튼
         const browseButton = document.getElementById('browse-images');
@@ -987,17 +988,226 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     }
 
     /**
-     * 클립보드에서 이미지 붙여넣기 (CEP 환경에서 차단됨)
-     *
-     * CEP의 보안 정책으로 인해 navigator.clipboard.read() 권한이 거부됩니다.
-     * 테스트 결과: NotAllowedError - Read permission denied.
-     *
-     * 대안: "📁 이미지 선택" 버튼 사용
+     * Base64 이미지를 프로젝트 폴더에 파일로 저장 (Node.js fs 사용 - 매우 빠름!)
+     * @param base64Data Base64 인코딩된 이미지 데이터
+     * @param fileName 파일명
+     * @returns 저장된 파일의 전체 경로를 반환하는 Promise
      */
-    async function pasteImageFromClipboard(): Promise<void> {
+    function saveBase64ToProjectFolder(base64Data: string, fileName: string): Promise<string | null> {
+        const utils = getUtils();
+        const communication = getCommunication();
+
+        return new Promise((resolve) => {
+            try {
+                utils.logInfo('=== saveBase64ToProjectFolder (Node.js) 시작 ===');
+                utils.logInfo(`파일명: ${fileName}`);
+                utils.logInfo(`base64Data 길이: ${base64Data ? base64Data.length : 'undefined'}`);
+
+                if (!base64Data) {
+                    utils.logError('base64Data가 없습니다!');
+                    resolve(null);
+                    return;
+                }
+
+                // 먼저 JSX에서 프로젝트 경로를 가져옴
+                communication.callExtendScript('getProjectPath()', (response: string) => {
+                    try {
+                        const projectInfo = JSON.parse(response);
+
+                        if (!projectInfo.success) {
+                            utils.logError(`프로젝트 경로 가져오기 실패: ${projectInfo.message}`);
+                            resolve(null);
+                            return;
+                        }
+
+                        const projectPath = projectInfo.path;
+                        utils.logInfo(`프로젝트 경로: ${projectPath}`);
+
+                        // Node.js fs 모듈 사용 (CEP 내장)
+                        const fs = (window as any).require('fs');
+                        const path = (window as any).require('path');
+
+                        // 프로젝트 폴더에서 디렉토리 부분만 추출 (.prproj 파일 제거)
+                        const projectDir = path.dirname(projectPath);
+                        utils.logInfo(`프로젝트 디렉토리: ${projectDir}`);
+
+                        // caption-images 폴더 경로
+                        const targetDir = path.join(projectDir, 'caption-images');
+                        utils.logInfo(`저장 폴더: ${targetDir}`);
+
+                        // 폴더 생성 (없으면)
+                        if (!fs.existsSync(targetDir)) {
+                            fs.mkdirSync(targetDir, { recursive: true });
+                            utils.logInfo(`폴더 생성됨: ${targetDir}`);
+                        }
+
+                        // 파일 경로
+                        const filePath = path.join(targetDir, fileName);
+                        utils.logInfo(`파일 경로: ${filePath}`);
+
+                        // Base64를 Buffer로 변환 (빠름!)
+                        const buffer = Buffer.from(base64Data, 'base64');
+                        utils.logInfo(`Buffer 생성됨: ${buffer.length} bytes`);
+
+                        // 파일 쓰기 (매우 빠름!)
+                        fs.writeFileSync(filePath, buffer);
+                        utils.logInfo(`✓ 이미지 저장 성공: ${filePath}`);
+
+                        // 파일 존재 확인
+                        if (fs.existsSync(filePath)) {
+                            const stats = fs.statSync(filePath);
+                            utils.logInfo(`파일 크기 확인: ${stats.size} bytes`);
+                            resolve(filePath);
+                        } else {
+                            utils.logError('파일이 생성되지 않음');
+                            resolve(null);
+                        }
+                    } catch (e) {
+                        utils.logError('Base64 저장 중 예외 발생');
+                        utils.logError(`예외 타입: ${typeof e}`);
+                        if (e instanceof Error) {
+                            utils.logError(`Error 메시지: ${e.message}`);
+                            utils.logError(`Error 스택: ${e.stack || 'no stack'}`);
+                        }
+                        resolve(null);
+                    }
+                });
+            } catch (e) {
+                utils.logError('saveBase64ToProjectFolder 외부 예외 발생');
+                if (e instanceof Error) {
+                    utils.logError(`Error 메시지: ${e.message}`);
+                    utils.logError(`Error 스택: ${e.stack || 'no stack'}`);
+                }
+                resolve(null);
+            }
+        });
+    }
+
+    /**
+     * Paste 이벤트 핸들러 (Ctrl+V)
+     * navigator.clipboard.read()와 달리 paste 이벤트는 작동할 수 있음!
+     */
+    function handlePasteEvent(event: ClipboardEvent): void {
+        const utils = getUtils();
         const resultDiv = document.getElementById('sync-test-result');
-        if (resultDiv) {
-            resultDiv.textContent = '✗ CEP 보안 정책으로 클립보드 읽기가 차단됩니다. "이미지 선택" 버튼을 사용하세요.';
+
+        try {
+            utils.logInfo('Paste 이벤트 감지됨');
+
+            // 클립보드 데이터 확인
+            const clipboardData = event.clipboardData;
+            if (!clipboardData) {
+                utils.logWarn('clipboardData가 없습니다');
+                return;
+            }
+
+            utils.logInfo(`클립보드 아이템 수: ${clipboardData.items.length}`);
+            utils.logInfo(`클립보드 타입: ${clipboardData.types.join(', ')}`);
+
+            // 이미지 찾기
+            let imageFound = false;
+            for (let i = 0; i < clipboardData.items.length; i++) {
+                const item = clipboardData.items[i];
+                utils.logInfo(`아이템[${i}]: kind=${item.kind}, type=${item.type}`);
+
+                if (item.kind === 'file' && item.type.startsWith('image/')) {
+                    const file = item.getAsFile();
+                    if (file) {
+                        utils.logInfo(`✓ 이미지 파일 발견: ${file.name}, 크기: ${file.size} bytes, 타입: ${file.type}`);
+
+                        // FileReader로 Base64 변환
+                        const reader = new FileReader();
+                        reader.onloadend = async () => {
+                            try {
+                                utils.logInfo('FileReader.onloadend 시작');
+                                utils.logInfo(`reader.result 타입: ${typeof reader.result}`);
+                                utils.logInfo(`reader.result 길이: ${reader.result ? (reader.result as string).length : 'null'}`);
+                                utils.logInfo(`reader.result 샘플: ${reader.result ? (reader.result as string).substring(0, 100) : 'null'}`);
+
+                                const resultStr = reader.result as string;
+                                if (!resultStr) {
+                                    utils.logError('reader.result가 비어있습니다');
+                                    if (resultDiv) resultDiv.textContent = '✗ 이미지 읽기 실패 (빈 결과)';
+                                    return;
+                                }
+
+                                const parts = resultStr.split(',');
+                                utils.logInfo(`split 결과 개수: ${parts.length}`);
+                                const base64 = parts[1];
+
+                                if (!base64) {
+                                    utils.logError('Base64 데이터를 추출할 수 없습니다');
+                                    if (resultDiv) resultDiv.textContent = '✗ Base64 추출 실패';
+                                    return;
+                                }
+
+                                utils.logInfo(`Base64 길이: ${base64.length}`);
+
+                                // 고유한 파일명 생성 (순서대로 번호 매기기)
+                                // 클립보드 이미지는 file.name이 항상 "image.png"로 같으므로 항상 고유 이름 생성
+                                imageCounter++;
+                                const fileName = `image-${imageCounter}.png`;
+                                utils.logInfo(`원본 파일명: ${file.name}, 생성된 파일명: ${fileName}`);
+
+                                // 로딩 표시
+                                if (resultDiv) {
+                                    resultDiv.textContent = `⏳ 이미지 저장 중... (${fileName})`;
+                                }
+
+                                // Base64를 프로젝트 폴더에 파일로 저장 (비동기)
+                                utils.logInfo('saveBase64ToProjectFolder 호출 직전');
+                                const savedPath = await saveBase64ToProjectFolder(base64, fileName);
+                                utils.logInfo(`saveBase64ToProjectFolder 완료, 결과: ${savedPath}`);
+
+                                if (savedPath) {
+                                    // 저장된 파일 경로를 큐에 추가
+                                    addImageToQueue(savedPath, fileName);
+
+                                    if (resultDiv) {
+                                        resultDiv.textContent = `✓ 이미지 저장 완료: ${fileName}`;
+                                    }
+                                    utils.logInfo(`이미지 저장 및 큐에 추가됨: ${savedPath}`);
+                                } else {
+                                    if (resultDiv) {
+                                        resultDiv.textContent = `✗ 이미지 저장 실패: ${fileName}`;
+                                    }
+                                    utils.logError(`이미지 저장 실패: ${fileName}`);
+                                }
+                            } catch (e) {
+                                utils.logError('FileReader.onloadend 예외:', e);
+                                utils.logError('예외 타입:', typeof e);
+                                utils.logError('예외 문자열:', String(e));
+                                if (e instanceof Error) {
+                                    utils.logError('예외 메시지:', e.message);
+                                    utils.logError('예외 스택:', e.stack);
+                                }
+                            }
+                        };
+                        reader.onerror = () => {
+                            utils.logError('FileReader 오류:', reader.error);
+                            if (resultDiv) {
+                                resultDiv.textContent = '✗ 이미지 읽기 실패';
+                            }
+                        };
+                        reader.readAsDataURL(file);
+
+                        imageFound = true;
+                        event.preventDefault(); // 기본 붙여넣기 동작 방지
+                        break;
+                    }
+                }
+            }
+
+            if (!imageFound) {
+                utils.logInfo('클립보드에 이미지가 없습니다 (텍스트나 다른 형식)');
+            }
+
+        } catch (error) {
+            const err = error as Error;
+            utils.logError('Paste 이벤트 오류:', err.message);
+            if (resultDiv) {
+                resultDiv.textContent = `✗ 붙여넣기 오류: ${err.message}`;
+            }
         }
     }
 
@@ -1208,30 +1418,15 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                         continue;
                     }
 
-                    // imageData가 파일 경로인지 Base64인지 확인
-                    const isFilePath = imageData.includes('\\') || imageData.includes('/');
-                    debugInfo += `파일 경로 여부: ${isFilePath}\n`;
+                    // 모든 이미지는 이제 파일 경로로 저장됨
+                    // (Ctrl+V → saveBase64ToProjectFolder, 파일 선택 → 파일 경로)
+                    debugInfo += `파일 경로: ${imageData}\n`;
 
-                    let insertScript = '';
-                    if (isFilePath) {
-                        // 파일 경로인 경우 바로 삽입
-                        // 백슬래시 이스케이프: ExtendScript에서 제대로 인식하도록 \를 \\로 변경
-                        const escapedPath = imageData.replace(/\\/g, '\\\\');
-                        debugInfo += `이스케이프된 경로: ${escapedPath}\n`;
-                        insertScript = `insertImageAtTime("${escapedPath}", ${targetTrack}, ${position.start}, ${position.end})`;
-                    } else {
-                        // Base64인 경우 저장 후 삽입
-                        const tempPath = `C:\\\\temp\\\\caption_sync_${Date.now()}_${i}.png`;
-                        debugInfo += `임시 파일 경로: ${tempPath}\n`;
-                        insertScript = `
-                            var savedPath = saveBase64ImageToFile("${imageData}", "${tempPath}");
-                            if (savedPath) {
-                                insertImageAtTime(savedPath, ${targetTrack}, ${position.start}, ${position.end});
-                            } else {
-                                JSCEditHelperJSON.stringify({ success: false, message: "이미지 저장 실패" });
-                            }
-                        `;
-                    }
+                    // 백슬래시 이스케이프: ExtendScript에서 제대로 인식하도록 \를 \\로 변경
+                    const escapedPath = imageData.replace(/\\/g, '\\\\');
+                    debugInfo += `이스케이프된 경로: ${escapedPath}\n`;
+
+                    const insertScript = `insertImageAtTime("${escapedPath}", ${targetTrack}, ${position.start}, ${position.end})`;
 
                     debugInfo += `JSX 실행: ${insertScript.substring(0, 100)}...\n`;
 

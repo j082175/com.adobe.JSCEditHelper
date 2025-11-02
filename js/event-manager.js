@@ -44,6 +44,8 @@ var JSCEventManager = (function () {
     // DIHelpers 사용 - 반복 코드 제거!
     // di-helpers.ts에서 제공하는 공통 헬퍼 사용
     var DIHelpers = window.DIHelpers;
+    // 이미지 파일명 고유성을 위한 카운터
+    var imageCounter = 0;
     // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
     // DIHelpers가 로드되어 있으면 사용, 아니면 직접 fallback 사용
     function getUtils() {
@@ -949,12 +951,10 @@ var JSCEventManager = (function () {
             testButton.addEventListener('click', testSyncMethod);
             utils.logDebug('Event listener added to test-sync-method button');
         }
-        // 이미지 붙여넣기 버튼
-        var pasteButton = document.getElementById('paste-image');
-        if (pasteButton) {
-            pasteButton.addEventListener('click', pasteImageFromClipboard);
-            utils.logDebug('Event listener added to paste-image button');
-        }
+        // Paste 이벤트 리스너 (Ctrl+V 감지)
+        // 사용자가 이미지를 복사하고 패널에서 Ctrl+V를 누르면 자동으로 이미지 큐에 추가됨
+        document.addEventListener('paste', handlePasteEvent);
+        utils.logDebug('Global paste event listener added');
         // 이미지 찾기 버튼
         var browseButton = document.getElementById('browse-images');
         if (browseButton) {
@@ -1029,24 +1029,219 @@ var JSCEventManager = (function () {
         });
     }
     /**
-     * 클립보드에서 이미지 붙여넣기 (CEP 환경에서 차단됨)
-     *
-     * CEP의 보안 정책으로 인해 navigator.clipboard.read() 권한이 거부됩니다.
-     * 테스트 결과: NotAllowedError - Read permission denied.
-     *
-     * 대안: "📁 이미지 선택" 버튼 사용
+     * Base64 이미지를 프로젝트 폴더에 파일로 저장 (Node.js fs 사용 - 매우 빠름!)
+     * @param base64Data Base64 인코딩된 이미지 데이터
+     * @param fileName 파일명
+     * @returns 저장된 파일의 전체 경로를 반환하는 Promise
      */
-    function pasteImageFromClipboard() {
-        return __awaiter(this, void 0, void 0, function () {
-            var resultDiv;
-            return __generator(this, function (_a) {
-                resultDiv = document.getElementById('sync-test-result');
-                if (resultDiv) {
-                    resultDiv.textContent = '✗ CEP 보안 정책으로 클립보드 읽기가 차단됩니다. "이미지 선택" 버튼을 사용하세요.';
+    function saveBase64ToProjectFolder(base64Data, fileName) {
+        var utils = getUtils();
+        var communication = getCommunication();
+        return new Promise(function (resolve) {
+            try {
+                utils.logInfo('=== saveBase64ToProjectFolder (Node.js) 시작 ===');
+                utils.logInfo("\uD30C\uC77C\uBA85: ".concat(fileName));
+                utils.logInfo("base64Data \uAE38\uC774: ".concat(base64Data ? base64Data.length : 'undefined'));
+                if (!base64Data) {
+                    utils.logError('base64Data가 없습니다!');
+                    resolve(null);
+                    return;
                 }
-                return [2 /*return*/];
-            });
+                // 먼저 JSX에서 프로젝트 경로를 가져옴
+                communication.callExtendScript('getProjectPath()', function (response) {
+                    try {
+                        var projectInfo = JSON.parse(response);
+                        if (!projectInfo.success) {
+                            utils.logError("\uD504\uB85C\uC81D\uD2B8 \uACBD\uB85C \uAC00\uC838\uC624\uAE30 \uC2E4\uD328: ".concat(projectInfo.message));
+                            resolve(null);
+                            return;
+                        }
+                        var projectPath = projectInfo.path;
+                        utils.logInfo("\uD504\uB85C\uC81D\uD2B8 \uACBD\uB85C: ".concat(projectPath));
+                        // Node.js fs 모듈 사용 (CEP 내장)
+                        var fs = window.require('fs');
+                        var path = window.require('path');
+                        // 프로젝트 폴더에서 디렉토리 부분만 추출 (.prproj 파일 제거)
+                        var projectDir = path.dirname(projectPath);
+                        utils.logInfo("\uD504\uB85C\uC81D\uD2B8 \uB514\uB809\uD1A0\uB9AC: ".concat(projectDir));
+                        // caption-images 폴더 경로
+                        var targetDir = path.join(projectDir, 'caption-images');
+                        utils.logInfo("\uC800\uC7A5 \uD3F4\uB354: ".concat(targetDir));
+                        // 폴더 생성 (없으면)
+                        if (!fs.existsSync(targetDir)) {
+                            fs.mkdirSync(targetDir, { recursive: true });
+                            utils.logInfo("\uD3F4\uB354 \uC0DD\uC131\uB428: ".concat(targetDir));
+                        }
+                        // 파일 경로
+                        var filePath = path.join(targetDir, fileName);
+                        utils.logInfo("\uD30C\uC77C \uACBD\uB85C: ".concat(filePath));
+                        // Base64를 Buffer로 변환 (빠름!)
+                        var buffer = Buffer.from(base64Data, 'base64');
+                        utils.logInfo("Buffer \uC0DD\uC131\uB428: ".concat(buffer.length, " bytes"));
+                        // 파일 쓰기 (매우 빠름!)
+                        fs.writeFileSync(filePath, buffer);
+                        utils.logInfo("\u2713 \uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC131\uACF5: ".concat(filePath));
+                        // 파일 존재 확인
+                        if (fs.existsSync(filePath)) {
+                            var stats = fs.statSync(filePath);
+                            utils.logInfo("\uD30C\uC77C \uD06C\uAE30 \uD655\uC778: ".concat(stats.size, " bytes"));
+                            resolve(filePath);
+                        }
+                        else {
+                            utils.logError('파일이 생성되지 않음');
+                            resolve(null);
+                        }
+                    }
+                    catch (e) {
+                        utils.logError('Base64 저장 중 예외 발생');
+                        utils.logError("\uC608\uC678 \uD0C0\uC785: ".concat(typeof e));
+                        if (e instanceof Error) {
+                            utils.logError("Error \uBA54\uC2DC\uC9C0: ".concat(e.message));
+                            utils.logError("Error \uC2A4\uD0DD: ".concat(e.stack || 'no stack'));
+                        }
+                        resolve(null);
+                    }
+                });
+            }
+            catch (e) {
+                utils.logError('saveBase64ToProjectFolder 외부 예외 발생');
+                if (e instanceof Error) {
+                    utils.logError("Error \uBA54\uC2DC\uC9C0: ".concat(e.message));
+                    utils.logError("Error \uC2A4\uD0DD: ".concat(e.stack || 'no stack'));
+                }
+                resolve(null);
+            }
         });
+    }
+    /**
+     * Paste 이벤트 핸들러 (Ctrl+V)
+     * navigator.clipboard.read()와 달리 paste 이벤트는 작동할 수 있음!
+     */
+    function handlePasteEvent(event) {
+        var _this = this;
+        var utils = getUtils();
+        var resultDiv = document.getElementById('sync-test-result');
+        try {
+            utils.logInfo('Paste 이벤트 감지됨');
+            // 클립보드 데이터 확인
+            var clipboardData = event.clipboardData;
+            if (!clipboardData) {
+                utils.logWarn('clipboardData가 없습니다');
+                return;
+            }
+            utils.logInfo("\uD074\uB9BD\uBCF4\uB4DC \uC544\uC774\uD15C \uC218: ".concat(clipboardData.items.length));
+            utils.logInfo("\uD074\uB9BD\uBCF4\uB4DC \uD0C0\uC785: ".concat(clipboardData.types.join(', ')));
+            // 이미지 찾기
+            var imageFound = false;
+            var _loop_1 = function (i) {
+                var item = clipboardData.items[i];
+                utils.logInfo("\uC544\uC774\uD15C[".concat(i, "]: kind=").concat(item.kind, ", type=").concat(item.type));
+                if (item.kind === 'file' && item.type.startsWith('image/')) {
+                    var file_1 = item.getAsFile();
+                    if (file_1) {
+                        utils.logInfo("\u2713 \uC774\uBBF8\uC9C0 \uD30C\uC77C \uBC1C\uACAC: ".concat(file_1.name, ", \uD06C\uAE30: ").concat(file_1.size, " bytes, \uD0C0\uC785: ").concat(file_1.type));
+                        // FileReader로 Base64 변환
+                        var reader_1 = new FileReader();
+                        reader_1.onloadend = function () { return __awaiter(_this, void 0, void 0, function () {
+                            var resultStr, parts, base64, fileName, savedPath, e_3;
+                            return __generator(this, function (_a) {
+                                switch (_a.label) {
+                                    case 0:
+                                        _a.trys.push([0, 2, , 3]);
+                                        utils.logInfo('FileReader.onloadend 시작');
+                                        utils.logInfo("reader.result \uD0C0\uC785: ".concat(typeof reader_1.result));
+                                        utils.logInfo("reader.result \uAE38\uC774: ".concat(reader_1.result ? reader_1.result.length : 'null'));
+                                        utils.logInfo("reader.result \uC0D8\uD50C: ".concat(reader_1.result ? reader_1.result.substring(0, 100) : 'null'));
+                                        resultStr = reader_1.result;
+                                        if (!resultStr) {
+                                            utils.logError('reader.result가 비어있습니다');
+                                            if (resultDiv)
+                                                resultDiv.textContent = '✗ 이미지 읽기 실패 (빈 결과)';
+                                            return [2 /*return*/];
+                                        }
+                                        parts = resultStr.split(',');
+                                        utils.logInfo("split \uACB0\uACFC \uAC1C\uC218: ".concat(parts.length));
+                                        base64 = parts[1];
+                                        if (!base64) {
+                                            utils.logError('Base64 데이터를 추출할 수 없습니다');
+                                            if (resultDiv)
+                                                resultDiv.textContent = '✗ Base64 추출 실패';
+                                            return [2 /*return*/];
+                                        }
+                                        utils.logInfo("Base64 \uAE38\uC774: ".concat(base64.length));
+                                        // 고유한 파일명 생성 (순서대로 번호 매기기)
+                                        // 클립보드 이미지는 file.name이 항상 "image.png"로 같으므로 항상 고유 이름 생성
+                                        imageCounter++;
+                                        fileName = "image-".concat(imageCounter, ".png");
+                                        utils.logInfo("\uC6D0\uBCF8 \uD30C\uC77C\uBA85: ".concat(file_1.name, ", \uC0DD\uC131\uB41C \uD30C\uC77C\uBA85: ").concat(fileName));
+                                        // 로딩 표시
+                                        if (resultDiv) {
+                                            resultDiv.textContent = "\u23F3 \uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC911... (".concat(fileName, ")");
+                                        }
+                                        // Base64를 프로젝트 폴더에 파일로 저장 (비동기)
+                                        utils.logInfo('saveBase64ToProjectFolder 호출 직전');
+                                        return [4 /*yield*/, saveBase64ToProjectFolder(base64, fileName)];
+                                    case 1:
+                                        savedPath = _a.sent();
+                                        utils.logInfo("saveBase64ToProjectFolder \uC644\uB8CC, \uACB0\uACFC: ".concat(savedPath));
+                                        if (savedPath) {
+                                            // 저장된 파일 경로를 큐에 추가
+                                            addImageToQueue(savedPath, fileName);
+                                            if (resultDiv) {
+                                                resultDiv.textContent = "\u2713 \uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC644\uB8CC: ".concat(fileName);
+                                            }
+                                            utils.logInfo("\uC774\uBBF8\uC9C0 \uC800\uC7A5 \uBC0F \uD050\uC5D0 \uCD94\uAC00\uB428: ".concat(savedPath));
+                                        }
+                                        else {
+                                            if (resultDiv) {
+                                                resultDiv.textContent = "\u2717 \uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC2E4\uD328: ".concat(fileName);
+                                            }
+                                            utils.logError("\uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC2E4\uD328: ".concat(fileName));
+                                        }
+                                        return [3 /*break*/, 3];
+                                    case 2:
+                                        e_3 = _a.sent();
+                                        utils.logError('FileReader.onloadend 예외:', e_3);
+                                        utils.logError('예외 타입:', typeof e_3);
+                                        utils.logError('예외 문자열:', String(e_3));
+                                        if (e_3 instanceof Error) {
+                                            utils.logError('예외 메시지:', e_3.message);
+                                            utils.logError('예외 스택:', e_3.stack);
+                                        }
+                                        return [3 /*break*/, 3];
+                                    case 3: return [2 /*return*/];
+                                }
+                            });
+                        }); };
+                        reader_1.onerror = function () {
+                            utils.logError('FileReader 오류:', reader_1.error);
+                            if (resultDiv) {
+                                resultDiv.textContent = '✗ 이미지 읽기 실패';
+                            }
+                        };
+                        reader_1.readAsDataURL(file_1);
+                        imageFound = true;
+                        event.preventDefault(); // 기본 붙여넣기 동작 방지
+                        return "break";
+                    }
+                }
+            };
+            for (var i = 0; i < clipboardData.items.length; i++) {
+                var state_1 = _loop_1(i);
+                if (state_1 === "break")
+                    break;
+            }
+            if (!imageFound) {
+                utils.logInfo('클립보드에 이미지가 없습니다 (텍스트나 다른 형식)');
+            }
+        }
+        catch (error) {
+            var err = error;
+            utils.logError('Paste 이벤트 오류:', err.message);
+            if (resultDiv) {
+                resultDiv.textContent = "\u2717 \uBD99\uC5EC\uB123\uAE30 \uC624\uB958: ".concat(err.message);
+            }
+        }
     }
     /**
      * 이미지 파일 찾기
@@ -1182,7 +1377,7 @@ var JSCEventManager = (function () {
                     return [2 /*return*/];
                 }
                 communication.callExtendScript(scriptCall, function (positionResult) { return __awaiter(_this, void 0, void 0, function () {
-                    var positionData, positions, successCount_1, syncDebugMsg, _loop_1, i, e_3;
+                    var positionData, positions, successCount_1, syncDebugMsg, _loop_2, i, e_4;
                     return __generator(this, function (_a) {
                         switch (_a.label) {
                             case 0:
@@ -1210,8 +1405,8 @@ var JSCEventManager = (function () {
                                 syncDebugMsg = "\uCD1D \uC774\uBBF8\uC9C0: ".concat(imageItems.length, ", \uCD1D \uC704\uCE58: ").concat(positions.length, ", \uADF8\uB8F9\uD654: ").concat(captionGroup);
                                 utils.logInfo(syncDebugMsg);
                                 console.log("[SYNC] ".concat(syncDebugMsg));
-                                _loop_1 = function (i) {
-                                    var imageItem, imageData, positionIndex, position, isFilePath, insertScript, escapedPath, tempPath;
+                                _loop_2 = function (i) {
+                                    var imageItem, imageData, positionIndex, position, escapedPath, insertScript;
                                     return __generator(this, function (_b) {
                                         switch (_b.label) {
                                             case 0:
@@ -1229,19 +1424,12 @@ var JSCEventManager = (function () {
                                                     utils.logWarn("[".concat(i, "] \uC704\uCE58 \uC815\uBCF4\uAC00 \uC5C6\uC74C (\uADF8\uB8F9 \uC778\uB371\uC2A4: ").concat(i * captionGroup, ")"));
                                                     return [2 /*return*/, "continue"];
                                                 }
-                                                isFilePath = imageData.includes('\\') || imageData.includes('/');
-                                                debugInfo += "\uD30C\uC77C \uACBD\uB85C \uC5EC\uBD80: ".concat(isFilePath, "\n");
-                                                insertScript = '';
-                                                if (isFilePath) {
-                                                    escapedPath = imageData.replace(/\\/g, '\\\\');
-                                                    debugInfo += "\uC774\uC2A4\uCF00\uC774\uD504\uB41C \uACBD\uB85C: ".concat(escapedPath, "\n");
-                                                    insertScript = "insertImageAtTime(\"".concat(escapedPath, "\", ").concat(targetTrack, ", ").concat(position.start, ", ").concat(position.end, ")");
-                                                }
-                                                else {
-                                                    tempPath = "C:\\\\temp\\\\caption_sync_".concat(Date.now(), "_").concat(i, ".png");
-                                                    debugInfo += "\uC784\uC2DC \uD30C\uC77C \uACBD\uB85C: ".concat(tempPath, "\n");
-                                                    insertScript = "\n                            var savedPath = saveBase64ImageToFile(\"".concat(imageData, "\", \"").concat(tempPath, "\");\n                            if (savedPath) {\n                                insertImageAtTime(savedPath, ").concat(targetTrack, ", ").concat(position.start, ", ").concat(position.end, ");\n                            } else {\n                                JSCEditHelperJSON.stringify({ success: false, message: \"\uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC2E4\uD328\" });\n                            }\n                        ");
-                                                }
+                                                // 모든 이미지는 이제 파일 경로로 저장됨
+                                                // (Ctrl+V → saveBase64ToProjectFolder, 파일 선택 → 파일 경로)
+                                                debugInfo += "\uD30C\uC77C \uACBD\uB85C: ".concat(imageData, "\n");
+                                                escapedPath = imageData.replace(/\\/g, '\\\\');
+                                                debugInfo += "\uC774\uC2A4\uCF00\uC774\uD504\uB41C \uACBD\uB85C: ".concat(escapedPath, "\n");
+                                                insertScript = "insertImageAtTime(\"".concat(escapedPath, "\", ").concat(targetTrack, ", ").concat(position.start, ", ").concat(position.end, ")");
                                                 debugInfo += "JSX \uC2E4\uD589: ".concat(insertScript.substring(0, 100), "...\n");
                                                 return [4 /*yield*/, new Promise(function (resolve) {
                                                         communication.callExtendScript(insertScript, function (insertResult) {
@@ -1282,7 +1470,7 @@ var JSCEventManager = (function () {
                                 _a.label = 1;
                             case 1:
                                 if (!(i < imageItems.length && i < positions.length)) return [3 /*break*/, 4];
-                                return [5 /*yield**/, _loop_1(i)];
+                                return [5 /*yield**/, _loop_2(i)];
                             case 2:
                                 _a.sent();
                                 _a.label = 3;
@@ -1301,13 +1489,13 @@ var JSCEventManager = (function () {
                                 window.lastDebugInfo = debugInfo;
                                 return [3 /*break*/, 6];
                             case 5:
-                                e_3 = _a.sent();
-                                debugInfo += "\nERROR: ".concat(e_3.message, "\n");
-                                debugInfo += "Stack: ".concat(e_3.stack, "\n");
+                                e_4 = _a.sent();
+                                debugInfo += "\nERROR: ".concat(e_4.message, "\n");
+                                debugInfo += "Stack: ".concat(e_4.stack, "\n");
                                 window.lastDebugInfo = debugInfo;
                                 if (resultDiv)
                                     resultDiv.textContent = '✗ 동기화 실패';
-                                utils.logError('Failed to sync caption-images:', e_3.message);
+                                utils.logError('Failed to sync caption-images:', e_4.message);
                                 return [3 /*break*/, 6];
                             case 6: return [2 /*return*/];
                         }

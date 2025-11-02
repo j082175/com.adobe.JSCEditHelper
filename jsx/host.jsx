@@ -2346,37 +2346,76 @@ function getSelectedClipsForImageSync() {
 
 function base64ToBinary(base64) {
     var CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    // 공백 및 줄바꿈 제거
+    base64 = base64.replace(/[\s\r\n]/g, '');
+
     var result = [];
-    for (var i = 0; i < base64.length; i += 4) {
-        var enc1 = CHARS.indexOf(base64.charAt(i));
-        var enc2 = CHARS.indexOf(base64.charAt(i + 1));
-        var enc3 = CHARS.indexOf(base64.charAt(i + 2));
-        var enc4 = CHARS.indexOf(base64.charAt(i + 3));
-        if (enc3 === -1) enc3 = 0;
-        if (enc4 === -1) enc4 = 0;
+    var i = 0;
+
+    while (i < base64.length) {
+        var enc1 = CHARS.indexOf(base64.charAt(i++));
+        var enc2 = CHARS.indexOf(base64.charAt(i++));
+        var enc3 = CHARS.indexOf(base64.charAt(i++));
+        var enc4 = CHARS.indexOf(base64.charAt(i++));
+
+        // 첫 번째 바이트 (항상 존재)
         var chr1 = (enc1 << 2) | (enc2 >> 4);
-        var chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
-        var chr3 = ((enc3 & 3) << 6) | enc4;
         result.push(String.fromCharCode(chr1));
-        if (enc3 !== 0) result.push(String.fromCharCode(chr2));
-        if (enc4 !== 0) result.push(String.fromCharCode(chr3));
+
+        // 두 번째 바이트 (패딩이 아니면 존재)
+        if (enc3 !== -1) {
+            var chr2 = ((enc2 & 15) << 4) | (enc3 >> 2);
+            result.push(String.fromCharCode(chr2));
+
+            // 세 번째 바이트 (패딩이 아니면 존재)
+            if (enc4 !== -1) {
+                var chr3 = ((enc3 & 3) << 6) | enc4;
+                result.push(String.fromCharCode(chr3));
+            }
+        }
     }
+
     return result.join("");
 }
 
 function saveBase64ImageToFile(base64Data, filePath) {
     try {
+        debugWriteln("saveBase64ImageToFile: 시작");
+        debugWriteln("Base64 길이: " + base64Data.length);
+        debugWriteln("파일 경로: " + filePath);
+
         var binaryData = base64ToBinary(base64Data);
-        if (binaryData.length === 0) return null;
+        debugWriteln("디코딩된 바이너리 길이: " + binaryData.length);
+
+        if (binaryData.length === 0) {
+            debugWriteln("ERROR: 바이너리 데이터가 비어있습니다");
+            return null;
+        }
+
         var file = new File(filePath);
         file.encoding = "BINARY";
+
         if (file.open("w")) {
-            file.write(binaryData);
+            var written = file.write(binaryData);
+            debugWriteln("파일 쓰기 완료: " + written + " bytes");
             file.close();
-            return filePath;
+
+            // 파일이 실제로 생성되었는지 확인
+            var checkFile = new File(filePath);
+            if (checkFile.exists) {
+                debugWriteln("파일 존재 확인: " + checkFile.length + " bytes");
+                return filePath;
+            } else {
+                debugWriteln("ERROR: 파일이 생성되지 않음");
+                return null;
+            }
+        } else {
+            debugWriteln("ERROR: 파일 열기 실패");
+            return null;
         }
-        return null;
     } catch (e) {
+        debugWriteln("ERROR in saveBase64ImageToFile: " + e.toString());
         return null;
     }
 }
@@ -2477,6 +2516,29 @@ function insertImageAtTime(imagePath, trackIndex, startTime, endTime) {
         debugLog += "Line: " + e.line + "\n";
         debugWriteln("ERROR: insertImageAtTime 예외 발생: " + e.toString());
         return JSCEditHelperJSON.stringify({success: false, message: "오류: " + e.toString(), debug: debugLog});
+    }
+}
+
+/**
+ * 현재 열린 Premiere Pro 프로젝트의 경로 가져오기
+ */
+function getProjectPath() {
+    try {
+        if (!app.project) {
+            return JSCEditHelperJSON.stringify({success: false, message: "프로젝트가 열려있지 않습니다"});
+        }
+
+        var projectPath = app.project.path;
+
+        if (!projectPath) {
+            return JSCEditHelperJSON.stringify({success: false, message: "프로젝트가 저장되지 않았습니다. 먼저 프로젝트를 저장하세요."});
+        }
+
+        debugWriteln("프로젝트 경로: " + projectPath);
+        return JSCEditHelperJSON.stringify({success: true, path: projectPath});
+    } catch (e) {
+        debugWriteln("ERROR: getProjectPath 예외: " + e.toString());
+        return JSCEditHelperJSON.stringify({success: false, message: "오류: " + e.toString()});
     }
 }
 

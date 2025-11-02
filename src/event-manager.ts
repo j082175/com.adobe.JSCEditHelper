@@ -2087,7 +2087,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
 
         // JSX에서 파일 선택 다이얼로그 열기
         const script = `
-            var files = File.openDialog("이미지 파일 선택", "Image Files:*.png;*.jpg;*.jpeg", true);
+            var files = File.openDialog("이미지 파일 선택", "Image Files:*.png;*.jpg;*.jpeg;*.gif", true);
             if (files) {
                 var result = [];
                 if (files instanceof Array) {

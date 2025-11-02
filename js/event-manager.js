@@ -1046,6 +1046,77 @@ var JSCEventManager = (function () {
         }
     }
     /**
+     * 특정 인덱스부터 캡션 범위 업데이트 (DOM 텍스트만 변경)
+     * @param startIndex 업데이트 시작 인덱스
+     */
+    function updateCaptionRanges(startIndex) {
+        var queueDiv = document.getElementById('image-queue');
+        if (!queueDiv)
+            return;
+        // 시작 인덱스까지의 누적 캡션 개수 계산
+        var cumulativeCaptionIndex = 1;
+        for (var i = 0; i < startIndex; i++) {
+            cumulativeCaptionIndex += imageMappings[i].captionCount;
+        }
+        // startIndex부터 끝까지 캡션 범위 텍스트만 업데이트
+        for (var i = startIndex; i < imageMappings.length; i++) {
+            var mapping = imageMappings[i];
+            var captionStart = cumulativeCaptionIndex;
+            var captionEnd = cumulativeCaptionIndex + mapping.captionCount - 1;
+            // DOM 요소 찾아서 텍스트만 업데이트
+            var captionPreview = document.getElementById("caption-preview-".concat(mapping.id));
+            if (captionPreview) {
+                captionPreview.textContent = "\uCEA1\uC158 ".concat(captionStart, "-").concat(captionEnd, " \uBC94\uC704");
+            }
+            cumulativeCaptionIndex += mapping.captionCount;
+        }
+    }
+    /**
+     * 단일 이미지를 DOM에 추가 (성능 최적화용)
+     * @param mapping 추가할 이미지 매핑
+     * @param index imageMappings 배열에서의 인덱스
+     */
+    function addSingleImageToDOM(mapping, index) {
+        var queueDiv = document.getElementById('image-queue');
+        if (!queueDiv)
+            return;
+        // 빈 상태 메시지 제거
+        if (imageMappings.length === 1) {
+            queueDiv.innerHTML = '';
+        }
+        // 이전 이미지들의 captionCount 합산하여 현재 이미지의 시작 캡션 계산
+        var cumulativeCaptionIndex = 1;
+        for (var i = 0; i < index; i++) {
+            cumulativeCaptionIndex += imageMappings[i].captionCount;
+        }
+        var captionStart = cumulativeCaptionIndex;
+        var captionEnd = cumulativeCaptionIndex + mapping.captionCount - 1;
+        // DOM 요소 생성
+        var itemDiv = document.createElement('div');
+        itemDiv.className = 'image-queue-item-advanced';
+        itemDiv.draggable = true;
+        itemDiv.dataset.imageId = mapping.id;
+        itemDiv.innerHTML = "\n            <div class=\"drag-handle\" title=\"\uB4DC\uB798\uADF8\uD558\uC5EC \uC21C\uC11C \uBCC0\uACBD\">\u22EE</div>\n            <img class=\"image-thumbnail\" src=\"data:image/png;base64,".concat(mapping.thumbnail, "\" alt=\"").concat(mapping.fileName, "\">\n            <div class=\"image-info\">\n                <div class=\"image-info-header\">\n                    <span class=\"image-filename\" title=\"").concat(mapping.fileName, "\">").concat(mapping.fileName, "</span>\n                    <button class=\"image-remove-btn\" data-image-id=\"").concat(mapping.id, "\">\u2715</button>\n                </div>\n                <div class=\"caption-range\">\n                    <label>\uCEA1\uC158 \uAC1C\uC218:</label>\n                    <div class=\"caption-range-inputs\">\n                        <select data-image-id=\"").concat(mapping.id, "\" class=\"caption-count-input select-modern\" style=\"width: 80px;\">\n                            ").concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) {
+            return "<option value=\"".concat(n, "\" ").concat(n === mapping.captionCount ? 'selected' : '', ">").concat(n, "\uAC1C</option>");
+        }).join(''), "\n                        </select>\n                    </div>\n                </div>\n                <div class=\"caption-preview\" id=\"caption-preview-").concat(mapping.id, "\">\n                    \uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, " \uBC94\uC704\n                </div>\n            </div>\n        ");
+        queueDiv.appendChild(itemDiv);
+        // 드래그 이벤트 추가
+        itemDiv.addEventListener('dragstart', handleDragStart);
+        itemDiv.addEventListener('dragover', handleDragOver);
+        itemDiv.addEventListener('drop', handleDrop);
+        itemDiv.addEventListener('dragend', handleDragEnd);
+        // 제거 버튼 이벤트 추가
+        var removeBtn = itemDiv.querySelector('.image-remove-btn');
+        if (removeBtn) {
+            removeBtn.addEventListener('click', handleRemoveImage);
+        }
+        // 캡션 개수 입력 이벤트 추가
+        var countInput = itemDiv.querySelector('.caption-count-input');
+        if (countInput) {
+            countInput.addEventListener('change', handleCaptionCountChange);
+        }
+    }
+    /**
      * 이미지 큐 렌더링 (모달 내부 - 기본 모드 vs 고급 모드)
      */
     function renderImageQueue() {
@@ -1117,6 +1188,7 @@ var JSCEventManager = (function () {
         }
     }
     function handleDrop(e) {
+        var _a, _b;
         e.preventDefault();
         var target = e.currentTarget;
         if (draggedElement && draggedElement !== target) {
@@ -1129,8 +1201,22 @@ var JSCEventManager = (function () {
                 if (draggedIndex !== -1 && targetIndex !== -1) {
                     var draggedItem = imageMappings.splice(draggedIndex, 1)[0];
                     imageMappings.splice(targetIndex, 0, draggedItem);
-                    // 큐 다시 렌더링
-                    renderImageQueue();
+                    // 성능 최적화: 전체 재렌더링 대신 DOM 요소만 이동
+                    var queueDiv = document.getElementById('image-queue');
+                    if (queueDiv) {
+                        // DOM에서 드래그된 요소를 타겟 위치로 이동
+                        if (draggedIndex < targetIndex) {
+                            // 아래로 이동: target 다음에 삽입
+                            (_a = target.parentNode) === null || _a === void 0 ? void 0 : _a.insertBefore(draggedElement, target.nextSibling);
+                        }
+                        else {
+                            // 위로 이동: target 앞에 삽입
+                            (_b = target.parentNode) === null || _b === void 0 ? void 0 : _b.insertBefore(draggedElement, target);
+                        }
+                        // 영향받는 이미지들의 캡션 범위만 업데이트
+                        var minIndex = Math.min(draggedIndex, targetIndex);
+                        updateCaptionRanges(minIndex);
+                    }
                 }
             }
         }
@@ -1152,7 +1238,38 @@ var JSCEventManager = (function () {
             if (index !== -1) {
                 var removed = imageMappings.splice(index, 1)[0];
                 utils.logInfo("\uC774\uBBF8\uC9C0 \uC81C\uAC70\uB428: ".concat(removed.fileName));
-                renderImageQueue();
+                // 성능 최적화: 전체 재렌더링 대신 해당 요소만 삭제
+                var queueDiv = document.getElementById('image-queue');
+                var previewDiv = document.getElementById('image-preview-thumbnails');
+                // 큐에서 DOM 요소 삭제
+                if (queueDiv) {
+                    var queueElement = queueDiv.querySelector("[data-image-id=\"".concat(imageId, "\"]"));
+                    if (queueElement) {
+                        queueElement.remove();
+                    }
+                    // 빈 상태 메시지 표시
+                    if (imageMappings.length === 0) {
+                        queueDiv.innerHTML = '<div style="text-align: center; padding: 40px; color: #888;">이미지를 추가하세요</div>';
+                    }
+                    else {
+                        // 삭제된 위치 이후의 캡션 범위 업데이트
+                        updateCaptionRanges(index);
+                    }
+                }
+                // 미리보기에서 DOM 요소 삭제
+                if (previewDiv) {
+                    var previewElement = previewDiv.querySelector("[data-image-id=\"".concat(imageId, "\"]"));
+                    if (previewElement) {
+                        previewElement.remove();
+                    }
+                }
+                // 요약 정보 업데이트
+                updateImageSummary();
+                // 동기화 버튼 상태 업데이트
+                var syncButton = document.getElementById('sync-caption-images');
+                if (syncButton) {
+                    syncButton.disabled = imageMappings.length === 0;
+                }
             }
         }
     }
@@ -1180,6 +1297,7 @@ var JSCEventManager = (function () {
         }
     }
     function handlePreviewDrop(e) {
+        var _a, _b, _c, _d;
         e.preventDefault();
         var target = e.currentTarget;
         target.classList.remove('drag-over-preview');
@@ -1192,9 +1310,32 @@ var JSCEventManager = (function () {
                 if (draggedIndex !== -1 && targetIndex !== -1) {
                     var draggedItem = imageMappings.splice(draggedIndex, 1)[0];
                     imageMappings.splice(targetIndex, 0, draggedItem);
-                    // 미리보기와 큐 모두 다시 렌더링
-                    updateImageSummary();
-                    renderImageQueue();
+                    // 성능 최적화: 전체 재렌더링 대신 DOM 요소만 이동
+                    var previewDiv = document.getElementById('image-preview-thumbnails');
+                    var queueDiv = document.getElementById('image-queue');
+                    if (previewDiv && queueDiv) {
+                        // 미리보기 패널: DOM 요소 이동
+                        if (draggedIndex < targetIndex) {
+                            (_a = target.parentNode) === null || _a === void 0 ? void 0 : _a.insertBefore(previewDraggedElement, target.nextSibling);
+                        }
+                        else {
+                            (_b = target.parentNode) === null || _b === void 0 ? void 0 : _b.insertBefore(previewDraggedElement, target);
+                        }
+                        // 큐 패널: 해당하는 DOM 요소도 이동
+                        var queueDraggedElement = queueDiv.querySelector("[data-image-id=\"".concat(draggedId_2, "\"]"));
+                        var queueTargetElement = queueDiv.querySelector("[data-image-id=\"".concat(targetId_2, "\"]"));
+                        if (queueDraggedElement && queueTargetElement) {
+                            if (draggedIndex < targetIndex) {
+                                (_c = queueTargetElement.parentNode) === null || _c === void 0 ? void 0 : _c.insertBefore(queueDraggedElement, queueTargetElement.nextSibling);
+                            }
+                            else {
+                                (_d = queueTargetElement.parentNode) === null || _d === void 0 ? void 0 : _d.insertBefore(queueDraggedElement, queueTargetElement);
+                            }
+                        }
+                        // 영향받는 이미지들의 캡션 범위만 업데이트
+                        var minIndex = Math.min(draggedIndex, targetIndex);
+                        updateCaptionRanges(minIndex);
+                    }
                 }
             }
         }
@@ -1266,11 +1407,12 @@ var JSCEventManager = (function () {
         var imageId = input.dataset.imageId;
         var value = parseInt(input.value, 10);
         if (imageId && value > 0) {
-            var mapping = imageMappings.find(function (m) { return m.id === imageId; });
-            if (mapping) {
+            var index = imageMappings.findIndex(function (m) { return m.id === imageId; });
+            if (index !== -1) {
+                var mapping = imageMappings[index];
                 mapping.captionCount = value;
-                // 변경 사항 반영을 위해 큐 다시 렌더링 (자동 범위 재계산)
-                renderImageQueue();
+                // 성능 최적화: 전체 재렌더링 대신 영향받는 캡션 범위만 업데이트
+                updateCaptionRanges(index);
             }
         }
     }
@@ -1484,7 +1626,7 @@ var JSCEventManager = (function () {
                                         utils.logInfo("\uC774\uBBF8\uC9C0 \uD30C\uC77C \uCC98\uB9AC \uC911: ".concat(file.name, " (").concat(file.type, ")"));
                                         _d.label = 1;
                                     case 1:
-                                        _d.trys.push([1, 4, , 5]);
+                                        _d.trys.push([1, 7, , 8]);
                                         return [4 /*yield*/, new Promise(function (resolve, reject) {
                                                 var reader = new FileReader();
                                                 reader.onloadend = function () {
@@ -1510,20 +1652,23 @@ var JSCEventManager = (function () {
                                         return [4 /*yield*/, saveBase64ToProjectFolder(base64, originalName)];
                                     case 3:
                                         savedPath = _d.sent();
-                                        if (savedPath) {
-                                            // 큐에 추가
-                                            addImageToQueue(savedPath, originalName, base64);
-                                            utils.logInfo("\uC774\uBBF8\uC9C0 \uCD94\uAC00 \uC131\uACF5: ".concat(originalName));
-                                        }
-                                        else {
-                                            utils.logError("\uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC2E4\uD328: ".concat(originalName));
-                                        }
-                                        return [3 /*break*/, 5];
+                                        if (!savedPath) return [3 /*break*/, 5];
+                                        // 큐에 추가
+                                        return [4 /*yield*/, addImageToQueue(savedPath, originalName, base64)];
                                     case 4:
+                                        // 큐에 추가
+                                        _d.sent();
+                                        utils.logInfo("\uC774\uBBF8\uC9C0 \uCD94\uAC00 \uC131\uACF5: ".concat(originalName));
+                                        return [3 /*break*/, 6];
+                                    case 5:
+                                        utils.logError("\uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC2E4\uD328: ".concat(originalName));
+                                        _d.label = 6;
+                                    case 6: return [3 /*break*/, 8];
+                                    case 7:
                                         e_3 = _d.sent();
                                         utils.logError("\uD30C\uC77C \uCC98\uB9AC \uC911 \uC624\uB958: ".concat(file.name), e_3);
-                                        return [3 /*break*/, 5];
-                                    case 5: return [2 /*return*/];
+                                        return [3 /*break*/, 8];
+                                    case 8: return [2 /*return*/];
                                 }
                             });
                         };
@@ -1577,7 +1722,7 @@ var JSCEventManager = (function () {
                             return __generator(this, function (_a) {
                                 switch (_a.label) {
                                     case 0:
-                                        _a.trys.push([0, 2, , 3]);
+                                        _a.trys.push([0, 5, , 6]);
                                         utils.logInfo('FileReader.onloadend 시작');
                                         utils.logInfo("reader.result \uD0C0\uC785: ".concat(typeof reader_1.result));
                                         utils.logInfo("reader.result \uAE38\uC774: ".concat(reader_1.result ? reader_1.result.length : 'null'));
@@ -1627,22 +1772,25 @@ var JSCEventManager = (function () {
                                     case 1:
                                         savedPath = _a.sent();
                                         utils.logInfo("saveBase64ToProjectFolder \uC644\uB8CC, \uACB0\uACFC: ".concat(savedPath));
-                                        if (savedPath) {
-                                            // 저장된 파일 경로와 Base64 썸네일을 큐에 추가
-                                            addImageToQueue(savedPath, fileName, base64);
-                                            if (resultDiv) {
-                                                resultDiv.textContent = "\u2713 \uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC644\uB8CC: ".concat(fileName);
-                                            }
-                                            utils.logInfo("\uC774\uBBF8\uC9C0 \uC800\uC7A5 \uBC0F \uD050\uC5D0 \uCD94\uAC00\uB428: ".concat(savedPath));
-                                        }
-                                        else {
-                                            if (resultDiv) {
-                                                resultDiv.textContent = "\u2717 \uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC2E4\uD328: ".concat(fileName);
-                                            }
-                                            utils.logError("\uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC2E4\uD328: ".concat(fileName));
-                                        }
-                                        return [3 /*break*/, 3];
+                                        if (!savedPath) return [3 /*break*/, 3];
+                                        // 저장된 파일 경로와 Base64 썸네일을 큐에 추가
+                                        return [4 /*yield*/, addImageToQueue(savedPath, fileName, base64)];
                                     case 2:
+                                        // 저장된 파일 경로와 Base64 썸네일을 큐에 추가
+                                        _a.sent();
+                                        if (resultDiv) {
+                                            resultDiv.textContent = "\u2713 \uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC644\uB8CC: ".concat(fileName);
+                                        }
+                                        utils.logInfo("\uC774\uBBF8\uC9C0 \uC800\uC7A5 \uBC0F \uD050\uC5D0 \uCD94\uAC00\uB428: ".concat(savedPath));
+                                        return [3 /*break*/, 4];
+                                    case 3:
+                                        if (resultDiv) {
+                                            resultDiv.textContent = "\u2717 \uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC2E4\uD328: ".concat(fileName);
+                                        }
+                                        utils.logError("\uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC2E4\uD328: ".concat(fileName));
+                                        _a.label = 4;
+                                    case 4: return [3 /*break*/, 6];
+                                    case 5:
                                         e_4 = _a.sent();
                                         utils.logError('FileReader.onloadend 예외:', e_4);
                                         utils.logError('예외 타입:', typeof e_4);
@@ -1651,8 +1799,8 @@ var JSCEventManager = (function () {
                                             utils.logError('예외 메시지:', e_4.message);
                                             utils.logError('예외 스택:', e_4.stack);
                                         }
-                                        return [3 /*break*/, 3];
-                                    case 3: return [2 /*return*/];
+                                        return [3 /*break*/, 6];
+                                    case 6: return [2 /*return*/];
                                 }
                             });
                         }); };
@@ -1690,6 +1838,7 @@ var JSCEventManager = (function () {
      * 이미지 파일 찾기
      */
     function browseImagesForSync() {
+        var _this = this;
         var utils = getUtils();
         var communication = getCommunication();
         var resultDiv = document.getElementById('sync-test-result');
@@ -1697,28 +1846,103 @@ var JSCEventManager = (function () {
             resultDiv.textContent = '이미지 선택 중...';
         // JSX에서 파일 선택 다이얼로그 열기
         var script = "\n            var files = File.openDialog(\"\uC774\uBBF8\uC9C0 \uD30C\uC77C \uC120\uD0DD\", \"Image Files:*.png;*.jpg;*.jpeg\", true);\n            if (files) {\n                var result = [];\n                if (files instanceof Array) {\n                    for (var i = 0; i < files.length; i++) {\n                        result.push(files[i].fsName);\n                    }\n                } else {\n                    result.push(files.fsName);\n                }\n                JSON.stringify({ success: true, files: result });\n            } else {\n                JSON.stringify({ success: false, message: \"\uCDE8\uC18C\uB428\" });\n            }\n        ";
-        communication.callExtendScript(script, function (result) {
+        communication.callExtendScript(script, function (result) { return __awaiter(_this, void 0, void 0, function () {
+            var data, addPromises, e_5;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        _a.trys.push([0, 4, , 5]);
+                        data = JSON.parse(result);
+                        if (!(data.success && data.files)) return [3 /*break*/, 2];
+                        addPromises = data.files.map(function (filePath) {
+                            var _a;
+                            var fileName = ((_a = filePath.split('\\').pop()) === null || _a === void 0 ? void 0 : _a.split('/').pop()) || 'image.png';
+                            return addImageToQueue(filePath, fileName);
+                        });
+                        return [4 /*yield*/, Promise.all(addPromises)];
+                    case 1:
+                        _a.sent();
+                        if (resultDiv)
+                            resultDiv.textContent = "\u2713 ".concat(data.files.length, "\uAC1C \uC774\uBBF8\uC9C0 \uCD94\uAC00\uB428");
+                        return [3 /*break*/, 3];
+                    case 2:
+                        if (resultDiv)
+                            resultDiv.textContent = '이미지 선택 취소됨';
+                        _a.label = 3;
+                    case 3: return [3 /*break*/, 5];
+                    case 4:
+                        e_5 = _a.sent();
+                        if (resultDiv)
+                            resultDiv.textContent = '✗ 이미지 선택 실패';
+                        utils.logError('Failed to browse images:', e_5.message);
+                        return [3 /*break*/, 5];
+                    case 5: return [2 /*return*/];
+                }
+            });
+        }); });
+    }
+    /**
+     * 이미지를 리사이즈하여 썸네일 생성 (성능 최적화)
+     * @param source 이미지 파일 경로 또는 Base64 문자열
+     * @param maxSize 최대 크기 (기본 160px)
+     * @returns Base64 썸네일 또는 빈 문자열
+     */
+    function createThumbnail(source, maxSize) {
+        if (maxSize === void 0) { maxSize = 160; }
+        return new Promise(function (resolve) {
             try {
-                var data = JSON.parse(result);
-                if (data.success && data.files) {
-                    data.files.forEach(function (filePath) {
-                        var _a;
-                        var fileName = ((_a = filePath.split('\\').pop()) === null || _a === void 0 ? void 0 : _a.split('/').pop()) || 'image.png';
-                        // 파일 경로를 큐에 추가 (실제로는 base64로 변환 필요)
-                        addImageToQueue(filePath, fileName);
-                    });
-                    if (resultDiv)
-                        resultDiv.textContent = "\u2713 ".concat(data.files.length, "\uAC1C \uC774\uBBF8\uC9C0 \uCD94\uAC00\uB428");
+                var base64_1;
+                // source가 파일 경로인지 Base64인지 판단
+                if (source.includes(':') && (source.includes('\\') || source.includes('/'))) {
+                    // 파일 경로
+                    var fs = window.require('fs');
+                    var fileData = fs.readFileSync(source);
+                    base64_1 = fileData.toString('base64');
                 }
                 else {
-                    if (resultDiv)
-                        resultDiv.textContent = '이미지 선택 취소됨';
+                    // 이미 Base64
+                    base64_1 = source;
                 }
+                // 임시 Image 객체 생성
+                var img_1 = new Image();
+                img_1.src = "data:image/png;base64,".concat(base64_1);
+                img_1.onload = function () {
+                    // Canvas 생성
+                    var canvas = document.createElement('canvas');
+                    var ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        resolve(base64_1); // 실패 시 원본 반환
+                        return;
+                    }
+                    // 비율 유지하며 리사이즈
+                    var width = img_1.width;
+                    var height = img_1.height;
+                    if (width > height) {
+                        if (width > maxSize) {
+                            height = Math.round((height * maxSize) / width);
+                            width = maxSize;
+                        }
+                    }
+                    else {
+                        if (height > maxSize) {
+                            width = Math.round((width * maxSize) / height);
+                            height = maxSize;
+                        }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    // 이미지 그리기
+                    ctx.drawImage(img_1, 0, 0, width, height);
+                    // Base64로 변환 (JPEG, 품질 80%)
+                    var resizedBase64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+                    resolve(resizedBase64);
+                };
+                img_1.onerror = function () {
+                    resolve(base64_1); // 실패 시 원본 반환
+                };
             }
             catch (e) {
-                if (resultDiv)
-                    resultDiv.textContent = '✗ 이미지 선택 실패';
-                utils.logError('Failed to browse images:', e.message);
+                resolve(''); // 에러 시 빈 문자열
             }
         });
     }
@@ -1732,35 +1956,55 @@ var JSCEventManager = (function () {
      * @param thumbnailBase64 썸네일 Base64 (선택, 없으면 filePath에서 읽음)
      */
     function addImageToQueue(filePath, fileName, thumbnailBase64) {
-        var utils = getUtils();
-        // 고유 ID 생성
-        var id = "img-".concat(Date.now(), "-").concat(Math.random().toString(36).substring(2, 9));
-        // 썸네일 생성
-        var thumbnail = thumbnailBase64 || '';
-        if (!thumbnail) {
-            // 썸네일이 제공되지 않았으면 파일에서 읽기
-            try {
-                var fs = window.require('fs');
-                var fileData = fs.readFileSync(filePath);
-                thumbnail = fileData.toString('base64');
-            }
-            catch (e) {
-                utils.logError("\uC378\uB124\uC77C \uC0DD\uC131 \uC2E4\uD328: ".concat(e.message));
-                thumbnail = ''; // 실패 시 빈 문자열
-            }
-        }
-        // ImageMapping 생성
-        var mapping = {
-            id: id,
-            filePath: filePath,
-            fileName: fileName,
-            thumbnail: thumbnail,
-            captionCount: 1 // 기본값: 캡션 1개
-        };
-        imageMappings.push(mapping);
-        utils.logInfo("\uC774\uBBF8\uC9C0 \uCD94\uAC00\uB428: ".concat(fileName, " (ID: ").concat(id, ")"));
-        // 큐 다시 렌더링
-        renderImageQueue();
+        return __awaiter(this, void 0, void 0, function () {
+            var utils, id, thumbnail, e_6, mapping, syncButton;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
+                    case 0:
+                        utils = getUtils();
+                        id = "img-".concat(Date.now(), "-").concat(Math.random().toString(36).substring(2, 9));
+                        thumbnail = '';
+                        _a.label = 1;
+                    case 1:
+                        _a.trys.push([1, 6, , 7]);
+                        if (!thumbnailBase64) return [3 /*break*/, 3];
+                        return [4 /*yield*/, createThumbnail(thumbnailBase64, 160)];
+                    case 2:
+                        // Base64가 제공된 경우 리사이즈
+                        thumbnail = _a.sent();
+                        return [3 /*break*/, 5];
+                    case 3: return [4 /*yield*/, createThumbnail(filePath, 160)];
+                    case 4:
+                        // 파일 경로에서 리사이즈된 썸네일 생성
+                        thumbnail = _a.sent();
+                        _a.label = 5;
+                    case 5: return [3 /*break*/, 7];
+                    case 6:
+                        e_6 = _a.sent();
+                        utils.logError("\uC378\uB124\uC77C \uC0DD\uC131 \uC2E4\uD328: ".concat(e_6.message));
+                        thumbnail = ''; // 실패 시 빈 문자열
+                        return [3 /*break*/, 7];
+                    case 7:
+                        mapping = {
+                            id: id,
+                            filePath: filePath,
+                            fileName: fileName,
+                            thumbnail: thumbnail,
+                            captionCount: 1 // 기본값: 캡션 1개
+                        };
+                        imageMappings.push(mapping);
+                        utils.logInfo("\uC774\uBBF8\uC9C0 \uCD94\uAC00\uB428: ".concat(fileName, " (ID: ").concat(id, ")"));
+                        // 성능 최적화: 전체 재렌더링 대신 새 이미지만 추가
+                        addSingleImageToDOM(mapping, imageMappings.length - 1);
+                        updateImageSummary();
+                        syncButton = document.getElementById('sync-caption-images');
+                        if (syncButton) {
+                            syncButton.disabled = false;
+                        }
+                        return [2 /*return*/];
+                }
+            });
+        });
     }
     /**
      * 이미지 큐 비우기
@@ -1830,7 +2074,7 @@ var JSCEventManager = (function () {
                     return [2 /*return*/];
                 }
                 communication.callExtendScript(scriptCall, function (positionResult) { return __awaiter(_this, void 0, void 0, function () {
-                    var positionData, positions, successCount_1, syncDebugMsg, cumulativeCaptionIndex, _loop_3, i, e_5;
+                    var positionData, positions, successCount_1, syncDebugMsg, cumulativeCaptionIndex, _loop_3, i, e_7;
                     return __generator(this, function (_a) {
                         switch (_a.label) {
                             case 0:
@@ -1947,13 +2191,13 @@ var JSCEventManager = (function () {
                                 window.lastDebugInfo = debugInfo;
                                 return [3 /*break*/, 6];
                             case 5:
-                                e_5 = _a.sent();
-                                debugInfo += "\nERROR: ".concat(e_5.message, "\n");
-                                debugInfo += "Stack: ".concat(e_5.stack, "\n");
+                                e_7 = _a.sent();
+                                debugInfo += "\nERROR: ".concat(e_7.message, "\n");
+                                debugInfo += "Stack: ".concat(e_7.stack, "\n");
                                 window.lastDebugInfo = debugInfo;
                                 if (resultDiv)
                                     resultDiv.textContent = '✗ 동기화 실패';
-                                utils.logError('Failed to sync caption-images:', e_5.message);
+                                utils.logError('Failed to sync caption-images:', e_7.message);
                                 return [3 /*break*/, 6];
                             case 6: return [2 /*return*/];
                         }

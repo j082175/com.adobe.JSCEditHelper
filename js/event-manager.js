@@ -185,6 +185,7 @@ var JSCEventManager = (function () {
             setupFolderInput();
             setupDebugUI();
             setupCaptionEventListeners(); // 캡션-이미지 동기화 이벤트
+            setupThumbnailSizeSlider(); // 썸네일 크기 조절 슬라이더
             utils.logDebug('Event listeners setup completed');
         }
         catch (e) {
@@ -989,22 +990,53 @@ var JSCEventManager = (function () {
         }
     }
     /**
+     * 썸네일 크기 조절 슬라이더 설정
+     */
+    function setupThumbnailSizeSlider() {
+        var utils = getUtils();
+        var slider = document.getElementById('thumbnail-size-slider');
+        var sizeValue = document.getElementById('thumbnail-size-value');
+        if (!slider || !sizeValue) {
+            utils.logWarn('Thumbnail size slider or value element not found');
+            return;
+        }
+        // 슬라이더 값 변경 이벤트
+        slider.addEventListener('input', function () {
+            var size = parseInt(slider.value, 10);
+            sizeValue.textContent = "".concat(size, "px");
+            updateThumbnailSizes(size);
+        });
+        utils.logDebug('Thumbnail size slider setup completed');
+    }
+    /**
+     * 썸네일 크기 동적 업데이트
+     */
+    function updateThumbnailSizes(size) {
+        var style = document.getElementById('dynamic-thumbnail-style');
+        // 기존 스타일 제거
+        if (style) {
+            style.remove();
+        }
+        // 새 스타일 생성
+        var newStyle = document.createElement('style');
+        newStyle.id = 'dynamic-thumbnail-style';
+        newStyle.textContent = "\n            .preview-thumbnail-wrapper {\n                width: ".concat(size, "px !important;\n                height: ").concat(size, "px !important;\n            }\n            .preview-thumbnail {\n                width: ").concat(size, "px !important;\n                height: ").concat(size, "px !important;\n            }\n        ");
+        document.head.appendChild(newStyle);
+    }
+    /**
      * 패널 요약 정보 업데이트
      */
     function updateImageSummary() {
         var countText = document.getElementById('image-count-text');
-        var openModalBtn = document.getElementById('open-image-modal');
         var previewDiv = document.getElementById('image-preview-thumbnails');
-        if (!countText || !openModalBtn || !previewDiv)
+        if (!countText || !previewDiv)
             return;
         if (imageMappings.length === 0) {
             countText.textContent = '이미지가 없습니다';
-            openModalBtn.disabled = true;
             previewDiv.innerHTML = '';
         }
         else {
             countText.textContent = "\uC774\uBBF8\uC9C0 ".concat(imageMappings.length, "\uAC1C");
-            openModalBtn.disabled = false;
             // 미리보기 썸네일 렌더링 (모든 이미지)
             previewDiv.innerHTML = '';
             // 캡션 범위 계산을 위한 누적 카운터

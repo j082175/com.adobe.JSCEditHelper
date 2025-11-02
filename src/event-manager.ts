@@ -141,6 +141,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             setupFolderInput();
             setupDebugUI();
             setupCaptionEventListeners(); // 캡션-이미지 동기화 이벤트
+            setupThumbnailSizeSlider(); // 썸네일 크기 조절 슬라이더
             utils.logDebug('Event listeners setup completed');
         } catch (e) {
             utils.logError('Event listeners setup failed:', (e as Error).message);
@@ -964,22 +965,69 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     }
 
     /**
+     * 썸네일 크기 조절 슬라이더 설정
+     */
+    function setupThumbnailSizeSlider(): void {
+        const utils = getUtils();
+        const slider = document.getElementById('thumbnail-size-slider') as HTMLInputElement;
+        const sizeValue = document.getElementById('thumbnail-size-value');
+
+        if (!slider || !sizeValue) {
+            utils.logWarn('Thumbnail size slider or value element not found');
+            return;
+        }
+
+        // 슬라이더 값 변경 이벤트
+        slider.addEventListener('input', () => {
+            const size = parseInt(slider.value, 10);
+            sizeValue.textContent = `${size}px`;
+            updateThumbnailSizes(size);
+        });
+
+        utils.logDebug('Thumbnail size slider setup completed');
+    }
+
+    /**
+     * 썸네일 크기 동적 업데이트
+     */
+    function updateThumbnailSizes(size: number): void {
+        const style = document.getElementById('dynamic-thumbnail-style');
+
+        // 기존 스타일 제거
+        if (style) {
+            style.remove();
+        }
+
+        // 새 스타일 생성
+        const newStyle = document.createElement('style');
+        newStyle.id = 'dynamic-thumbnail-style';
+        newStyle.textContent = `
+            .preview-thumbnail-wrapper {
+                width: ${size}px !important;
+                height: ${size}px !important;
+            }
+            .preview-thumbnail {
+                width: ${size}px !important;
+                height: ${size}px !important;
+            }
+        `;
+        document.head.appendChild(newStyle);
+    }
+
+    /**
      * 패널 요약 정보 업데이트
      */
     function updateImageSummary(): void {
         const countText = document.getElementById('image-count-text');
-        const openModalBtn = document.getElementById('open-image-modal') as HTMLButtonElement;
         const previewDiv = document.getElementById('image-preview-thumbnails');
 
-        if (!countText || !openModalBtn || !previewDiv) return;
+        if (!countText || !previewDiv) return;
 
         if (imageMappings.length === 0) {
             countText.textContent = '이미지가 없습니다';
-            openModalBtn.disabled = true;
             previewDiv.innerHTML = '';
         } else {
             countText.textContent = `이미지 ${imageMappings.length}개`;
-            openModalBtn.disabled = false;
 
             // 미리보기 썸네일 렌더링 (모든 이미지)
             previewDiv.innerHTML = '';

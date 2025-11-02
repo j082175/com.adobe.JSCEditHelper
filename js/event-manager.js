@@ -1350,7 +1350,7 @@ var JSCEventManager = (function () {
                         // FileReader로 Base64 변환
                         var reader_1 = new FileReader();
                         reader_1.onloadend = function () { return __awaiter(_this, void 0, void 0, function () {
-                            var resultStr, parts, base64, fileName, savedPath, e_3;
+                            var resultStr, parts, base64, extension, fileName, savedPath, e_3;
                             return __generator(this, function (_a) {
                                 switch (_a.label) {
                                     case 0:
@@ -1379,8 +1379,21 @@ var JSCEventManager = (function () {
                                         // 고유한 파일명 생성 (순서대로 번호 매기기)
                                         // 클립보드 이미지는 file.name이 항상 "image.png"로 같으므로 항상 고유 이름 생성
                                         imageCounter++;
-                                        fileName = "image-".concat(imageCounter, ".png");
-                                        utils.logInfo("\uC6D0\uBCF8 \uD30C\uC77C\uBA85: ".concat(file_1.name, ", \uC0DD\uC131\uB41C \uD30C\uC77C\uBA85: ").concat(fileName));
+                                        extension = 'png';
+                                        if (file_1.type === 'image/jpeg' || file_1.type === 'image/jpg') {
+                                            extension = 'jpg';
+                                        }
+                                        else if (file_1.type === 'image/png') {
+                                            extension = 'png';
+                                        }
+                                        else if (file_1.type === 'image/gif') {
+                                            extension = 'gif';
+                                        }
+                                        else if (file_1.type === 'image/webp') {
+                                            extension = 'webp';
+                                        }
+                                        fileName = "image-".concat(imageCounter, ".").concat(extension);
+                                        utils.logInfo("\uC6D0\uBCF8 \uD30C\uC77C\uBA85: ".concat(file_1.name, ", MIME: ").concat(file_1.type, ", \uC0DD\uC131\uB41C \uD30C\uC77C\uBA85: ").concat(fileName));
                                         // 로딩 표시
                                         if (resultDiv) {
                                             resultDiv.textContent = "\u23F3 \uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC911... (".concat(fileName, ")");

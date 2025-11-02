@@ -1427,8 +1427,21 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                                 // 고유한 파일명 생성 (순서대로 번호 매기기)
                                 // 클립보드 이미지는 file.name이 항상 "image.png"로 같으므로 항상 고유 이름 생성
                                 imageCounter++;
-                                const fileName = `image-${imageCounter}.png`;
-                                utils.logInfo(`원본 파일명: ${file.name}, 생성된 파일명: ${fileName}`);
+
+                                // MIME 타입에서 확장자 결정
+                                let extension = 'png'; // 기본값
+                                if (file.type === 'image/jpeg' || file.type === 'image/jpg') {
+                                    extension = 'jpg';
+                                } else if (file.type === 'image/png') {
+                                    extension = 'png';
+                                } else if (file.type === 'image/gif') {
+                                    extension = 'gif';
+                                } else if (file.type === 'image/webp') {
+                                    extension = 'webp';
+                                }
+
+                                const fileName = `image-${imageCounter}.${extension}`;
+                                utils.logInfo(`원본 파일명: ${file.name}, MIME: ${file.type}, 생성된 파일명: ${fileName}`);
 
                                 // 로딩 표시
                                 if (resultDiv) {

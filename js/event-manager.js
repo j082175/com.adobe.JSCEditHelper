@@ -970,11 +970,17 @@ var JSCEventManager = (function () {
             syncButton.addEventListener('click', startCaptionImageSync);
             utils.logDebug('Event listener added to sync-caption-images button');
         }
-        // 이미지 큐 비우기 버튼
+        // 이미지 큐 비우기 버튼 (모달)
         var clearQueueButton = document.getElementById('clear-image-queue');
         if (clearQueueButton) {
             clearQueueButton.addEventListener('click', clearImageQueue);
             utils.logDebug('Event listener added to clear-image-queue button');
+        }
+        // 이미지 전체 삭제 버튼 (미리보기 패널)
+        var clearAllButton = document.getElementById('clear-all-images');
+        if (clearAllButton) {
+            clearAllButton.addEventListener('click', clearImageQueue);
+            utils.logDebug('Event listener added to clear-all-images button');
         }
         // 드래그 앤 드롭 이벤트 (패널)
         var imageSummary = document.getElementById('image-summary');
@@ -1029,14 +1035,19 @@ var JSCEventManager = (function () {
     function updateImageSummary() {
         var countText = document.getElementById('image-count-text');
         var previewDiv = document.getElementById('image-preview-thumbnails');
+        var clearAllButton = document.getElementById('clear-all-images');
         if (!countText || !previewDiv)
             return;
         if (imageMappings.length === 0) {
             countText.textContent = '이미지가 없습니다';
             previewDiv.innerHTML = '';
+            if (clearAllButton)
+                clearAllButton.style.display = 'none';
         }
         else {
             countText.textContent = "\uC774\uBBF8\uC9C0 ".concat(imageMappings.length, "\uAC1C");
+            if (clearAllButton)
+                clearAllButton.style.display = 'inline-block';
             // 미리보기 썸네일 렌더링 (모든 이미지)
             previewDiv.innerHTML = '';
             // 캡션 범위 계산을 위한 누적 카운터

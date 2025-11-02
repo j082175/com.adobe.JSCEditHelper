@@ -178,10 +178,13 @@
                     <div id="image-summary" class="image-summary image-drop-zone">
                         <div class="summary-header">
                             <span id="image-count-text">이미지가 없습니다</span>
-                            <div class="thumbnail-size-control">
-                                <label for="thumbnail-size-slider">크기:</label>
-                                <input type="range" id="thumbnail-size-slider" min="50" max="200" value="75" step="5">
-                                <span id="thumbnail-size-value">75px</span>
+                            <div style="display: flex; gap: 12px; align-items: center;">
+                                <button id="clear-all-images" class="btn-text" style="display: none;">🗑️ 전체 삭제</button>
+                                <div class="thumbnail-size-control">
+                                    <label for="thumbnail-size-slider">크기:</label>
+                                    <input type="range" id="thumbnail-size-slider" min="50" max="200" value="75" step="5">
+                                    <span id="thumbnail-size-value">75px</span>
+                                </div>
                             </div>
                         </div>
                         <div id="image-preview-thumbnails" class="preview-thumbnails"></div>

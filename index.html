@@ -140,6 +140,25 @@
             <div id="caption-image-sync" class="workflow-content">
                 <div class="action-card">
                     <div class="card-header">
+                        <h3>⚙️ 동기화 옵션</h3>
+                    </div>
+                    <div class="form-group compact">
+                        <label for="target-video-track">삽입할 비디오 트랙:</label>
+                        <select id="target-video-track" class="select-modern">
+                            <option value="0">V1 트랙</option>
+                            <option value="1">V2 트랙</option>
+                            <option value="2">V3 트랙</option>
+                            <option value="3">V4 트랙</option>
+                        </select>
+                    </div>
+                    <p class="card-description" style="margin-top: 8px; font-size: 12px; color: #888;">
+                        🎬 <strong>비디오 스킵:</strong> 캡션 위치에 비디오나 이미지 클립이 있으면 자동으로 건너뜁니다
+                    </p>
+                    <button id="sync-caption-images" class="btn-primary" disabled>🔄 동기화 시작</button>
+                </div>
+
+                <div class="action-card">
+                    <div class="card-header">
                         <h3>🖼️ 이미지 관리</h3>
                     </div>
                     <p class="card-description">로컬 이미지 파일을 선택하세요 (PNG, JPG, GIF)</p>
@@ -164,25 +183,6 @@
                     <p class="card-description" style="margin-top: 8px; font-size: 12px; color: #888;">
                         💡 팁: 이미지를 <strong>드래그 앤 드롭</strong>하거나, 복사한 후 <strong>Ctrl+V</strong>를 눌러도 추가할 수 있습니다
                     </p>
-                </div>
-
-                <div class="action-card">
-                    <div class="card-header">
-                        <h3>⚙️ 동기화 옵션</h3>
-                    </div>
-                    <div class="form-group compact">
-                        <label for="target-video-track">삽입할 비디오 트랙:</label>
-                        <select id="target-video-track" class="select-modern">
-                            <option value="0">V1 트랙</option>
-                            <option value="1">V2 트랙</option>
-                            <option value="2">V3 트랙</option>
-                            <option value="3">V4 트랙</option>
-                        </select>
-                    </div>
-                    <p class="card-description" style="margin-top: 8px; font-size: 12px; color: #888;">
-                        🎬 <strong>비디오 스킵:</strong> 캡션 위치에 비디오나 이미지 클립이 있으면 자동으로 건너뜁니다
-                    </p>
-                    <button id="sync-caption-images" class="btn-primary" disabled>🔄 동기화 시작</button>
                 </div>
             </div>
         </div>

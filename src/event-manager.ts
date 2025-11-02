@@ -1427,54 +1427,75 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     }
 
     /**
-     * 미리보기 캡션 개수 클릭 핸들러 (입력 필드로 변경)
+     * 미리보기 캡션 개수 클릭 핸들러 (드롭다운으로 변경)
      */
     function handlePreviewCaptionClick(e: Event): void {
         e.stopPropagation();
         const captionDiv = e.currentTarget as HTMLElement;
         const imageId = captionDiv.dataset.imageId;
-        const currentValue = captionDiv.textContent || '1';
+        const currentValue = parseInt(captionDiv.textContent || '1', 10);
 
-        // 입력 필드로 교체
-        const input = document.createElement('input');
-        input.type = 'number';
-        input.min = '1';
-        input.max = '99';
-        input.className = 'preview-caption-input';
-        input.value = currentValue;
-        input.dataset.imageId = imageId || '';
+        // 드롭다운으로 교체
+        const select = document.createElement('select');
+        select.className = 'preview-caption-select select-modern';
+        select.dataset.imageId = imageId || '';
 
-        // 부모에서 캡션 div 제거하고 input 추가
+        // 옵션 추가 (1~10)
+        for (let i = 1; i <= 10; i++) {
+            const option = document.createElement('option');
+            option.value = String(i);
+            option.textContent = `${i}개`;
+            if (i === currentValue) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        }
+
+        // 부모에서 캡션 div 제거하고 select 추가
         const wrapper = captionDiv.parentElement;
         if (wrapper) {
             wrapper.removeChild(captionDiv);
-            wrapper.appendChild(input);
-            input.focus();
-            input.select();
+            wrapper.appendChild(select);
 
-            // Enter 키 또는 blur 시 저장
+            // 클릭 이벤트 전파 방지 (부모 이미지의 클릭 애니메이션 방지)
+            select.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+
+            // mousedown 이벤트 전파 방지
+            select.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+            });
+
+            select.focus();
+
+            // 드롭다운 자동으로 열기
+            setTimeout(() => {
+                const event = new MouseEvent('mousedown', {
+                    bubbles: false,  // 부모로 전파되지 않도록
+                    cancelable: true,
+                    view: window
+                });
+                select.dispatchEvent(event);
+            }, 10);
+
+            // 선택 변경 시 즉시 저장
             const saveValue = () => {
-                const newValue = parseInt(input.value, 10);
-                if (imageId && newValue > 0 && newValue <= 99) {
-                    const mapping = imageMappings.find(m => m.id === imageId);
-                    if (mapping) {
-                        mapping.captionCount = newValue;
+                const newValue = parseInt(select.value, 10);
+                if (imageId && newValue > 0) {
+                    const index = imageMappings.findIndex(m => m.id === imageId);
+                    if (index !== -1) {
+                        imageMappings[index].captionCount = newValue;
                         updateImageSummary();
-                        renderImageQueue();
+                        updateCaptionRanges(index);
                     }
-                } else {
-                    // 잘못된 값이면 원래대로
-                    updateImageSummary();
                 }
             };
 
-            input.addEventListener('blur', saveValue);
-            input.addEventListener('keydown', (event: KeyboardEvent) => {
-                if (event.key === 'Enter') {
-                    saveValue();
-                } else if (event.key === 'Escape') {
-                    updateImageSummary();
-                }
+            select.addEventListener('change', saveValue);
+            select.addEventListener('blur', () => {
+                // blur 시 원래 div로 복원
+                updateImageSummary();
             });
         }
     }

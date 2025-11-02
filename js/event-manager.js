@@ -1350,52 +1350,66 @@ var JSCEventManager = (function () {
         previewDraggedElement = null;
     }
     /**
-     * 미리보기 캡션 개수 클릭 핸들러 (입력 필드로 변경)
+     * 미리보기 캡션 개수 클릭 핸들러 (드롭다운으로 변경)
      */
     function handlePreviewCaptionClick(e) {
         e.stopPropagation();
         var captionDiv = e.currentTarget;
         var imageId = captionDiv.dataset.imageId;
-        var currentValue = captionDiv.textContent || '1';
-        // 입력 필드로 교체
-        var input = document.createElement('input');
-        input.type = 'number';
-        input.min = '1';
-        input.max = '99';
-        input.className = 'preview-caption-input';
-        input.value = currentValue;
-        input.dataset.imageId = imageId || '';
-        // 부모에서 캡션 div 제거하고 input 추가
+        var currentValue = parseInt(captionDiv.textContent || '1', 10);
+        // 드롭다운으로 교체
+        var select = document.createElement('select');
+        select.className = 'preview-caption-select select-modern';
+        select.dataset.imageId = imageId || '';
+        // 옵션 추가 (1~10)
+        for (var i = 1; i <= 10; i++) {
+            var option = document.createElement('option');
+            option.value = String(i);
+            option.textContent = "".concat(i, "\uAC1C");
+            if (i === currentValue) {
+                option.selected = true;
+            }
+            select.appendChild(option);
+        }
+        // 부모에서 캡션 div 제거하고 select 추가
         var wrapper = captionDiv.parentElement;
         if (wrapper) {
             wrapper.removeChild(captionDiv);
-            wrapper.appendChild(input);
-            input.focus();
-            input.select();
-            // Enter 키 또는 blur 시 저장
-            var saveValue_1 = function () {
-                var newValue = parseInt(input.value, 10);
-                if (imageId && newValue > 0 && newValue <= 99) {
-                    var mapping = imageMappings.find(function (m) { return m.id === imageId; });
-                    if (mapping) {
-                        mapping.captionCount = newValue;
+            wrapper.appendChild(select);
+            // 클릭 이벤트 전파 방지 (부모 이미지의 클릭 애니메이션 방지)
+            select.addEventListener('click', function (e) {
+                e.stopPropagation();
+            });
+            // mousedown 이벤트 전파 방지
+            select.addEventListener('mousedown', function (e) {
+                e.stopPropagation();
+            });
+            select.focus();
+            // 드롭다운 자동으로 열기
+            setTimeout(function () {
+                var event = new MouseEvent('mousedown', {
+                    bubbles: false, // 부모로 전파되지 않도록
+                    cancelable: true,
+                    view: window
+                });
+                select.dispatchEvent(event);
+            }, 10);
+            // 선택 변경 시 즉시 저장
+            var saveValue = function () {
+                var newValue = parseInt(select.value, 10);
+                if (imageId && newValue > 0) {
+                    var index = imageMappings.findIndex(function (m) { return m.id === imageId; });
+                    if (index !== -1) {
+                        imageMappings[index].captionCount = newValue;
                         updateImageSummary();
-                        renderImageQueue();
+                        updateCaptionRanges(index);
                     }
                 }
-                else {
-                    // 잘못된 값이면 원래대로
-                    updateImageSummary();
-                }
             };
-            input.addEventListener('blur', saveValue_1);
-            input.addEventListener('keydown', function (event) {
-                if (event.key === 'Enter') {
-                    saveValue_1();
-                }
-                else if (event.key === 'Escape') {
-                    updateImageSummary();
-                }
+            select.addEventListener('change', saveValue);
+            select.addEventListener('blur', function () {
+                // blur 시 원래 div로 복원
+                updateImageSummary();
             });
         }
     }

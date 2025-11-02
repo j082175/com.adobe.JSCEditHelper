@@ -20,6 +20,21 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     // 이미지 파일명 고유성을 위한 카운터
     let imageCounter = 0;
 
+    // 고급 모드 상태 및 이미지 매칭 데이터
+    let isAdvancedMode = false;
+
+    // 이미지 매칭 데이터 구조
+    interface ImageMapping {
+        id: string;              // 고유 ID
+        filePath: string;        // 파일 경로
+        fileName: string;        // 파일명
+        thumbnail: string;       // Base64 썸네일
+        captionCount: number;    // 이 이미지가 차지할 캡션 개수
+    }
+
+    // 이미지 매핑 배열 (고급 모드용)
+    let imageMappings: ImageMapping[] = [];
+
     // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
     // DIHelpers가 로드되어 있으면 사용, 아니면 직접 fallback 사용
     function getUtils(): JSCUtilsInterface {
@@ -903,6 +918,13 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         const utils = getUtils();
         utils.logDebug('Setting up caption-image sync event listeners...');
 
+        // 고급 모드 토글
+        const advancedModeToggle = document.getElementById('advanced-mode-toggle') as HTMLInputElement;
+        if (advancedModeToggle) {
+            advancedModeToggle.addEventListener('change', handleAdvancedModeToggle);
+            utils.logDebug('Event listener added to advanced-mode-toggle');
+        }
+
         // 위치 확인 버튼
         const testButton = document.getElementById('test-sync-method');
         if (testButton) {
@@ -934,6 +956,213 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         if (clearQueueButton) {
             clearQueueButton.addEventListener('click', clearImageQueue);
             utils.logDebug('Event listener added to clear-image-queue button');
+        }
+    }
+
+    /**
+     * 고급 모드 토글 핸들러
+     */
+    function handleAdvancedModeToggle(): void {
+        const utils = getUtils();
+        const toggle = document.getElementById('advanced-mode-toggle') as HTMLInputElement;
+
+        if (!toggle) return;
+
+        isAdvancedMode = toggle.checked;
+        utils.logInfo(`Advanced mode: ${isAdvancedMode ? 'ON' : 'OFF'}`);
+
+        // 기본 모드 옵션 표시/숨김
+        const basicModeOptions = document.getElementById('basic-mode-options');
+        if (basicModeOptions) {
+            basicModeOptions.style.display = isAdvancedMode ? 'none' : 'block';
+        }
+
+        // 이미지 큐 다시 렌더링
+        renderImageQueue();
+    }
+
+    /**
+     * 이미지 큐 렌더링 (기본 모드 vs 고급 모드)
+     */
+    function renderImageQueue(): void {
+        const queueDiv = document.getElementById('image-queue');
+        if (!queueDiv) return;
+
+        queueDiv.innerHTML = '';
+
+        if (imageMappings.length === 0) {
+            return;
+        }
+
+        // 자동 캡션 범위 계산을 위한 누적 카운터
+        let cumulativeCaptionIndex = 1;
+
+        imageMappings.forEach((mapping, index) => {
+            if (isAdvancedMode) {
+                // 이 이미지의 캡션 범위 계산
+                const captionStart = cumulativeCaptionIndex;
+                const captionEnd = cumulativeCaptionIndex + mapping.captionCount - 1;
+
+                // 다음 이미지를 위해 누적 카운터 업데이트
+                cumulativeCaptionIndex += mapping.captionCount;
+
+                // 고급 모드: 썸네일 + 캡션 개수 입력
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'image-queue-item-advanced';
+                itemDiv.draggable = true;
+                itemDiv.dataset.imageId = mapping.id;
+
+                itemDiv.innerHTML = `
+                    <div class="drag-handle" title="드래그하여 순서 변경">⋮</div>
+                    <img class="image-thumbnail" src="data:image/png;base64,${mapping.thumbnail}" alt="${mapping.fileName}">
+                    <div class="image-info">
+                        <div class="image-info-header">
+                            <span class="image-filename" title="${mapping.fileName}">${mapping.fileName}</span>
+                            <button class="image-remove-btn" data-image-id="${mapping.id}">✕</button>
+                        </div>
+                        <div class="caption-range">
+                            <label>캡션 개수:</label>
+                            <div class="caption-range-inputs">
+                                <select data-image-id="${mapping.id}" class="caption-count-input select-modern" style="width: 80px;">
+                                    ${[1,2,3,4,5,6,7,8,9,10].map(n =>
+                                        `<option value="${n}" ${n === mapping.captionCount ? 'selected' : ''}>${n}개</option>`
+                                    ).join('')}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="caption-preview" id="caption-preview-${mapping.id}">
+                            캡션 ${captionStart}-${captionEnd} 범위
+                        </div>
+                    </div>
+                `;
+
+                queueDiv.appendChild(itemDiv);
+
+                // 드래그 이벤트 추가
+                itemDiv.addEventListener('dragstart', handleDragStart);
+                itemDiv.addEventListener('dragover', handleDragOver);
+                itemDiv.addEventListener('drop', handleDrop);
+                itemDiv.addEventListener('dragend', handleDragEnd);
+
+            } else {
+                // 기본 모드: 간단한 리스트
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'image-queue-item-basic';
+                itemDiv.dataset.imageId = mapping.id;
+
+                itemDiv.innerHTML = `
+                    <span>${index + 1}. ${mapping.fileName}</span>
+                    <button class="btn-remove" data-image-id="${mapping.id}">✕</button>
+                `;
+
+                queueDiv.appendChild(itemDiv);
+            }
+        });
+
+        // 제거 버튼 이벤트 추가
+        queueDiv.querySelectorAll('.image-remove-btn, .btn-remove').forEach(btn => {
+            btn.addEventListener('click', handleRemoveImage);
+        });
+
+        // 캡션 개수 입력 이벤트 추가 (고급 모드)
+        if (isAdvancedMode) {
+            queueDiv.querySelectorAll('.caption-count-input').forEach(input => {
+                input.addEventListener('change', handleCaptionCountChange);
+            });
+        }
+
+        // 동기화 버튼 상태 업데이트
+        const syncButton = document.getElementById('sync-caption-images') as HTMLButtonElement;
+        if (syncButton) {
+            syncButton.disabled = imageMappings.length === 0;
+        }
+    }
+
+    /**
+     * 드래그 앤 드롭 핸들러
+     */
+    let draggedElement: HTMLElement | null = null;
+
+    function handleDragStart(e: DragEvent): void {
+        const target = e.currentTarget as HTMLElement;
+        draggedElement = target;
+        target.classList.add('dragging');
+        if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = 'move';
+        }
+    }
+
+    function handleDragOver(e: DragEvent): void {
+        e.preventDefault();
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = 'move';
+        }
+    }
+
+    function handleDrop(e: DragEvent): void {
+        e.preventDefault();
+        const target = e.currentTarget as HTMLElement;
+
+        if (draggedElement && draggedElement !== target) {
+            const draggedId = draggedElement.dataset.imageId;
+            const targetId = target.dataset.imageId;
+
+            if (draggedId && targetId) {
+                // imageMappings 배열에서 순서 변경
+                const draggedIndex = imageMappings.findIndex(m => m.id === draggedId);
+                const targetIndex = imageMappings.findIndex(m => m.id === targetId);
+
+                if (draggedIndex !== -1 && targetIndex !== -1) {
+                    const [draggedItem] = imageMappings.splice(draggedIndex, 1);
+                    imageMappings.splice(targetIndex, 0, draggedItem);
+
+                    // 큐 다시 렌더링
+                    renderImageQueue();
+                }
+            }
+        }
+    }
+
+    function handleDragEnd(e: DragEvent): void {
+        const target = e.currentTarget as HTMLElement;
+        target.classList.remove('dragging');
+        draggedElement = null;
+    }
+
+    /**
+     * 이미지 제거 핸들러
+     */
+    function handleRemoveImage(e: Event): void {
+        const utils = getUtils();
+        const button = e.currentTarget as HTMLButtonElement;
+        const imageId = button.dataset.imageId;
+
+        if (imageId) {
+            const index = imageMappings.findIndex(m => m.id === imageId);
+            if (index !== -1) {
+                const removed = imageMappings.splice(index, 1)[0];
+                utils.logInfo(`이미지 제거됨: ${removed.fileName}`);
+                renderImageQueue();
+            }
+        }
+    }
+
+    /**
+     * 캡션 개수 변경 핸들러
+     */
+    function handleCaptionCountChange(e: Event): void {
+        const input = e.currentTarget as HTMLInputElement;
+        const imageId = input.dataset.imageId;
+        const value = parseInt(input.value, 10);
+
+        if (imageId && value > 0) {
+            const mapping = imageMappings.find(m => m.id === imageId);
+            if (mapping) {
+                mapping.captionCount = value;
+
+                // 변경 사항 반영을 위해 큐 다시 렌더링 (자동 범위 재계산)
+                renderImageQueue();
+            }
         }
     }
 
@@ -1160,8 +1389,8 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                                 utils.logInfo(`saveBase64ToProjectFolder 완료, 결과: ${savedPath}`);
 
                                 if (savedPath) {
-                                    // 저장된 파일 경로를 큐에 추가
-                                    addImageToQueue(savedPath, fileName);
+                                    // 저장된 파일 경로와 Base64 썸네일을 큐에 추가
+                                    addImageToQueue(savedPath, fileName, base64);
 
                                     if (resultDiv) {
                                         resultDiv.textContent = `✓ 이미지 저장 완료: ${fileName}`;
@@ -1262,26 +1491,47 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     /**
      * 이미지를 큐에 추가
      */
-    function addImageToQueue(imageDataOrPath: string, fileName: string): void {
-        const queueDiv = document.getElementById('image-queue');
-        if (!queueDiv) return;
+    /**
+     * 이미지를 큐에 추가 (썸네일 생성 포함)
+     * @param filePath 저장된 파일 경로
+     * @param fileName 파일명
+     * @param thumbnailBase64 썸네일 Base64 (선택, 없으면 filePath에서 읽음)
+     */
+    function addImageToQueue(filePath: string, fileName: string, thumbnailBase64?: string): void {
+        const utils = getUtils();
 
-        const imageItem = document.createElement('div');
-        imageItem.className = 'image-queue-item';
-        imageItem.innerHTML = `
-            <span>${fileName}</span>
-            <button class="btn-remove" onclick="this.parentElement.remove()">✕</button>
-        `;
-        imageItem.dataset.imageData = imageDataOrPath;
-        imageItem.dataset.fileName = fileName;
+        // 고유 ID 생성
+        const id = `img-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-        queueDiv.appendChild(imageItem);
+        // 썸네일 생성
+        let thumbnail = thumbnailBase64 || '';
 
-        // 동기화 버튼 활성화
-        const syncButton = document.getElementById('sync-caption-images') as HTMLButtonElement;
-        if (syncButton) {
-            syncButton.disabled = false;
+        if (!thumbnail) {
+            // 썸네일이 제공되지 않았으면 파일에서 읽기
+            try {
+                const fs = (window as any).require('fs');
+                const fileData = fs.readFileSync(filePath);
+                thumbnail = fileData.toString('base64');
+            } catch (e) {
+                utils.logError(`썸네일 생성 실패: ${(e as Error).message}`);
+                thumbnail = ''; // 실패 시 빈 문자열
+            }
         }
+
+        // ImageMapping 생성
+        const mapping: ImageMapping = {
+            id: id,
+            filePath: filePath,
+            fileName: fileName,
+            thumbnail: thumbnail,
+            captionCount: 1    // 기본값: 캡션 1개
+        };
+
+        imageMappings.push(mapping);
+        utils.logInfo(`이미지 추가됨: ${fileName} (ID: ${id})`);
+
+        // 큐 다시 렌더링
+        renderImageQueue();
     }
 
     /**
@@ -1289,28 +1539,19 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
      */
     function clearImageQueue(): void {
         const utils = getUtils();
-        const queueDiv = document.getElementById('image-queue');
 
-        if (!queueDiv) {
-            utils.logWarn('Image queue element not found');
-            return;
-        }
-
-        const imageCount = queueDiv.querySelectorAll('.image-queue-item').length;
+        const imageCount = imageMappings.length;
 
         if (imageCount === 0) {
             utils.logInfo('Image queue is already empty');
             return;
         }
 
-        // 큐 비우기
-        queueDiv.innerHTML = '';
+        // imageMappings 비우기
+        imageMappings = [];
 
-        // 동기화 버튼 비활성화
-        const syncButton = document.getElementById('sync-caption-images') as HTMLButtonElement;
-        if (syncButton) {
-            syncButton.disabled = true;
-        }
+        // 큐 다시 렌더링
+        renderImageQueue();
 
         utils.logInfo(`Image queue cleared: ${imageCount} images removed`);
 
@@ -1333,10 +1574,8 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         let debugInfo = "=== 캡션-이미지 동기화 디버그 ===\n";
         debugInfo += `시작 시간: ${new Date().toISOString()}\n`;
 
-        const queueDiv = document.getElementById('image-queue');
-        const imageItems = queueDiv?.querySelectorAll('.image-queue-item');
-
-        if (!imageItems || imageItems.length === 0) {
+        // imageMappings 배열 사용 (DOM 대신)
+        if (!imageMappings || imageMappings.length === 0) {
             if (resultDiv) resultDiv.textContent = '✗ 이미지를 먼저 추가하세요';
             debugInfo += "ERROR: 이미지가 선택되지 않음\n";
             (window as any).lastDebugInfo = debugInfo;
@@ -1348,9 +1587,10 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         const targetTrack = parseInt((document.getElementById('target-video-track') as HTMLSelectElement)?.value || '0');
 
         debugInfo += `동기화 방법: ${selectedMethod}\n`;
+        debugInfo += `모드: ${isAdvancedMode ? '고급' : '기본'}\n`;
         debugInfo += `캡션 그룹화: ${captionGroup}\n`;
         debugInfo += `대상 비디오 트랙: V${targetTrack + 1}\n`;
-        debugInfo += `이미지 개수: ${imageItems.length}\n\n`;
+        debugInfo += `이미지 개수: ${imageMappings.length}\n\n`;
 
         if (resultDiv) resultDiv.textContent = '동기화 중...';
         utils.logInfo('Starting caption-image sync:', { method: selectedMethod, group: captionGroup, track: targetTrack });
@@ -1393,37 +1633,56 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 // 이미지와 위치 매칭
                 let successCount = 0;
                 debugInfo += `\n총 위치: ${positions.length}개\n`;
-                debugInfo += `루프 반복 횟수: ${imageItems.length}번\n\n`;
+                debugInfo += `루프 반복 횟수: ${imageMappings.length}번\n\n`;
 
-                const syncDebugMsg = `총 이미지: ${imageItems.length}, 총 위치: ${positions.length}, 그룹화: ${captionGroup}`;
+                const syncDebugMsg = `총 이미지: ${imageMappings.length}, 총 위치: ${positions.length}, 모드: ${isAdvancedMode ? '고급' : '기본'}, 그룹화: ${captionGroup}`;
                 utils.logInfo(syncDebugMsg);
                 console.log(`[SYNC] ${syncDebugMsg}`);
 
-                for (let i = 0; i < imageItems.length && i < positions.length; i++) {
-                    debugInfo += `\n===== 루프 ${i+1}/${imageItems.length} =====\n`;
+                // 고급 모드를 위한 누적 카운터
+                let cumulativeCaptionIndex = 0;
 
-                    const imageItem = imageItems[i] as HTMLElement;
-                    const imageData = imageItem.dataset.imageData || '';
-                    const positionIndex = i * captionGroup;
-                    const position = positions[positionIndex]; // 그룹화 적용
+                for (let i = 0; i < imageMappings.length; i++) {
+                    debugInfo += `\n===== 루프 ${i+1}/${imageMappings.length} =====\n`;
+
+                    const mapping = imageMappings[i];
+                    const imagePath = mapping.filePath;
+
+                    // 위치 인덱스 결정
+                    let positionIndex: number;
+                    if (isAdvancedMode) {
+                        // 고급 모드: 누적 계산 (0-based)
+                        positionIndex = cumulativeCaptionIndex;
+                        const captionStart = cumulativeCaptionIndex + 1;
+                        const captionEnd = cumulativeCaptionIndex + mapping.captionCount;
+                        debugInfo += `고급 모드: 캡션 개수 ${mapping.captionCount}개 (범위: ${captionStart}-${captionEnd})\n`;
+
+                        // 다음 이미지를 위해 누적 카운터 업데이트
+                        cumulativeCaptionIndex += mapping.captionCount;
+                    } else {
+                        // 기본 모드: 그룹화 적용
+                        positionIndex = i * captionGroup;
+                        debugInfo += `기본 모드: 그룹화 ${captionGroup}\n`;
+                    }
+
+                    const position = positions[positionIndex];
 
                     debugInfo += `이미지 인덱스: ${i}\n`;
-                    debugInfo += `위치 인덱스: ${positionIndex} (그룹화=${captionGroup})\n`;
-                    debugInfo += `이미지: ${imageData.substring(0, 80)}...\n`;
+                    debugInfo += `위치 인덱스: ${positionIndex}\n`;
+                    debugInfo += `이미지 파일: ${mapping.fileName}\n`;
                     debugInfo += `위치: ${position ? position.start + 's ~ ' + position.end + 's' : 'undefined'}\n`;
 
                     if (!position) {
                         debugInfo += `ERROR: 위치 정보가 없음 (인덱스 ${positionIndex})\n`;
-                        utils.logWarn(`[${i}] 위치 정보가 없음 (그룹 인덱스: ${i * captionGroup})`);
+                        utils.logWarn(`[${i}] 위치 정보가 없음 (위치 인덱스: ${positionIndex})`);
                         continue;
                     }
 
-                    // 모든 이미지는 이제 파일 경로로 저장됨
-                    // (Ctrl+V → saveBase64ToProjectFolder, 파일 선택 → 파일 경로)
-                    debugInfo += `파일 경로: ${imageData}\n`;
+                    // 파일 경로 처리
+                    debugInfo += `파일 경로: ${imagePath}\n`;
 
                     // 백슬래시 이스케이프: ExtendScript에서 제대로 인식하도록 \를 \\로 변경
-                    const escapedPath = imageData.replace(/\\/g, '\\\\');
+                    const escapedPath = imagePath.replace(/\\/g, '\\\\');
                     debugInfo += `이스케이프된 경로: ${escapedPath}\n`;
 
                     const insertScript = `insertImageAtTime("${escapedPath}", ${targetTrack}, ${position.start}, ${position.end})`;

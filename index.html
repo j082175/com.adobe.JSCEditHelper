@@ -162,6 +162,15 @@
                     <p class="card-description" style="margin-top: 8px; font-size: 12px; color: #888;">
                         💡 팁: 이미지를 복사한 후 이 패널에서 <strong>Ctrl+V</strong>를 눌러도 추가할 수 있습니다
                     </p>
+
+                    <!-- 고급 모드 토글 -->
+                    <div class="form-group compact" style="margin-top: 12px;">
+                        <label>
+                            <input type="checkbox" id="advanced-mode-toggle" style="margin-right: 8px;">
+                            고급 매칭 모드 (썸네일 + 캡션 범위 선택)
+                        </label>
+                    </div>
+
                     <div id="image-queue" class="image-list"></div>
                 </div>
 
@@ -169,13 +178,16 @@
                     <div class="card-header">
                         <h3>⚙️ 동기화 옵션</h3>
                     </div>
-                    <div class="form-group compact">
-                        <label for="caption-group">캡션 그룹화:</label>
-                        <select id="caption-group" class="select-modern">
-                            <option value="1">캡션 개별 매칭</option>
-                            <option value="2">2개씩 그룹화</option>
-                            <option value="3">3개씩 그룹화</option>
-                        </select>
+                    <!-- 기본 모드 옵션 (고급 모드일 때 숨김) -->
+                    <div id="basic-mode-options">
+                        <div class="form-group compact">
+                            <label for="caption-group">캡션 그룹화:</label>
+                            <select id="caption-group" class="select-modern">
+                                <option value="1">캡션 개별 매칭</option>
+                                <option value="2">2개씩 그룹화</option>
+                                <option value="3">3개씩 그룹화</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="form-group compact">
                         <label for="target-video-track">삽입할 비디오 트랙:</label>

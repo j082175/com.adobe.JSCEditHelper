@@ -46,6 +46,10 @@ var JSCEventManager = (function () {
     var DIHelpers = window.DIHelpers;
     // 이미지 파일명 고유성을 위한 카운터
     var imageCounter = 0;
+    // 고급 모드 상태 및 이미지 매칭 데이터
+    var isAdvancedMode = false;
+    // 이미지 매핑 배열 (고급 모드용)
+    var imageMappings = [];
     // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
     // DIHelpers가 로드되어 있으면 사용, 아니면 직접 fallback 사용
     function getUtils() {
@@ -945,6 +949,12 @@ var JSCEventManager = (function () {
     function setupCaptionEventListeners() {
         var utils = getUtils();
         utils.logDebug('Setting up caption-image sync event listeners...');
+        // 고급 모드 토글
+        var advancedModeToggle = document.getElementById('advanced-mode-toggle');
+        if (advancedModeToggle) {
+            advancedModeToggle.addEventListener('change', handleAdvancedModeToggle);
+            utils.logDebug('Event listener added to advanced-mode-toggle');
+        }
         // 위치 확인 버튼
         var testButton = document.getElementById('test-sync-method');
         if (testButton) {
@@ -972,6 +982,158 @@ var JSCEventManager = (function () {
         if (clearQueueButton) {
             clearQueueButton.addEventListener('click', clearImageQueue);
             utils.logDebug('Event listener added to clear-image-queue button');
+        }
+    }
+    /**
+     * 고급 모드 토글 핸들러
+     */
+    function handleAdvancedModeToggle() {
+        var utils = getUtils();
+        var toggle = document.getElementById('advanced-mode-toggle');
+        if (!toggle)
+            return;
+        isAdvancedMode = toggle.checked;
+        utils.logInfo("Advanced mode: ".concat(isAdvancedMode ? 'ON' : 'OFF'));
+        // 기본 모드 옵션 표시/숨김
+        var basicModeOptions = document.getElementById('basic-mode-options');
+        if (basicModeOptions) {
+            basicModeOptions.style.display = isAdvancedMode ? 'none' : 'block';
+        }
+        // 이미지 큐 다시 렌더링
+        renderImageQueue();
+    }
+    /**
+     * 이미지 큐 렌더링 (기본 모드 vs 고급 모드)
+     */
+    function renderImageQueue() {
+        var queueDiv = document.getElementById('image-queue');
+        if (!queueDiv)
+            return;
+        queueDiv.innerHTML = '';
+        if (imageMappings.length === 0) {
+            return;
+        }
+        // 자동 캡션 범위 계산을 위한 누적 카운터
+        var cumulativeCaptionIndex = 1;
+        imageMappings.forEach(function (mapping, index) {
+            if (isAdvancedMode) {
+                // 이 이미지의 캡션 범위 계산
+                var captionStart = cumulativeCaptionIndex;
+                var captionEnd = cumulativeCaptionIndex + mapping.captionCount - 1;
+                // 다음 이미지를 위해 누적 카운터 업데이트
+                cumulativeCaptionIndex += mapping.captionCount;
+                // 고급 모드: 썸네일 + 캡션 개수 입력
+                var itemDiv = document.createElement('div');
+                itemDiv.className = 'image-queue-item-advanced';
+                itemDiv.draggable = true;
+                itemDiv.dataset.imageId = mapping.id;
+                itemDiv.innerHTML = "\n                    <div class=\"drag-handle\" title=\"\uB4DC\uB798\uADF8\uD558\uC5EC \uC21C\uC11C \uBCC0\uACBD\">\u22EE</div>\n                    <img class=\"image-thumbnail\" src=\"data:image/png;base64,".concat(mapping.thumbnail, "\" alt=\"").concat(mapping.fileName, "\">\n                    <div class=\"image-info\">\n                        <div class=\"image-info-header\">\n                            <span class=\"image-filename\" title=\"").concat(mapping.fileName, "\">").concat(mapping.fileName, "</span>\n                            <button class=\"image-remove-btn\" data-image-id=\"").concat(mapping.id, "\">\u2715</button>\n                        </div>\n                        <div class=\"caption-range\">\n                            <label>\uCEA1\uC158 \uAC1C\uC218:</label>\n                            <div class=\"caption-range-inputs\">\n                                <select data-image-id=\"").concat(mapping.id, "\" class=\"caption-count-input select-modern\" style=\"width: 80px;\">\n                                    ").concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) {
+                    return "<option value=\"".concat(n, "\" ").concat(n === mapping.captionCount ? 'selected' : '', ">").concat(n, "\uAC1C</option>");
+                }).join(''), "\n                                </select>\n                            </div>\n                        </div>\n                        <div class=\"caption-preview\" id=\"caption-preview-").concat(mapping.id, "\">\n                            \uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, " \uBC94\uC704\n                        </div>\n                    </div>\n                ");
+                queueDiv.appendChild(itemDiv);
+                // 드래그 이벤트 추가
+                itemDiv.addEventListener('dragstart', handleDragStart);
+                itemDiv.addEventListener('dragover', handleDragOver);
+                itemDiv.addEventListener('drop', handleDrop);
+                itemDiv.addEventListener('dragend', handleDragEnd);
+            }
+            else {
+                // 기본 모드: 간단한 리스트
+                var itemDiv = document.createElement('div');
+                itemDiv.className = 'image-queue-item-basic';
+                itemDiv.dataset.imageId = mapping.id;
+                itemDiv.innerHTML = "\n                    <span>".concat(index + 1, ". ").concat(mapping.fileName, "</span>\n                    <button class=\"btn-remove\" data-image-id=\"").concat(mapping.id, "\">\u2715</button>\n                ");
+                queueDiv.appendChild(itemDiv);
+            }
+        });
+        // 제거 버튼 이벤트 추가
+        queueDiv.querySelectorAll('.image-remove-btn, .btn-remove').forEach(function (btn) {
+            btn.addEventListener('click', handleRemoveImage);
+        });
+        // 캡션 개수 입력 이벤트 추가 (고급 모드)
+        if (isAdvancedMode) {
+            queueDiv.querySelectorAll('.caption-count-input').forEach(function (input) {
+                input.addEventListener('change', handleCaptionCountChange);
+            });
+        }
+        // 동기화 버튼 상태 업데이트
+        var syncButton = document.getElementById('sync-caption-images');
+        if (syncButton) {
+            syncButton.disabled = imageMappings.length === 0;
+        }
+    }
+    /**
+     * 드래그 앤 드롭 핸들러
+     */
+    var draggedElement = null;
+    function handleDragStart(e) {
+        var target = e.currentTarget;
+        draggedElement = target;
+        target.classList.add('dragging');
+        if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = 'move';
+        }
+    }
+    function handleDragOver(e) {
+        e.preventDefault();
+        if (e.dataTransfer) {
+            e.dataTransfer.dropEffect = 'move';
+        }
+    }
+    function handleDrop(e) {
+        e.preventDefault();
+        var target = e.currentTarget;
+        if (draggedElement && draggedElement !== target) {
+            var draggedId_1 = draggedElement.dataset.imageId;
+            var targetId_1 = target.dataset.imageId;
+            if (draggedId_1 && targetId_1) {
+                // imageMappings 배열에서 순서 변경
+                var draggedIndex = imageMappings.findIndex(function (m) { return m.id === draggedId_1; });
+                var targetIndex = imageMappings.findIndex(function (m) { return m.id === targetId_1; });
+                if (draggedIndex !== -1 && targetIndex !== -1) {
+                    var draggedItem = imageMappings.splice(draggedIndex, 1)[0];
+                    imageMappings.splice(targetIndex, 0, draggedItem);
+                    // 큐 다시 렌더링
+                    renderImageQueue();
+                }
+            }
+        }
+    }
+    function handleDragEnd(e) {
+        var target = e.currentTarget;
+        target.classList.remove('dragging');
+        draggedElement = null;
+    }
+    /**
+     * 이미지 제거 핸들러
+     */
+    function handleRemoveImage(e) {
+        var utils = getUtils();
+        var button = e.currentTarget;
+        var imageId = button.dataset.imageId;
+        if (imageId) {
+            var index = imageMappings.findIndex(function (m) { return m.id === imageId; });
+            if (index !== -1) {
+                var removed = imageMappings.splice(index, 1)[0];
+                utils.logInfo("\uC774\uBBF8\uC9C0 \uC81C\uAC70\uB428: ".concat(removed.fileName));
+                renderImageQueue();
+            }
+        }
+    }
+    /**
+     * 캡션 개수 변경 핸들러
+     */
+    function handleCaptionCountChange(e) {
+        var input = e.currentTarget;
+        var imageId = input.dataset.imageId;
+        var value = parseInt(input.value, 10);
+        if (imageId && value > 0) {
+            var mapping = imageMappings.find(function (m) { return m.id === imageId; });
+            if (mapping) {
+                mapping.captionCount = value;
+                // 변경 사항 반영을 위해 큐 다시 렌더링 (자동 범위 재계산)
+                renderImageQueue();
+            }
         }
     }
     /**
@@ -1185,8 +1347,8 @@ var JSCEventManager = (function () {
                                         savedPath = _a.sent();
                                         utils.logInfo("saveBase64ToProjectFolder \uC644\uB8CC, \uACB0\uACFC: ".concat(savedPath));
                                         if (savedPath) {
-                                            // 저장된 파일 경로를 큐에 추가
-                                            addImageToQueue(savedPath, fileName);
+                                            // 저장된 파일 경로와 Base64 썸네일을 큐에 추가
+                                            addImageToQueue(savedPath, fileName, base64);
                                             if (resultDiv) {
                                                 resultDiv.textContent = "\u2713 \uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC644\uB8CC: ".concat(fileName);
                                             }
@@ -1282,44 +1444,57 @@ var JSCEventManager = (function () {
     /**
      * 이미지를 큐에 추가
      */
-    function addImageToQueue(imageDataOrPath, fileName) {
-        var queueDiv = document.getElementById('image-queue');
-        if (!queueDiv)
-            return;
-        var imageItem = document.createElement('div');
-        imageItem.className = 'image-queue-item';
-        imageItem.innerHTML = "\n            <span>".concat(fileName, "</span>\n            <button class=\"btn-remove\" onclick=\"this.parentElement.remove()\">\u2715</button>\n        ");
-        imageItem.dataset.imageData = imageDataOrPath;
-        imageItem.dataset.fileName = fileName;
-        queueDiv.appendChild(imageItem);
-        // 동기화 버튼 활성화
-        var syncButton = document.getElementById('sync-caption-images');
-        if (syncButton) {
-            syncButton.disabled = false;
+    /**
+     * 이미지를 큐에 추가 (썸네일 생성 포함)
+     * @param filePath 저장된 파일 경로
+     * @param fileName 파일명
+     * @param thumbnailBase64 썸네일 Base64 (선택, 없으면 filePath에서 읽음)
+     */
+    function addImageToQueue(filePath, fileName, thumbnailBase64) {
+        var utils = getUtils();
+        // 고유 ID 생성
+        var id = "img-".concat(Date.now(), "-").concat(Math.random().toString(36).substring(2, 9));
+        // 썸네일 생성
+        var thumbnail = thumbnailBase64 || '';
+        if (!thumbnail) {
+            // 썸네일이 제공되지 않았으면 파일에서 읽기
+            try {
+                var fs = window.require('fs');
+                var fileData = fs.readFileSync(filePath);
+                thumbnail = fileData.toString('base64');
+            }
+            catch (e) {
+                utils.logError("\uC378\uB124\uC77C \uC0DD\uC131 \uC2E4\uD328: ".concat(e.message));
+                thumbnail = ''; // 실패 시 빈 문자열
+            }
         }
+        // ImageMapping 생성
+        var mapping = {
+            id: id,
+            filePath: filePath,
+            fileName: fileName,
+            thumbnail: thumbnail,
+            captionCount: 1 // 기본값: 캡션 1개
+        };
+        imageMappings.push(mapping);
+        utils.logInfo("\uC774\uBBF8\uC9C0 \uCD94\uAC00\uB428: ".concat(fileName, " (ID: ").concat(id, ")"));
+        // 큐 다시 렌더링
+        renderImageQueue();
     }
     /**
      * 이미지 큐 비우기
      */
     function clearImageQueue() {
         var utils = getUtils();
-        var queueDiv = document.getElementById('image-queue');
-        if (!queueDiv) {
-            utils.logWarn('Image queue element not found');
-            return;
-        }
-        var imageCount = queueDiv.querySelectorAll('.image-queue-item').length;
+        var imageCount = imageMappings.length;
         if (imageCount === 0) {
             utils.logInfo('Image queue is already empty');
             return;
         }
-        // 큐 비우기
-        queueDiv.innerHTML = '';
-        // 동기화 버튼 비활성화
-        var syncButton = document.getElementById('sync-caption-images');
-        if (syncButton) {
-            syncButton.disabled = true;
-        }
+        // imageMappings 비우기
+        imageMappings = [];
+        // 큐 다시 렌더링
+        renderImageQueue();
         utils.logInfo("Image queue cleared: ".concat(imageCount, " images removed"));
         // 결과 메시지 표시
         var resultDiv = document.getElementById('sync-test-result');
@@ -1332,7 +1507,7 @@ var JSCEventManager = (function () {
      */
     function startCaptionImageSync() {
         return __awaiter(this, void 0, void 0, function () {
-            var utils, communication, resultDiv, debugInfo, queueDiv, imageItems, selectedMethod, captionGroup, targetTrack, scriptCall;
+            var utils, communication, resultDiv, debugInfo, selectedMethod, captionGroup, targetTrack, scriptCall;
             var _this = this;
             var _a, _b, _c;
             return __generator(this, function (_d) {
@@ -1341,9 +1516,8 @@ var JSCEventManager = (function () {
                 resultDiv = document.getElementById('sync-test-result');
                 debugInfo = "=== 캡션-이미지 동기화 디버그 ===\n";
                 debugInfo += "\uC2DC\uC791 \uC2DC\uAC04: ".concat(new Date().toISOString(), "\n");
-                queueDiv = document.getElementById('image-queue');
-                imageItems = queueDiv === null || queueDiv === void 0 ? void 0 : queueDiv.querySelectorAll('.image-queue-item');
-                if (!imageItems || imageItems.length === 0) {
+                // imageMappings 배열 사용 (DOM 대신)
+                if (!imageMappings || imageMappings.length === 0) {
                     if (resultDiv)
                         resultDiv.textContent = '✗ 이미지를 먼저 추가하세요';
                     debugInfo += "ERROR: 이미지가 선택되지 않음\n";
@@ -1354,9 +1528,10 @@ var JSCEventManager = (function () {
                 captionGroup = parseInt(((_b = document.getElementById('caption-group')) === null || _b === void 0 ? void 0 : _b.value) || '1');
                 targetTrack = parseInt(((_c = document.getElementById('target-video-track')) === null || _c === void 0 ? void 0 : _c.value) || '0');
                 debugInfo += "\uB3D9\uAE30\uD654 \uBC29\uBC95: ".concat(selectedMethod, "\n");
+                debugInfo += "\uBAA8\uB4DC: ".concat(isAdvancedMode ? '고급' : '기본', "\n");
                 debugInfo += "\uCEA1\uC158 \uADF8\uB8F9\uD654: ".concat(captionGroup, "\n");
                 debugInfo += "\uB300\uC0C1 \uBE44\uB514\uC624 \uD2B8\uB799: V".concat(targetTrack + 1, "\n");
-                debugInfo += "\uC774\uBBF8\uC9C0 \uAC1C\uC218: ".concat(imageItems.length, "\n\n");
+                debugInfo += "\uC774\uBBF8\uC9C0 \uAC1C\uC218: ".concat(imageMappings.length, "\n\n");
                 if (resultDiv)
                     resultDiv.textContent = '동기화 중...';
                 utils.logInfo('Starting caption-image sync:', { method: selectedMethod, group: captionGroup, track: targetTrack });
@@ -1377,7 +1552,7 @@ var JSCEventManager = (function () {
                     return [2 /*return*/];
                 }
                 communication.callExtendScript(scriptCall, function (positionResult) { return __awaiter(_this, void 0, void 0, function () {
-                    var positionData, positions, successCount_1, syncDebugMsg, _loop_2, i, e_4;
+                    var positionData, positions, successCount_1, syncDebugMsg, cumulativeCaptionIndex, _loop_2, i, e_4;
                     return __generator(this, function (_a) {
                         switch (_a.label) {
                             case 0:
@@ -1401,33 +1576,47 @@ var JSCEventManager = (function () {
                                 }
                                 successCount_1 = 0;
                                 debugInfo += "\n\uCD1D \uC704\uCE58: ".concat(positions.length, "\uAC1C\n");
-                                debugInfo += "\uB8E8\uD504 \uBC18\uBCF5 \uD69F\uC218: ".concat(imageItems.length, "\uBC88\n\n");
-                                syncDebugMsg = "\uCD1D \uC774\uBBF8\uC9C0: ".concat(imageItems.length, ", \uCD1D \uC704\uCE58: ").concat(positions.length, ", \uADF8\uB8F9\uD654: ").concat(captionGroup);
+                                debugInfo += "\uB8E8\uD504 \uBC18\uBCF5 \uD69F\uC218: ".concat(imageMappings.length, "\uBC88\n\n");
+                                syncDebugMsg = "\uCD1D \uC774\uBBF8\uC9C0: ".concat(imageMappings.length, ", \uCD1D \uC704\uCE58: ").concat(positions.length, ", \uBAA8\uB4DC: ").concat(isAdvancedMode ? '고급' : '기본', ", \uADF8\uB8F9\uD654: ").concat(captionGroup);
                                 utils.logInfo(syncDebugMsg);
                                 console.log("[SYNC] ".concat(syncDebugMsg));
+                                cumulativeCaptionIndex = 0;
                                 _loop_2 = function (i) {
-                                    var imageItem, imageData, positionIndex, position, escapedPath, insertScript;
+                                    var mapping, imagePath, positionIndex, captionStart, captionEnd, position, escapedPath, insertScript;
                                     return __generator(this, function (_b) {
                                         switch (_b.label) {
                                             case 0:
-                                                debugInfo += "\n===== \uB8E8\uD504 ".concat(i + 1, "/").concat(imageItems.length, " =====\n");
-                                                imageItem = imageItems[i];
-                                                imageData = imageItem.dataset.imageData || '';
-                                                positionIndex = i * captionGroup;
+                                                debugInfo += "\n===== \uB8E8\uD504 ".concat(i + 1, "/").concat(imageMappings.length, " =====\n");
+                                                mapping = imageMappings[i];
+                                                imagePath = mapping.filePath;
+                                                positionIndex = void 0;
+                                                if (isAdvancedMode) {
+                                                    // 고급 모드: 누적 계산 (0-based)
+                                                    positionIndex = cumulativeCaptionIndex;
+                                                    captionStart = cumulativeCaptionIndex + 1;
+                                                    captionEnd = cumulativeCaptionIndex + mapping.captionCount;
+                                                    debugInfo += "\uACE0\uAE09 \uBAA8\uB4DC: \uCEA1\uC158 \uAC1C\uC218 ".concat(mapping.captionCount, "\uAC1C (\uBC94\uC704: ").concat(captionStart, "-").concat(captionEnd, ")\n");
+                                                    // 다음 이미지를 위해 누적 카운터 업데이트
+                                                    cumulativeCaptionIndex += mapping.captionCount;
+                                                }
+                                                else {
+                                                    // 기본 모드: 그룹화 적용
+                                                    positionIndex = i * captionGroup;
+                                                    debugInfo += "\uAE30\uBCF8 \uBAA8\uB4DC: \uADF8\uB8F9\uD654 ".concat(captionGroup, "\n");
+                                                }
                                                 position = positions[positionIndex];
                                                 debugInfo += "\uC774\uBBF8\uC9C0 \uC778\uB371\uC2A4: ".concat(i, "\n");
-                                                debugInfo += "\uC704\uCE58 \uC778\uB371\uC2A4: ".concat(positionIndex, " (\uADF8\uB8F9\uD654=").concat(captionGroup, ")\n");
-                                                debugInfo += "\uC774\uBBF8\uC9C0: ".concat(imageData.substring(0, 80), "...\n");
+                                                debugInfo += "\uC704\uCE58 \uC778\uB371\uC2A4: ".concat(positionIndex, "\n");
+                                                debugInfo += "\uC774\uBBF8\uC9C0 \uD30C\uC77C: ".concat(mapping.fileName, "\n");
                                                 debugInfo += "\uC704\uCE58: ".concat(position ? position.start + 's ~ ' + position.end + 's' : 'undefined', "\n");
                                                 if (!position) {
                                                     debugInfo += "ERROR: \uC704\uCE58 \uC815\uBCF4\uAC00 \uC5C6\uC74C (\uC778\uB371\uC2A4 ".concat(positionIndex, ")\n");
-                                                    utils.logWarn("[".concat(i, "] \uC704\uCE58 \uC815\uBCF4\uAC00 \uC5C6\uC74C (\uADF8\uB8F9 \uC778\uB371\uC2A4: ").concat(i * captionGroup, ")"));
+                                                    utils.logWarn("[".concat(i, "] \uC704\uCE58 \uC815\uBCF4\uAC00 \uC5C6\uC74C (\uC704\uCE58 \uC778\uB371\uC2A4: ").concat(positionIndex, ")"));
                                                     return [2 /*return*/, "continue"];
                                                 }
-                                                // 모든 이미지는 이제 파일 경로로 저장됨
-                                                // (Ctrl+V → saveBase64ToProjectFolder, 파일 선택 → 파일 경로)
-                                                debugInfo += "\uD30C\uC77C \uACBD\uB85C: ".concat(imageData, "\n");
-                                                escapedPath = imageData.replace(/\\/g, '\\\\');
+                                                // 파일 경로 처리
+                                                debugInfo += "\uD30C\uC77C \uACBD\uB85C: ".concat(imagePath, "\n");
+                                                escapedPath = imagePath.replace(/\\/g, '\\\\');
                                                 debugInfo += "\uC774\uC2A4\uCF00\uC774\uD504\uB41C \uACBD\uB85C: ".concat(escapedPath, "\n");
                                                 insertScript = "insertImageAtTime(\"".concat(escapedPath, "\", ").concat(targetTrack, ", ").concat(position.start, ", ").concat(position.end, ")");
                                                 debugInfo += "JSX \uC2E4\uD589: ".concat(insertScript.substring(0, 100), "...\n");
@@ -1469,7 +1658,7 @@ var JSCEventManager = (function () {
                                 i = 0;
                                 _a.label = 1;
                             case 1:
-                                if (!(i < imageItems.length && i < positions.length)) return [3 /*break*/, 4];
+                                if (!(i < imageMappings.length)) return [3 /*break*/, 4];
                                 return [5 /*yield**/, _loop_2(i)];
                             case 2:
                                 _a.sent();

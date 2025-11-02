@@ -27,10 +27,14 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         fileName: string;        // 파일명
         thumbnail: string;       // Base64 썸네일
         captionCount: number;    // 이 이미지가 차지할 캡션 개수
+        textLabel?: string | undefined;      // 매칭된 텍스트 (1:1 매칭용)
     }
 
     // 이미지 매핑 배열 (고급 모드용)
     let imageMappings: ImageMapping[] = [];
+
+    // 텍스트 리스트 (1:1 매칭용)
+    let textList: string[] = [];
 
     // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
     // DIHelpers가 로드되어 있으면 사용, 아니면 직접 fallback 사용
@@ -142,6 +146,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             setupDebugUI();
             setupCaptionEventListeners(); // 캡션-이미지 동기화 이벤트
             setupThumbnailSizeSlider(); // 썸네일 크기 조절 슬라이더
+            setupTextListInput(); // 텍스트 리스트 입력
             utils.logDebug('Event listeners setup completed');
         } catch (e) {
             utils.logError('Event listeners setup failed:', (e as Error).message);
@@ -1015,6 +1020,65 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
     }
 
     /**
+     * 텍스트 리스트 입력 이벤트 설정
+     */
+    function setupTextListInput(): void {
+        const utils = getUtils();
+        const textArea = document.getElementById('text-list') as HTMLTextAreaElement;
+        const textCountDisplay = document.getElementById('text-count');
+
+        if (!textArea || !textCountDisplay) {
+            utils.logWarn('Text list input or count display not found');
+            return;
+        }
+
+        // 텍스트 입력 시 자동으로 배열 업데이트
+        textArea.addEventListener('input', () => {
+            updateTextList();
+        });
+
+        utils.logDebug('Text list input setup completed');
+    }
+
+    /**
+     * 텍스트 리스트 업데이트
+     */
+    function updateTextList(): void {
+        const textArea = document.getElementById('text-list') as HTMLTextAreaElement;
+        const textCountDisplay = document.getElementById('text-count');
+
+        if (!textArea) return;
+
+        // 텍스트를 줄 단위로 분리하고 빈 줄 제거
+        const lines = textArea.value.split('\n').filter(line => line.trim() !== '');
+        textList = lines;
+
+        // 개수 표시 업데이트
+        if (textCountDisplay) {
+            textCountDisplay.textContent = `${textList.length}개 텍스트`;
+        }
+
+        // 이미지 큐 업데이트 (텍스트 라벨 매칭)
+        updateImageTextLabels();
+    }
+
+    /**
+     * 이미지에 텍스트 라벨 매칭
+     */
+    function updateImageTextLabels(): void {
+        imageMappings.forEach((mapping, index) => {
+            if (index < textList.length) {
+                mapping.textLabel = textList[index];
+            } else {
+                mapping.textLabel = undefined;
+            }
+        });
+
+        // UI 업데이트
+        renderImageQueue();
+    }
+
+    /**
      * 패널 요약 정보 업데이트
      */
     function updateImageSummary(): void {
@@ -1087,6 +1151,16 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 captionRange.dataset.imageId = mapping.id;
                 captionRange.id = `preview-caption-range-${mapping.id}`;
                 wrapper.appendChild(captionRange);
+
+                // 텍스트 라벨 표시 (있는 경우)
+                if (mapping.textLabel) {
+                    const textLabel = document.createElement('div');
+                    textLabel.className = 'text-label';
+                    textLabel.textContent = `"${mapping.textLabel}"`;
+                    textLabel.title = mapping.textLabel;
+                    textLabel.style.cssText = 'position: absolute; top: -6px; left: -6px; background: rgba(52, 152, 219, 0.9); color: white; padding: 2px 6px; border: 2px solid var(--color-bg-primary); border-radius: 4px; font-size: 9px; font-weight: bold; max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);';
+                    wrapper.appendChild(textLabel);
+                }
 
                 // 드래그 앤 드롭 이벤트 추가
                 wrapper.addEventListener('dragstart', handlePreviewDragStart);
@@ -1179,6 +1253,11 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                     <span class="image-filename" title="${mapping.fileName}">${mapping.fileName}</span>
                     <button class="image-remove-btn" data-image-id="${mapping.id}">✕</button>
                 </div>
+                ${mapping.textLabel ? `
+                <div style="font-size: 12px; color: #3498db; margin-bottom: 4px; font-weight: 500;">
+                    📝 "${mapping.textLabel}"
+                </div>
+                ` : ''}
                 <div class="caption-range">
                     <label>캡션 개수:</label>
                     <div class="caption-range-inputs">
@@ -1357,6 +1436,9 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                         // 영향받는 이미지들의 캡션 범위만 업데이트
                         const minIndex = Math.min(draggedIndex, targetIndex);
                         updateCaptionRanges(minIndex);
+
+                        // 텍스트 라벨 재매칭
+                        updateImageTextLabels();
                     }
                 }
             }
@@ -1400,6 +1482,9 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                     } else {
                         // 삭제된 위치 이후의 캡션 범위 업데이트
                         updateCaptionRanges(index);
+
+                        // 텍스트 라벨 재매칭
+                        updateImageTextLabels();
                     }
                 }
 
@@ -1493,6 +1578,9 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                         // 영향받는 이미지들의 캡션 범위만 업데이트
                         const minIndex = Math.min(draggedIndex, targetIndex);
                         updateCaptionRanges(minIndex);
+
+                        // 텍스트 라벨 재매칭
+                        updateImageTextLabels();
                     }
                 }
             }
@@ -2179,17 +2267,22 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             thumbnail = ''; // 실패 시 빈 문자열
         }
 
+        // 현재 이미지 인덱스로 텍스트 라벨 매칭
+        const currentIndex = imageMappings.length;
+        const textLabel = currentIndex < textList.length ? textList[currentIndex] : undefined;
+
         // ImageMapping 생성
         const mapping: ImageMapping = {
             id: id,
             filePath: filePath,
             fileName: fileName,
             thumbnail: thumbnail,
-            captionCount: 1    // 기본값: 캡션 1개
+            captionCount: 1,    // 기본값: 캡션 1개
+            textLabel: textLabel // 텍스트 라벨 매칭
         };
 
         imageMappings.push(mapping);
-        utils.logInfo(`이미지 추가됨: ${fileName} (ID: ${id})`);
+        utils.logInfo(`이미지 추가됨: ${fileName} (ID: ${id})${textLabel ? ` - ${textLabel}` : ''}`);
 
         // 성능 최적화: 전체 재렌더링 대신 새 이미지만 추가
         addSingleImageToDOM(mapping, imageMappings.length - 1);

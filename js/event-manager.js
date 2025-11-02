@@ -48,6 +48,8 @@ var JSCEventManager = (function () {
     var imageCounter = 0;
     // 이미지 매핑 배열 (고급 모드용)
     var imageMappings = [];
+    // 텍스트 리스트 (1:1 매칭용)
+    var textList = [];
     // 서비스 가져오기 헬퍼 함수들 (DI 우선, 레거시 fallback)
     // DIHelpers가 로드되어 있으면 사용, 아니면 직접 fallback 사용
     function getUtils() {
@@ -186,6 +188,7 @@ var JSCEventManager = (function () {
             setupDebugUI();
             setupCaptionEventListeners(); // 캡션-이미지 동기화 이벤트
             setupThumbnailSizeSlider(); // 썸네일 크기 조절 슬라이더
+            setupTextListInput(); // 텍스트 리스트 입력
             utils.logDebug('Event listeners setup completed');
         }
         catch (e) {
@@ -1024,6 +1027,56 @@ var JSCEventManager = (function () {
         document.head.appendChild(newStyle);
     }
     /**
+     * 텍스트 리스트 입력 이벤트 설정
+     */
+    function setupTextListInput() {
+        var utils = getUtils();
+        var textArea = document.getElementById('text-list');
+        var textCountDisplay = document.getElementById('text-count');
+        if (!textArea || !textCountDisplay) {
+            utils.logWarn('Text list input or count display not found');
+            return;
+        }
+        // 텍스트 입력 시 자동으로 배열 업데이트
+        textArea.addEventListener('input', function () {
+            updateTextList();
+        });
+        utils.logDebug('Text list input setup completed');
+    }
+    /**
+     * 텍스트 리스트 업데이트
+     */
+    function updateTextList() {
+        var textArea = document.getElementById('text-list');
+        var textCountDisplay = document.getElementById('text-count');
+        if (!textArea)
+            return;
+        // 텍스트를 줄 단위로 분리하고 빈 줄 제거
+        var lines = textArea.value.split('\n').filter(function (line) { return line.trim() !== ''; });
+        textList = lines;
+        // 개수 표시 업데이트
+        if (textCountDisplay) {
+            textCountDisplay.textContent = "".concat(textList.length, "\uAC1C \uD14D\uC2A4\uD2B8");
+        }
+        // 이미지 큐 업데이트 (텍스트 라벨 매칭)
+        updateImageTextLabels();
+    }
+    /**
+     * 이미지에 텍스트 라벨 매칭
+     */
+    function updateImageTextLabels() {
+        imageMappings.forEach(function (mapping, index) {
+            if (index < textList.length) {
+                mapping.textLabel = textList[index];
+            }
+            else {
+                mapping.textLabel = undefined;
+            }
+        });
+        // UI 업데이트
+        renderImageQueue();
+    }
+    /**
      * 패널 요약 정보 업데이트
      */
     function updateImageSummary() {
@@ -1088,6 +1141,15 @@ var JSCEventManager = (function () {
                 captionRange.dataset.imageId = mapping.id;
                 captionRange.id = "preview-caption-range-".concat(mapping.id);
                 wrapper.appendChild(captionRange);
+                // 텍스트 라벨 표시 (있는 경우)
+                if (mapping.textLabel) {
+                    var textLabel = document.createElement('div');
+                    textLabel.className = 'text-label';
+                    textLabel.textContent = "\"".concat(mapping.textLabel, "\"");
+                    textLabel.title = mapping.textLabel;
+                    textLabel.style.cssText = 'position: absolute; top: -6px; left: -6px; background: rgba(52, 152, 219, 0.9); color: white; padding: 2px 6px; border: 2px solid var(--color-bg-primary); border-radius: 4px; font-size: 9px; font-weight: bold; max-width: 70px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);';
+                    wrapper.appendChild(textLabel);
+                }
                 // 드래그 앤 드롭 이벤트 추가
                 wrapper.addEventListener('dragstart', handlePreviewDragStart);
                 wrapper.addEventListener('dragover', handlePreviewDragOver);
@@ -1159,7 +1221,7 @@ var JSCEventManager = (function () {
         itemDiv.className = 'image-queue-item-advanced';
         itemDiv.draggable = true;
         itemDiv.dataset.imageId = mapping.id;
-        itemDiv.innerHTML = "\n            <div class=\"drag-handle\" title=\"\uB4DC\uB798\uADF8\uD558\uC5EC \uC21C\uC11C \uBCC0\uACBD\">\u22EE</div>\n            <img class=\"image-thumbnail\" src=\"data:image/png;base64,".concat(mapping.thumbnail, "\" alt=\"").concat(mapping.fileName, "\">\n            <div class=\"image-info\">\n                <div class=\"image-info-header\">\n                    <span class=\"image-filename\" title=\"").concat(mapping.fileName, "\">").concat(mapping.fileName, "</span>\n                    <button class=\"image-remove-btn\" data-image-id=\"").concat(mapping.id, "\">\u2715</button>\n                </div>\n                <div class=\"caption-range\">\n                    <label>\uCEA1\uC158 \uAC1C\uC218:</label>\n                    <div class=\"caption-range-inputs\">\n                        <select data-image-id=\"").concat(mapping.id, "\" class=\"caption-count-input select-modern\" style=\"width: 80px;\">\n                            ").concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) {
+        itemDiv.innerHTML = "\n            <div class=\"drag-handle\" title=\"\uB4DC\uB798\uADF8\uD558\uC5EC \uC21C\uC11C \uBCC0\uACBD\">\u22EE</div>\n            <img class=\"image-thumbnail\" src=\"data:image/png;base64,".concat(mapping.thumbnail, "\" alt=\"").concat(mapping.fileName, "\">\n            <div class=\"image-info\">\n                <div class=\"image-info-header\">\n                    <span class=\"image-filename\" title=\"").concat(mapping.fileName, "\">").concat(mapping.fileName, "</span>\n                    <button class=\"image-remove-btn\" data-image-id=\"").concat(mapping.id, "\">\u2715</button>\n                </div>\n                ").concat(mapping.textLabel ? "\n                <div style=\"font-size: 12px; color: #3498db; margin-bottom: 4px; font-weight: 500;\">\n                    \uD83D\uDCDD \"".concat(mapping.textLabel, "\"\n                </div>\n                ") : '', "\n                <div class=\"caption-range\">\n                    <label>\uCEA1\uC158 \uAC1C\uC218:</label>\n                    <div class=\"caption-range-inputs\">\n                        <select data-image-id=\"").concat(mapping.id, "\" class=\"caption-count-input select-modern\" style=\"width: 80px;\">\n                            ").concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) {
             return "<option value=\"".concat(n, "\" ").concat(n === mapping.captionCount ? 'selected' : '', ">").concat(n, "\uAC1C</option>");
         }).join(''), "\n                        </select>\n                    </div>\n                </div>\n                <div class=\"caption-preview\" id=\"caption-preview-").concat(mapping.id, "\">\n                    \uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, " \uBC94\uC704\n                </div>\n            </div>\n        ");
         queueDiv.appendChild(itemDiv);
@@ -1299,6 +1361,8 @@ var JSCEventManager = (function () {
                         // 영향받는 이미지들의 캡션 범위만 업데이트
                         var minIndex = Math.min(draggedIndex, targetIndex);
                         updateCaptionRanges(minIndex);
+                        // 텍스트 라벨 재매칭
+                        updateImageTextLabels();
                     }
                 }
             }
@@ -1337,6 +1401,8 @@ var JSCEventManager = (function () {
                     else {
                         // 삭제된 위치 이후의 캡션 범위 업데이트
                         updateCaptionRanges(index);
+                        // 텍스트 라벨 재매칭
+                        updateImageTextLabels();
                     }
                 }
                 // 미리보기에서 DOM 요소 삭제
@@ -1418,6 +1484,8 @@ var JSCEventManager = (function () {
                         // 영향받는 이미지들의 캡션 범위만 업데이트
                         var minIndex = Math.min(draggedIndex, targetIndex);
                         updateCaptionRanges(minIndex);
+                        // 텍스트 라벨 재매칭
+                        updateImageTextLabels();
                     }
                 }
             }
@@ -2065,7 +2133,7 @@ var JSCEventManager = (function () {
      */
     function addImageToQueue(filePath, fileName, thumbnailBase64) {
         return __awaiter(this, void 0, void 0, function () {
-            var utils, id, thumbnail, e_6, mapping, syncButton;
+            var utils, id, thumbnail, e_6, currentIndex, textLabel, mapping, syncButton;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
@@ -2093,15 +2161,18 @@ var JSCEventManager = (function () {
                         thumbnail = ''; // 실패 시 빈 문자열
                         return [3 /*break*/, 7];
                     case 7:
+                        currentIndex = imageMappings.length;
+                        textLabel = currentIndex < textList.length ? textList[currentIndex] : undefined;
                         mapping = {
                             id: id,
                             filePath: filePath,
                             fileName: fileName,
                             thumbnail: thumbnail,
-                            captionCount: 1 // 기본값: 캡션 1개
+                            captionCount: 1, // 기본값: 캡션 1개
+                            textLabel: textLabel // 텍스트 라벨 매칭
                         };
                         imageMappings.push(mapping);
-                        utils.logInfo("\uC774\uBBF8\uC9C0 \uCD94\uAC00\uB428: ".concat(fileName, " (ID: ").concat(id, ")"));
+                        utils.logInfo("\uC774\uBBF8\uC9C0 \uCD94\uAC00\uB428: ".concat(fileName, " (ID: ").concat(id, ")").concat(textLabel ? " - ".concat(textLabel) : ''));
                         // 성능 최적화: 전체 재렌더링 대신 새 이미지만 추가
                         addSingleImageToDOM(mapping, imageMappings.length - 1);
                         updateImageSummary();

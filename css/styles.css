@@ -695,7 +695,7 @@ body {
    ================================ */
 .image-list {
     min-height: 100px;
-    max-height: 250px;
+    max-height: 600px;
     overflow-y: auto;
     background: var(--color-bg-primary);
     border: 1px solid #555;
@@ -993,4 +993,64 @@ body {
 
 .image-queue-item-basic button:hover {
     color: var(--color-error);
+}
+
+/* ============================================
+   탭 네비게이션 스타일
+   ============================================ */
+
+.tabs-navigation {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--color-border);
+    margin: 16px 0 0 0;
+    padding: 0 12px;
+}
+
+.tab-button {
+    flex: 1;
+    padding: 12px 16px;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    color: var(--color-text-muted);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    bottom: -2px;
+}
+
+.tab-button:hover {
+    color: var(--color-text);
+    background: var(--color-bg-hover);
+}
+
+.tab-button.active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+    font-weight: 600;
+}
+
+/* 탭 컨텐츠 */
+.tab-content {
+    display: none;
+    animation: fadeIn 0.2s ease-in;
+    padding: 16px 0;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }

@@ -13,8 +13,16 @@
             <p class="app-subtitle">Premiere Pro 편집 효율성 도구</p>
         </header>
 
-        <!-- 퀵 액션 카드 -->
-        <div class="quick-actions">
+        <!-- 탭 네비게이션 -->
+        <div class="tabs-navigation">
+            <button class="tab-button active" data-tab="clip">🧲 클립 정렬</button>
+            <button class="tab-button" data-tab="sound">🎵 효과음</button>
+            <button class="tab-button" data-tab="image">🎬 이미지 매칭</button>
+        </div>
+
+        <!-- 탭 1: 클립 정렬 -->
+        <div class="tab-content active" id="tab-clip">
+            <div class="quick-actions">
             <div class="action-card primary-card">
                 <div class="card-header">
                     <h2>🧲 클립 자동 정렬</h2>
@@ -24,8 +32,12 @@
                 <button id="magnetClips" class="btn-primary">정렬 실행</button>
                 <div id="magnetStatus" class="status-indicator"></div>
             </div>
+            </div>
         </div>
-        
+
+        <!-- 탭 2: 효과음 -->
+        <div class="tab-content" id="tab-sound">
+
         <!-- 효과음 관리 섹션 -->
         <div class="workflow-section">
             <div class="section-header">
@@ -110,7 +122,12 @@
             </div>
         </div>
 
-        <!-- 캡션-이미지 동기화 섹션 (새 기능) -->
+        </div>
+
+        <!-- 탭 3: 이미지 매칭 -->
+        <div class="tab-content" id="tab-image">
+
+        <!-- 캡션-이미지 동기화 섹션 -->
         <div class="workflow-section">
             <div class="section-header">
                 <h2>🎬 캡션-이미지 동기화 (Beta)</h2>
@@ -203,7 +220,9 @@
             </div>
         </div>
 
-        <!-- 개발자 도구 (접혀진 상태) -->
+        </div>
+
+        <!-- 개발자 도구 (모든 탭에서 접근 가능) -->
         <details class="developer-tools">
             <summary class="dev-tools-header">
                 <span>🛠️ 개발자 도구</span>
@@ -237,16 +256,34 @@
     
     <!-- UI 인터랙션 스크립트 -->
     <script>
-        // 접기/펴기 기능
         document.addEventListener('DOMContentLoaded', function() {
+            // 탭 전환 기능
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const targetTab = button.dataset.tab;
+
+                    // 모든 탭 버튼과 컨텐츠에서 active 클래스 제거
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    tabContents.forEach(content => content.classList.remove('active'));
+
+                    // 클릭된 탭 버튼과 해당 컨텐츠에 active 클래스 추가
+                    button.classList.add('active');
+                    document.getElementById('tab-' + targetTab).classList.add('active');
+                });
+            });
+
+            // 접기/펴기 기능
             const collapseButtons = document.querySelectorAll('.btn-collapse');
-            
+
             collapseButtons.forEach(button => {
                 button.addEventListener('click', function() {
                     const targetId = button.dataset.target;
                     const target = document.getElementById(targetId);
                     const icon = button.querySelector('.collapse-icon');
-                    
+
                     if (target) {
                         const isVisible = target.style.display !== 'none';
                         target.style.display = isVisible ? 'none' : 'block';

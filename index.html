@@ -183,16 +183,17 @@
                     </div>
 
                     <!-- 이미지 요약 정보 -->
-                    <div id="image-summary" class="image-summary">
+                    <div id="image-summary" class="image-summary image-drop-zone">
                         <div class="summary-text">
                             <span id="image-count-text">이미지가 없습니다</span>
                         </div>
                         <div id="image-preview-thumbnails" class="preview-thumbnails"></div>
                         <button id="open-image-modal" class="btn-primary" disabled>🔍 크게 관리하기</button>
+                        <div class="drop-zone-hint">또는 이미지를 여기에 드래그 하세요</div>
                     </div>
 
                     <p class="card-description" style="margin-top: 8px; font-size: 12px; color: #888;">
-                        💡 팁: 이미지를 복사한 후 이 패널에서 <strong>Ctrl+V</strong>를 눌러도 추가할 수 있습니다
+                        💡 팁: 이미지를 <strong>드래그 앤 드롭</strong>하거나, 복사한 후 <strong>Ctrl+V</strong>를 눌러도 추가할 수 있습니다
                     </p>
                 </div>
 
@@ -252,12 +253,13 @@
                     <h2>🎬 이미지 매칭 관리</h2>
                     <button id="close-modal" class="modal-close-btn">✕</button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body image-drop-zone" id="modal-drop-zone">
                     <div class="modal-actions">
                         <button id="browse-images" class="btn-secondary">📁 이미지 추가</button>
                         <button id="clear-image-queue" class="btn-text">🗑️ 전체 삭제</button>
                     </div>
                     <div id="image-queue" class="image-grid"></div>
+                    <div class="modal-drop-hint">이미지를 드래그하여 추가하세요</div>
                 </div>
                 <div class="modal-footer">
                     <button id="modal-done" class="btn-primary">✓ 완료</button>

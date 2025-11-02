@@ -957,6 +957,20 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             clearQueueButton.addEventListener('click', clearImageQueue);
             utils.logDebug('Event listener added to clear-image-queue button');
         }
+
+        // 드래그 앤 드롭 이벤트 (패널)
+        const imageSummary = document.getElementById('image-summary');
+        if (imageSummary) {
+            setupDragAndDrop(imageSummary);
+            utils.logDebug('Drag and drop setup for image-summary');
+        }
+
+        // 드래그 앤 드롭 이벤트 (모달)
+        const modalDropZone = document.getElementById('modal-drop-zone');
+        if (modalDropZone) {
+            setupDragAndDrop(modalDropZone);
+            utils.logDebug('Drag and drop setup for modal-drop-zone');
+        }
     }
 
     /**
@@ -1360,6 +1374,99 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                     utils.logError(`Error 스택: ${e.stack || 'no stack'}`);
                 }
                 resolve(null);
+            }
+        });
+    }
+
+    /**
+     * 드래그 앤 드롭 설정
+     */
+    function setupDragAndDrop(dropZone: HTMLElement): void {
+        const utils = getUtils();
+
+        dropZone.addEventListener('dragenter', (e: DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragover', (e: DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        dropZone.addEventListener('dragleave', (e: DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // 자식 요소로의 이동은 무시
+            if (e.target === dropZone) {
+                dropZone.classList.remove('drag-over');
+            }
+        });
+
+        dropZone.addEventListener('drop', async (e: DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.remove('drag-over');
+
+            const files = e.dataTransfer?.files;
+            if (!files || files.length === 0) {
+                utils.logWarn('드롭된 파일이 없습니다');
+                return;
+            }
+
+            utils.logInfo(`${files.length}개 파일 드롭됨`);
+
+            // 각 파일 처리
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+
+                // 이미지 파일인지 확인
+                if (!file.type.startsWith('image/')) {
+                    utils.logWarn(`이미지가 아닌 파일 무시: ${file.name} (${file.type})`);
+                    continue;
+                }
+
+                utils.logInfo(`이미지 파일 처리 중: ${file.name} (${file.type})`);
+
+                try {
+                    // FileReader로 Base64 변환
+                    const base64 = await new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                            const resultStr = reader.result as string;
+                            if (!resultStr) {
+                                reject(new Error('빈 결과'));
+                                return;
+                            }
+                            const parts = resultStr.split(',');
+                            const base64Data = parts[1];
+                            if (!base64Data) {
+                                reject(new Error('Base64 추출 실패'));
+                                return;
+                            }
+                            resolve(base64Data);
+                        };
+                        reader.onerror = () => reject(reader.error);
+                        reader.readAsDataURL(file);
+                    });
+
+                    // 원본 파일명 사용
+                    const originalName = file.name;
+
+                    // 프로젝트 폴더에 저장
+                    const savedPath = await saveBase64ToProjectFolder(base64, originalName);
+
+                    if (savedPath) {
+                        // 큐에 추가
+                        addImageToQueue(savedPath, originalName, base64);
+                        utils.logInfo(`이미지 추가 성공: ${originalName}`);
+                    } else {
+                        utils.logError(`이미지 저장 실패: ${originalName}`);
+                    }
+                } catch (e) {
+                    utils.logError(`파일 처리 중 오류: ${file.name}`, e);
+                }
             }
         });
     }

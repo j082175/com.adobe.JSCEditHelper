@@ -983,6 +983,18 @@ var JSCEventManager = (function () {
             clearQueueButton.addEventListener('click', clearImageQueue);
             utils.logDebug('Event listener added to clear-image-queue button');
         }
+        // 드래그 앤 드롭 이벤트 (패널)
+        var imageSummary = document.getElementById('image-summary');
+        if (imageSummary) {
+            setupDragAndDrop(imageSummary);
+            utils.logDebug('Drag and drop setup for image-summary');
+        }
+        // 드래그 앤 드롭 이벤트 (모달)
+        var modalDropZone = document.getElementById('modal-drop-zone');
+        if (modalDropZone) {
+            setupDragAndDrop(modalDropZone);
+            utils.logDebug('Drag and drop setup for modal-drop-zone');
+        }
     }
     /**
      * 고급 모드 토글 핸들러
@@ -1321,6 +1333,117 @@ var JSCEventManager = (function () {
         });
     }
     /**
+     * 드래그 앤 드롭 설정
+     */
+    function setupDragAndDrop(dropZone) {
+        var _this = this;
+        var utils = getUtils();
+        dropZone.addEventListener('dragenter', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.add('drag-over');
+        });
+        dropZone.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+        dropZone.addEventListener('dragleave', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            // 자식 요소로의 이동은 무시
+            if (e.target === dropZone) {
+                dropZone.classList.remove('drag-over');
+            }
+        });
+        dropZone.addEventListener('drop', function (e) { return __awaiter(_this, void 0, void 0, function () {
+            var files, _loop_1, i;
+            var _a;
+            return __generator(this, function (_b) {
+                switch (_b.label) {
+                    case 0:
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dropZone.classList.remove('drag-over');
+                        files = (_a = e.dataTransfer) === null || _a === void 0 ? void 0 : _a.files;
+                        if (!files || files.length === 0) {
+                            utils.logWarn('드롭된 파일이 없습니다');
+                            return [2 /*return*/];
+                        }
+                        utils.logInfo("".concat(files.length, "\uAC1C \uD30C\uC77C \uB4DC\uB86D\uB428"));
+                        _loop_1 = function (i) {
+                            var file, base64, originalName, savedPath, e_3;
+                            return __generator(this, function (_c) {
+                                switch (_c.label) {
+                                    case 0:
+                                        file = files[i];
+                                        // 이미지 파일인지 확인
+                                        if (!file.type.startsWith('image/')) {
+                                            utils.logWarn("\uC774\uBBF8\uC9C0\uAC00 \uC544\uB2CC \uD30C\uC77C \uBB34\uC2DC: ".concat(file.name, " (").concat(file.type, ")"));
+                                            return [2 /*return*/, "continue"];
+                                        }
+                                        utils.logInfo("\uC774\uBBF8\uC9C0 \uD30C\uC77C \uCC98\uB9AC \uC911: ".concat(file.name, " (").concat(file.type, ")"));
+                                        _c.label = 1;
+                                    case 1:
+                                        _c.trys.push([1, 4, , 5]);
+                                        return [4 /*yield*/, new Promise(function (resolve, reject) {
+                                                var reader = new FileReader();
+                                                reader.onloadend = function () {
+                                                    var resultStr = reader.result;
+                                                    if (!resultStr) {
+                                                        reject(new Error('빈 결과'));
+                                                        return;
+                                                    }
+                                                    var parts = resultStr.split(',');
+                                                    var base64Data = parts[1];
+                                                    if (!base64Data) {
+                                                        reject(new Error('Base64 추출 실패'));
+                                                        return;
+                                                    }
+                                                    resolve(base64Data);
+                                                };
+                                                reader.onerror = function () { return reject(reader.error); };
+                                                reader.readAsDataURL(file);
+                                            })];
+                                    case 2:
+                                        base64 = _c.sent();
+                                        originalName = file.name;
+                                        return [4 /*yield*/, saveBase64ToProjectFolder(base64, originalName)];
+                                    case 3:
+                                        savedPath = _c.sent();
+                                        if (savedPath) {
+                                            // 큐에 추가
+                                            addImageToQueue(savedPath, originalName, base64);
+                                            utils.logInfo("\uC774\uBBF8\uC9C0 \uCD94\uAC00 \uC131\uACF5: ".concat(originalName));
+                                        }
+                                        else {
+                                            utils.logError("\uC774\uBBF8\uC9C0 \uC800\uC7A5 \uC2E4\uD328: ".concat(originalName));
+                                        }
+                                        return [3 /*break*/, 5];
+                                    case 4:
+                                        e_3 = _c.sent();
+                                        utils.logError("\uD30C\uC77C \uCC98\uB9AC \uC911 \uC624\uB958: ".concat(file.name), e_3);
+                                        return [3 /*break*/, 5];
+                                    case 5: return [2 /*return*/];
+                                }
+                            });
+                        };
+                        i = 0;
+                        _b.label = 1;
+                    case 1:
+                        if (!(i < files.length)) return [3 /*break*/, 4];
+                        return [5 /*yield**/, _loop_1(i)];
+                    case 2:
+                        _b.sent();
+                        _b.label = 3;
+                    case 3:
+                        i++;
+                        return [3 /*break*/, 1];
+                    case 4: return [2 /*return*/];
+                }
+            });
+        }); });
+    }
+    /**
      * Paste 이벤트 핸들러 (Ctrl+V)
      * navigator.clipboard.read()와 달리 paste 이벤트는 작동할 수 있음!
      */
@@ -1340,7 +1463,7 @@ var JSCEventManager = (function () {
             utils.logInfo("\uD074\uB9BD\uBCF4\uB4DC \uD0C0\uC785: ".concat(clipboardData.types.join(', ')));
             // 이미지 찾기
             var imageFound = false;
-            var _loop_1 = function (i) {
+            var _loop_2 = function (i) {
                 var item = clipboardData.items[i];
                 utils.logInfo("\uC544\uC774\uD15C[".concat(i, "]: kind=").concat(item.kind, ", type=").concat(item.type));
                 if (item.kind === 'file' && item.type.startsWith('image/')) {
@@ -1350,7 +1473,7 @@ var JSCEventManager = (function () {
                         // FileReader로 Base64 변환
                         var reader_1 = new FileReader();
                         reader_1.onloadend = function () { return __awaiter(_this, void 0, void 0, function () {
-                            var resultStr, parts, base64, extension, fileName, savedPath, e_3;
+                            var resultStr, parts, base64, extension, fileName, savedPath, e_4;
                             return __generator(this, function (_a) {
                                 switch (_a.label) {
                                     case 0:
@@ -1420,13 +1543,13 @@ var JSCEventManager = (function () {
                                         }
                                         return [3 /*break*/, 3];
                                     case 2:
-                                        e_3 = _a.sent();
-                                        utils.logError('FileReader.onloadend 예외:', e_3);
-                                        utils.logError('예외 타입:', typeof e_3);
-                                        utils.logError('예외 문자열:', String(e_3));
-                                        if (e_3 instanceof Error) {
-                                            utils.logError('예외 메시지:', e_3.message);
-                                            utils.logError('예외 스택:', e_3.stack);
+                                        e_4 = _a.sent();
+                                        utils.logError('FileReader.onloadend 예외:', e_4);
+                                        utils.logError('예외 타입:', typeof e_4);
+                                        utils.logError('예외 문자열:', String(e_4));
+                                        if (e_4 instanceof Error) {
+                                            utils.logError('예외 메시지:', e_4.message);
+                                            utils.logError('예외 스택:', e_4.stack);
                                         }
                                         return [3 /*break*/, 3];
                                     case 3: return [2 /*return*/];
@@ -1447,7 +1570,7 @@ var JSCEventManager = (function () {
                 }
             };
             for (var i = 0; i < clipboardData.items.length; i++) {
-                var state_1 = _loop_1(i);
+                var state_1 = _loop_2(i);
                 if (state_1 === "break")
                     break;
             }
@@ -1610,7 +1733,7 @@ var JSCEventManager = (function () {
                     return [2 /*return*/];
                 }
                 communication.callExtendScript(scriptCall, function (positionResult) { return __awaiter(_this, void 0, void 0, function () {
-                    var positionData, positions, successCount_1, syncDebugMsg, cumulativeCaptionIndex, _loop_2, i, e_4;
+                    var positionData, positions, successCount_1, syncDebugMsg, cumulativeCaptionIndex, _loop_3, i, e_5;
                     return __generator(this, function (_a) {
                         switch (_a.label) {
                             case 0:
@@ -1639,7 +1762,7 @@ var JSCEventManager = (function () {
                                 utils.logInfo(syncDebugMsg);
                                 console.log("[SYNC] ".concat(syncDebugMsg));
                                 cumulativeCaptionIndex = 0;
-                                _loop_2 = function (i) {
+                                _loop_3 = function (i) {
                                     var mapping, imagePath, positionIndex, captionStart, captionEnd, position, escapedPath, insertScript;
                                     return __generator(this, function (_b) {
                                         switch (_b.label) {
@@ -1717,7 +1840,7 @@ var JSCEventManager = (function () {
                                 _a.label = 1;
                             case 1:
                                 if (!(i < imageMappings.length)) return [3 /*break*/, 4];
-                                return [5 /*yield**/, _loop_2(i)];
+                                return [5 /*yield**/, _loop_3(i)];
                             case 2:
                                 _a.sent();
                                 _a.label = 3;
@@ -1736,13 +1859,13 @@ var JSCEventManager = (function () {
                                 window.lastDebugInfo = debugInfo;
                                 return [3 /*break*/, 6];
                             case 5:
-                                e_4 = _a.sent();
-                                debugInfo += "\nERROR: ".concat(e_4.message, "\n");
-                                debugInfo += "Stack: ".concat(e_4.stack, "\n");
+                                e_5 = _a.sent();
+                                debugInfo += "\nERROR: ".concat(e_5.message, "\n");
+                                debugInfo += "Stack: ".concat(e_5.stack, "\n");
                                 window.lastDebugInfo = debugInfo;
                                 if (resultDiv)
                                     resultDiv.textContent = '✗ 동기화 실패';
-                                utils.logError('Failed to sync caption-images:', e_4.message);
+                                utils.logError('Failed to sync caption-images:', e_5.message);
                                 return [3 /*break*/, 6];
                             case 6: return [2 /*return*/];
                         }

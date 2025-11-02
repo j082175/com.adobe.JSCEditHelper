@@ -1135,6 +1135,65 @@ body {
     transform: scale(1.1);
 }
 
+/* 드롭존 스타일 */
+.image-drop-zone {
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.image-drop-zone.drag-over {
+    background: rgba(52, 152, 219, 0.1);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-primary);
+}
+
+.drop-zone-hint {
+    text-align: center;
+    font-size: 12px;
+    color: var(--color-text-muted);
+    margin-top: 8px;
+    opacity: 0.7;
+}
+
+.image-drop-zone.drag-over .drop-zone-hint {
+    color: var(--color-primary);
+    font-weight: 600;
+    opacity: 1;
+}
+
+/* 모달 드롭 힌트 */
+.modal-drop-hint {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--color-primary);
+    pointer-events: none;
+    z-index: 10;
+    background: var(--color-bg-primary);
+    padding: 40px 60px;
+    border-radius: var(--radius-lg);
+    border: 3px dashed var(--color-primary);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.image-drop-zone.drag-over .modal-drop-hint {
+    display: block;
+    animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: translate(-50%, -50%) scale(1);
+    }
+    50% {
+        transform: translate(-50%, -50%) scale(1.05);
+    }
+}
+
 /* ============================================
    모달 스타일
    ============================================ */

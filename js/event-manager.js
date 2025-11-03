@@ -1277,12 +1277,12 @@ var JSCEventManager = (function () {
         var container = document.getElementById('text-list-container');
         if (!container)
             return;
-        // 각 행에서 텍스트 추출
+        // 각 행에서 텍스트 추출 (빈 줄도 유지하여 이미지와 순서 일치)
         var rows = container.querySelectorAll('.text-row');
         textList = Array.from(rows).map(function (row) {
             var textDiv = row.querySelector('.row-text');
             return textDiv ? textDiv.textContent || '' : '';
-        }).filter(function (text) { return text.trim() !== ''; }); // 빈 줄 제거
+        });
         updateTextCount();
         updateImageTextLabels();
     }

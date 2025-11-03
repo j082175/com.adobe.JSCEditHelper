@@ -1304,12 +1304,12 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         const container = document.getElementById('text-list-container');
         if (!container) return;
 
-        // 각 행에서 텍스트 추출
+        // 각 행에서 텍스트 추출 (빈 줄도 유지하여 이미지와 순서 일치)
         const rows = container.querySelectorAll('.text-row');
         textList = Array.from(rows).map(row => {
             const textDiv = row.querySelector('.row-text') as HTMLElement;
             return textDiv ? textDiv.textContent || '' : '';
-        }).filter(text => text.trim() !== ''); // 빈 줄 제거
+        });
 
         updateTextCount();
         updateImageTextLabels();

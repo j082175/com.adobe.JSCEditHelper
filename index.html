@@ -131,7 +131,7 @@
         <!-- 캡션-이미지 동기화 섹션 -->
         <div class="workflow-section">
             <div class="section-header">
-                <h2>🎬 캡션-이미지 동기화 (Beta)</h2>
+                <h2>🎬 캡션-이미지 동기화</h2>
                 <button class="btn-collapse" data-target="caption-image-sync">
                     <span class="collapse-icon">−</span>
                 </button>
@@ -139,22 +139,16 @@
 
             <div id="caption-image-sync" class="workflow-content">
                 <div class="action-card">
-                    <div class="card-header">
-                        <h3>⚙️ 동기화 옵션</h3>
-                    </div>
-                    <div class="form-group compact">
-                        <label for="target-video-track">삽입할 비디오 트랙:</label>
+                    <div class="sync-options-inline">
+                        <label for="target-video-track">⚙️ 비디오 트랙:</label>
                         <select id="target-video-track" class="select-modern">
                             <option value="0">V1 트랙</option>
                             <option value="1">V2 트랙</option>
                             <option value="2">V3 트랙</option>
                             <option value="3">V4 트랙</option>
                         </select>
+                        <button id="sync-caption-images" class="btn-primary" disabled>🔄 동기화 시작</button>
                     </div>
-                    <p class="card-description" style="margin-top: 8px; font-size: 12px; color: #888;">
-                        🎬 <strong>비디오 스킵:</strong> 캡션 위치에 비디오나 이미지 클립이 있으면 자동으로 건너뜁니다
-                    </p>
-                    <button id="sync-caption-images" class="btn-primary" disabled>🔄 동기화 시작</button>
                 </div>
 
                 <!-- 2단 레이아웃: 왼쪽 텍스트, 오른쪽 이미지 -->

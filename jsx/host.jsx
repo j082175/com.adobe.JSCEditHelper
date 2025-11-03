@@ -200,6 +200,32 @@ function findProjectItemByFilePath(filePath) {
 }
 
 /**
+ * 프로젝트에서 폴더를 찾거나 없으면 생성
+ * @param {ProjectItem} parentBin - 부모 폴더 (보통 rootItem)
+ * @param {string} folderName - 찾거나 생성할 폴더 이름
+ * @returns {ProjectItem} 찾았거나 생성한 폴더
+ */
+function findOrCreateBin(parentBin, folderName) {
+    debugWriteln("=== findOrCreateBin 시작 ===");
+    debugWriteln("폴더명: " + folderName);
+
+    // 먼저 기존 폴더 검색
+    for (var i = 0; i < parentBin.children.numItems; i++) {
+        var item = parentBin.children[i];
+        if (item.type === ProjectItemType.BIN && item.name === folderName) {
+            debugWriteln("✅ 기존 폴더 발견: " + folderName);
+            return item;
+        }
+    }
+
+    // 없으면 새로 생성
+    debugWriteln("폴더 없음, 새로 생성: " + folderName);
+    var newBin = parentBin.createBin(folderName);
+    debugWriteln("✅ 폴더 생성 완료: " + folderName);
+    return newBin;
+}
+
+/**
  * SoundEngine 명령 실행기
  * TypeScript SoundEngine에서 전송된 명령을 처리
  */
@@ -652,18 +678,19 @@ function executeInsertionPlanCommand(data) {
                     // 파일이 없으면 임포트 시도
                     debugLog += "파일 임포트 시도...\n";
                 
-                // getInsertionBin() 안전 확인 및 대체 방법
+                // Audio 폴더에 자동 정리
                 var targetBin = null;
                 try {
-                    targetBin = app.project.getInsertionBin();
-                    debugLog += "getInsertionBin() 성공\n";
+                    targetBin = findOrCreateBin(app.project.rootItem, "Audio");
+                    debugLog += "✅ Audio 폴더 준비 완료\n";
+                    debugWriteln("효과음을 Audio 폴더에 임포트");
                 } catch (binError) {
-                    debugLog += "getInsertionBin() 실패: " + binError.toString() + "\n";
+                    debugLog += "Audio 폴더 생성 실패: " + binError.toString() + "\n";
                     // 대체: 루트 빈 사용
                     targetBin = app.project.rootItem;
                     debugLog += "루트 빈 사용으로 대체\n";
                 }
-                
+
                 if (!targetBin) {
                     debugLog += "❌ targetBin이 null, 루트 빈으로 대체\n";
                     targetBin = app.project.rootItem;
@@ -1308,10 +1335,20 @@ function replaceSelectedAudioClipsInternal(soundFilePath) {
             if (!projectItem) {
                 debugWriteln("새 파일 임포트 중: " + soundFilePath);
                 try {
-                    var importedItems = app.project.importFiles([soundFilePath]);
+                    // Audio 폴더에 자동 정리
+                    var audioBin = null;
+                    try {
+                        audioBin = findOrCreateBin(app.project.rootItem, "Audio");
+                        debugWriteln("✅ Audio 폴더 준비 완료 (개별 효과음)");
+                    } catch (binError) {
+                        debugInfo += "Audio 폴더 생성 실패: " + binError.toString() + "\n";
+                        audioBin = app.project.rootItem;
+                    }
+
+                    var importedItems = app.project.importFiles([soundFilePath], true, audioBin, false);
                     if (importedItems && importedItems.length > 0) {
                         projectItem = importedItems[0];
-                        debugWriteln("파일 임포트 성공");
+                        debugWriteln("파일 임포트 성공 (Audio 폴더)");
                     } else {
                         debugInfo += "ERROR: 파일 임포트 실패\n";
                         return JSON.stringify({
@@ -1481,10 +1518,20 @@ function replaceSelectedAudioClipsInternal(soundFilePath) {
         }
         
         if (!projectItem) {
-            // 새로 임포트
+            // 새로 임포트 (Audio 폴더에 자동 정리)
             debugInfo += "새 파일 임포트 시도...\n";
             debugWriteln("새 파일 임포트 중: " + soundFilePath);
-            var importedItems = app.project.importFiles([soundFilePath]);
+
+            var audioBin = null;
+            try {
+                audioBin = findOrCreateBin(app.project.rootItem, "Audio");
+                debugWriteln("✅ Audio 폴더 준비 완료 (선택된 클립 교체)");
+            } catch (binError) {
+                debugInfo += "Audio 폴더 생성 실패: " + binError.toString() + "\n";
+                audioBin = app.project.rootItem;
+            }
+
+            var importedItems = app.project.importFiles([soundFilePath], true, audioBin, false);
             debugInfo += "임포트 결과: " + (importedItems ? "SUCCESS" : "FAILED") + "\n";
             debugInfo += "importedItems 타입: " + typeof importedItems + "\n";
             debugInfo += "importedItems toString: " + (importedItems ? importedItems.toString() : "null") + "\n";
@@ -2482,9 +2529,21 @@ function insertImageAtTime(imagePath, trackIndex, startTime, endTime) {
             debugLog += "✅ 기존 프로젝트 아이템 발견, 임포트 생략: " + projectItem.name + "\n";
             debugWriteln("✅ 기존 프로젝트 아이템 재사용: " + projectItem.name);
         } else {
-            // 없으면 새로 임포트
+            // 없으면 새로 임포트 (Image 폴더에 자동 정리)
             debugLog += "프로젝트에 임포트 시작...\n";
-            app.project.importFiles([imagePath], true, app.project.rootItem, false);
+
+            var imagesBin = null;
+            try {
+                imagesBin = findOrCreateBin(app.project.rootItem, "Image");
+                debugLog += "✅ Image 폴더 준비 완료\n";
+                debugWriteln("이미지를 Image 폴더에 임포트");
+            } catch (binError) {
+                debugLog += "Image 폴더 생성 실패: " + binError.toString() + "\n";
+                imagesBin = app.project.rootItem;
+                debugLog += "루트 빈 사용으로 대체\n";
+            }
+
+            app.project.importFiles([imagePath], true, imagesBin, false);
             debugLog += "임포트 완료\n";
 
             var fileName = imagePath.split("\\").pop().split("/").pop();

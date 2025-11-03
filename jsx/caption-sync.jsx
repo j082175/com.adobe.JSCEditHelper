@@ -8,6 +8,29 @@
 debugWriteln("=== Caption-Sync Module Loading ===");
 
 /**
+ * 프로젝트에서 폴더를 찾거나 없으면 생성
+ */
+function findOrCreateBin(parentBin, folderName) {
+    debugWriteln("=== findOrCreateBin 시작 ===");
+    debugWriteln("폴더명: " + folderName);
+
+    // 먼저 기존 폴더 검색
+    for (var i = 0; i < parentBin.children.numItems; i++) {
+        var item = parentBin.children[i];
+        if (item.type === ProjectItemType.BIN && item.name === folderName) {
+            debugWriteln("✅ 기존 폴더 발견: " + folderName);
+            return item;
+        }
+    }
+
+    // 없으면 새로 생성
+    debugWriteln("폴더 없음, 새로 생성: " + folderName);
+    var newBin = parentBin.createBin(folderName);
+    debugWriteln("✅ 폴더 생성 완료: " + folderName);
+    return newBin;
+}
+
+/**
  * 프로젝트에서 파일 경로로 기존 아이템 찾기
  */
 function findProjectItemByFilePath(filePath) {
@@ -397,17 +420,26 @@ function insertImageAtTime(imagePath, trackIndex, startTime, endTime) {
         if (projectItem) {
             debugWriteln("✅ 기존 프로젝트 아이템 발견, 임포트 생략: " + projectItem.name);
         } else {
-            // 없으면 새로 임포트
+            // 없으면 새로 임포트 (Image 폴더에 자동 정리)
             debugWriteln("프로젝트에 임포트 시작...");
 
-            // 임포트 전 아이템 개수 저장
-            var itemCountBefore = app.project.rootItem.children.numItems;
-            debugWriteln("임포트 전 프로젝트 아이템 개수: " + itemCountBefore);
+            var imagesBin = null;
+            try {
+                imagesBin = findOrCreateBin(app.project.rootItem, "Image");
+                debugWriteln("✅ Image 폴더 준비 완료");
+            } catch (binError) {
+                debugWriteln("Image 폴더 생성 실패: " + binError.toString());
+                imagesBin = app.project.rootItem;
+            }
 
-            app.project.importFiles([normalizedPath], true, app.project.rootItem, false);
+            // 임포트 전 아이템 개수 저장
+            var itemCountBefore = imagesBin.children.numItems;
+            debugWriteln("임포트 전 Image 폴더 아이템 개수: " + itemCountBefore);
+
+            app.project.importFiles([normalizedPath], true, imagesBin, false);
 
             // 방금 임포트된 아이템은 마지막에 추가됨 (O(1) 접근, 검색 불필요!)
-            projectItem = app.project.rootItem.children[itemCountBefore];
+            projectItem = imagesBin.children[itemCountBefore];
 
             if (!projectItem) {
                 debugWriteln("프로젝트 아이템을 찾을 수 없음");

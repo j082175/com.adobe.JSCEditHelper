@@ -1467,15 +1467,31 @@ body {
     margin: 0;
 }
 
-/* 텍스트 에디터 컨테이너 */
+/* 텍스트 에디터 컨테이너 - 행 기반 */
 .text-editor-container {
     flex: 1;
     display: flex;
-    position: relative;
-    overflow: hidden;
+    flex-direction: column;
+    gap: 0;
+    background: var(--color-bg-primary);
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
-.line-numbers {
+/* 개별 텍스트 행 */
+.text-row {
+    display: flex;
+    align-items: stretch;
+    min-height: 40px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.text-row:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+/* 행 번호 (클릭 가능) */
+.row-number {
     width: 50px;
     min-width: 50px;
     background: #2a2a2a;
@@ -1486,11 +1502,20 @@ body {
     padding: 12px 8px;
     text-align: right;
     user-select: none;
-    overflow: hidden;
-    white-space: pre;
+    cursor: pointer;
+    transition: all 0.2s ease;
 }
 
-.text-editor {
+.row-number:hover {
+    background: #3a3a3a;
+    color: #bb86fc;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+}
+
+/* 행 텍스트 (contenteditable) */
+.row-text {
     flex: 1;
     background: var(--color-bg-primary);
     color: var(--color-text-primary);
@@ -1499,13 +1524,84 @@ body {
     font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 12px;
     line-height: 1.5;
-    resize: none;
     outline: none;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    min-height: 20px;
+    cursor: text;
 }
 
-.text-editor::placeholder {
+.row-text:empty::before {
+    content: attr(data-placeholder);
     color: var(--color-text-muted);
     opacity: 0.5;
+}
+
+.row-text:focus {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+/* 행 삭제 버튼 */
+.row-delete {
+    width: 30px;
+    background: transparent;
+    border: none;
+    color: #666;
+    cursor: pointer;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.text-row:hover .row-delete {
+    opacity: 1;
+}
+
+.row-delete:hover {
+    color: #ff4444;
+}
+
+/* 비디오 토글 버튼 */
+.row-video-toggle {
+    width: 30px;
+    min-width: 30px;
+    background: rgba(255, 0, 0, 0.2);
+    border: 1px solid red;
+    color: #fff;
+    cursor: pointer;
+    font-size: 18px;
+    opacity: 1;
+    transition: opacity 0.2s, transform 0.2s;
+    margin-right: 4px;
+    flex-shrink: 0;
+}
+
+.text-row:hover .row-video-toggle {
+    opacity: 1;
+}
+
+.row-video-toggle:hover {
+    color: #bb86fc;
+    transform: scale(1.2);
+}
+
+.row-video-toggle.active {
+    opacity: 1;
+    color: #bb86fc;
+}
+
+/* 텍스트 행 hover 효과 (이미지 hover 시) */
+.text-row.hover-highlight {
+    background: rgba(100, 100, 100, 0.15);
+    border-left: 2px solid #666;
+    transition: all 0.2s ease;
+}
+
+/* 텍스트 행 강조 (이미지 클릭 시) - 영구 유지 */
+.text-row.highlight {
+    background: rgba(0, 122, 204, 0.3);
+    border-left: 3px solid #00aaff;
 }
 
 .text-info {
@@ -1570,6 +1666,33 @@ body {
     object-fit: cover;
     border-radius: var(--radius-sm);
     background: var(--color-bg-primary);
+}
+
+/* 비디오 목업 썸네일 */
+.placeholder-thumbnail {
+    width: 100%;
+    height: 120px;
+    border-radius: var(--radius-sm);
+    background: linear-gradient(
+        135deg,
+        #2a2a2a 25%,
+        #353535 25%,
+        #353535 50%,
+        #2a2a2a 50%,
+        #2a2a2a 75%,
+        #353535 75%,
+        #353535
+    );
+    background-size: 20px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed #666;
+}
+
+.placeholder-thumbnail .placeholder-icon {
+    font-size: 48px;
+    opacity: 0.5;
 }
 
 .image-card-info {
@@ -1865,22 +1988,24 @@ body {
     cursor: text;
 }
 
-/* 텍스트 줄 강조 (이미지 클릭 시) */
+/* 텍스트 줄 강조 (이미지 클릭 시) - 텍스트 선택으로만 표시 */
 .text-editor.highlight-line {
-    background: linear-gradient(
-        to right,
-        rgba(0, 122, 204, 0.25) 0%,
-        rgba(0, 122, 204, 0.15) 100%
-    );
-    animation: highlightFadeOut 3s ease forwards;
+    /* 텍스트 선택(selection)만 사용하므로 추가 효과 불필요 */
 }
 
-/* 이미지 카드 강조 (텍스트 클릭 시) */
+/* 이미지 카드 hover 효과 (텍스트 hover 시) */
+.image-card.hover-highlight {
+    border-color: #666;
+    border-width: 2px;
+    box-shadow: 0 0 10px rgba(100, 100, 100, 0.3);
+    transition: all 0.2s ease;
+}
+
+/* 이미지 카드 강조 (텍스트 클릭 시) - 영구 유지 */
 .image-card.highlight {
     border-color: #00aaff;
     border-width: 3px;
-    box-shadow: 0 0 20px rgba(0, 170, 255, 0.5);
-    animation: highlightPulse 3s ease forwards;
+    box-shadow: 0 0 20px rgba(0, 170, 255, 0.6);
 }
 
 /* 강조 애니메이션 */
@@ -1911,6 +2036,24 @@ body {
     }
 }
 
+@keyframes textAreaPulse {
+    0% {
+        border-color: #00aaff;
+        box-shadow: 0 0 20px rgba(0, 170, 255, 0.6);
+        background: rgba(0, 122, 204, 0.3);
+    }
+    50% {
+        border-color: #00aaff;
+        box-shadow: 0 0 25px rgba(0, 170, 255, 0.8);
+        background: rgba(0, 122, 204, 0.3);
+    }
+    100% {
+        border-color: #444;
+        box-shadow: none;
+        background: transparent;
+    }
+}
+
 /* 줄 번호 스타일 개선 */
 .line-numbers {
     cursor: pointer;
@@ -1920,4 +2063,50 @@ body {
 /* 매칭 안 된 줄 번호 (회색) */
 .line-numbers.unmatched {
     color: #444;
+}
+
+/* ================================
+   텍스트 행 우클릭 메뉴
+   ================================ */
+.context-menu {
+    position: fixed;
+    background: var(--color-bg-card);
+    border: 1px solid #444;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+    z-index: 10000;
+    min-width: 180px;
+    padding: 4px 0;
+}
+
+.context-menu-item {
+    padding: 8px 16px;
+    cursor: pointer;
+    color: var(--color-text-primary);
+    font-size: 13px;
+    transition: background 0.2s ease;
+    user-select: none;
+}
+
+.context-menu-item:hover {
+    background: var(--color-bg-hover);
+}
+
+.context-menu-item:active {
+    background: var(--color-accent-primary);
+}
+
+/* 비디오 목업이 있는 텍스트 행 */
+.text-row.has-video-placeholder {
+    background: rgba(100, 50, 150, 0.1);
+}
+
+.text-row.has-video-placeholder .row-number {
+    background: #3a2a4a;
+    color: #bb86fc;
+}
+
+/* 비디오 목업 이미지 카드 - 일반 카드와 동일한 구조 사용 */
+.image-card.placeholder {
+    /* 플레이스홀더도 일반 카드와 동일한 레이아웃 사용 */
 }

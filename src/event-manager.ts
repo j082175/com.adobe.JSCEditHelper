@@ -8,6 +8,8 @@ interface JSCEventManagerInterface {
     handleSoundFileButtonClick(event: Event): void;
     refreshSoundButtons(): void; // 자동 새로고침을 위해 공개
     getDIStatus(): any; // DI 패턴 적용
+    closeTextReplaceModal(): void; // 텍스트 교체 모달 닫기
+    executeTextReplace(): void; // 텍스트 교체 실행
 }
 
 const JSCEventManager = (function(): JSCEventManagerInterface {
@@ -28,6 +30,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         thumbnail: string;       // Base64 썸네일
         captionCount: number;    // 이 이미지가 차지할 캡션 개수
         textLabel?: string | undefined;      // 매칭된 텍스트 (1:1 매칭용)
+        isPlaceholder?: boolean; // 비디오 목업 여부
     }
 
     // 이미지 매핑 배열 (고급 모드용)
@@ -973,101 +976,344 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
      */
 
     /**
-     * 텍스트 리스트 입력 이벤트 설정
+     * 텍스트 리스트 입력 이벤트 설정 (행 기반)
      */
     function setupTextListInput(): void {
         const utils = getUtils();
-        const textArea = document.getElementById('text-list') as HTMLTextAreaElement;
-        const lineNumbers = document.getElementById('line-numbers');
+        const container = document.getElementById('text-list-container');
+        const replaceButton = document.getElementById('replace-all-text');
 
-        if (!textArea) {
-            utils.logWarn('Text list textarea not found');
+        if (!container) {
+            utils.logWarn('Text list container not found');
             return;
         }
 
-        // 텍스트 입력 이벤트
-        textArea.addEventListener('input', () => {
-            updateTextList();
-            updateLineNumbers();
-        });
-
-        // 스크롤 동기화
-        textArea.addEventListener('scroll', () => {
-            if (lineNumbers) {
-                lineNumbers.scrollTop = textArea.scrollTop;
-            }
-        });
-
-        // 텍스트 영역 클릭 시 해당 이미지 강조
-        textArea.addEventListener('click', (e) => {
-            handleTextLineClick(e, textArea);
-        });
-
-        // 줄 번호 클릭 시 해당 이미지 강조
-        if (lineNumbers) {
-            lineNumbers.addEventListener('click', (e) => {
-                handleLineNumberClick(e, textArea);
+        // 전체 교체 버튼 이벤트
+        if (replaceButton) {
+            replaceButton.addEventListener('click', () => {
+                openTextReplaceModal();
             });
         }
 
-        // 초기 줄 번호 업데이트
-        updateLineNumbers();
+        // 초기 텍스트 리스트 설정
+        if (textList.length === 0) {
+            textList = [
+                '1번 이미지와 매칭될 텍스트',
+                '2번 이미지와 매칭될 텍스트',
+                '3번 이미지와 매칭될 텍스트'
+            ];
+        }
+
+        // 텍스트 행 렌더링 (이벤트 리스너 포함)
+        renderTextRows();
 
         utils.logDebug('Text list input setup completed');
     }
 
     /**
-     * 텍스트 리스트 업데이트
+     * 텍스트 전체 교체 모달 열기
      */
-    function updateTextList(): void {
-        const textArea = document.getElementById('text-list') as HTMLTextAreaElement;
-        const textCount = document.getElementById('text-count');
+    function openTextReplaceModal(): void {
+        const modal = document.getElementById('text-replace-modal');
+        const textarea = document.getElementById('text-replace-input') as HTMLTextAreaElement;
 
-        if (!textArea) return;
+        if (!modal || !textarea) return;
 
-        // 텍스트를 줄 단위로 분리하고 빈 줄 제거
-        const lines = textArea.value.split('\n').filter(line => line.trim() !== '');
-        textList = lines;
+        // 현재 텍스트를 textarea에 표시
+        textarea.value = textList.join('\n');
 
-        // 개수 표시 업데이트
-        if (textCount) {
-            textCount.textContent = `${textArea.value.split('\n').length}줄`;
+        // 모달 열기
+        modal.classList.add('active');
+        textarea.focus();
+    }
+
+    /**
+     * 텍스트 전체 교체 모달 닫기
+     */
+    function closeTextReplaceModal(): void {
+        const modal = document.getElementById('text-replace-modal');
+        if (modal) {
+            modal.classList.remove('active');
+        }
+    }
+
+    /**
+     * 텍스트 전체 교체 실행
+     */
+    function executeTextReplace(): void {
+        const utils = getUtils();
+        const textarea = document.getElementById('text-replace-input') as HTMLTextAreaElement;
+
+        if (!textarea) return;
+
+        const newText = textarea.value;
+
+        // 줄 단위로 분리
+        const lines = newText.split('\n').filter(line => line.trim() !== '');
+
+        // textList 업데이트
+        if (lines.length > 0) {
+            textList = lines.map(line => line.trim());
+        } else {
+            textList = [''];
         }
 
-        // 이미지 텍스트 라벨 업데이트
+        // 텍스트 행 렌더링 (이벤트 리스너 포함)
+        renderTextRows();
+
+        // 이미지 라벨 업데이트
+        updateImageTextLabels();
+
+        utils.logDebug(`${lines.length}개 줄로 전체 교체 완료`);
+
+        // 모달 닫기
+        closeTextReplaceModal();
+    }
+
+    /**
+     * 텍스트 행 삭제
+     */
+    function deleteTextRow(index: number): void {
+        const container = document.getElementById('text-list-container');
+        if (!container) return;
+
+        const rows = container.querySelectorAll('.text-row');
+        if (index >= 0 && index < rows.length) {
+            rows[index].remove();
+            textList.splice(index, 1);
+            renderTextRows(); // 전체 다시 렌더링 (인덱스 재정렬)
+        }
+    }
+
+    /**
+     * 텍스트 행 전체 렌더링
+     */
+    function renderTextRows(): void {
+        const container = document.getElementById('text-list-container');
+        if (!container) return;
+
+        container.innerHTML = '';
+
+        textList.forEach((text, index) => {
+            const row = document.createElement('div');
+            row.className = 'text-row';
+            row.dataset.index = index.toString();
+
+            const rowNumber = document.createElement('div');
+            rowNumber.className = 'row-number';
+            rowNumber.title = '클릭: 비디오 목업 토글';
+
+            // 비디오 플레이스홀더 여부에 따라 표시 변경
+            const hasPlaceholder = index < imageMappings.length && imageMappings[index]?.isPlaceholder;
+            if (hasPlaceholder) {
+                rowNumber.textContent = '🎬';
+                rowNumber.classList.add('video-placeholder');
+            } else {
+                rowNumber.textContent = index < imageMappings.length ? `#${index + 1}` : '-';
+            }
+
+            const rowText = document.createElement('div');
+            rowText.className = 'row-text';
+            rowText.contentEditable = 'true';
+            rowText.textContent = text;
+            rowText.dataset.placeholder = '텍스트 입력...';
+
+            const rowDelete = document.createElement('button');
+            rowDelete.className = 'row-delete';
+            rowDelete.textContent = '✕';
+            rowDelete.title = '삭제';
+
+            // 이벤트: 텍스트 입력
+            rowText.addEventListener('input', () => {
+                updateTextList();
+            });
+
+            // 이벤트: Enter 키로 새 행 생성
+            rowText.addEventListener('keydown', (e: Event) => {
+                const keyEvent = e as KeyboardEvent;
+
+                if (keyEvent.key === 'Enter') {
+                    e.preventDefault();
+
+                    const currentIndex = parseInt(row.dataset.index || '0');
+
+                    // 새 행을 현재 행 다음에 삽입
+                    textList.splice(currentIndex + 1, 0, '');
+                    renderTextRows();
+
+                    // 새로 생성된 행에 포커스
+                    setTimeout(() => {
+                        const cont = document.getElementById('text-list-container');
+                        if (cont) {
+                            const rows = cont.querySelectorAll('.text-row');
+                            const newRow = rows[currentIndex + 1];
+                            if (newRow) {
+                                const newRowText = newRow.querySelector('.row-text') as HTMLElement;
+                                if (newRowText) {
+                                    newRowText.focus();
+                                }
+                            }
+                        }
+                    }, 10);
+                }
+
+                // Backspace로 빈 행 삭제
+                if (keyEvent.key === 'Backspace') {
+                    const currentIndex = parseInt(row.dataset.index || '0');
+                    const isEmpty = rowText.textContent?.trim() === '';
+
+                    if (isEmpty && textList.length > 1) {
+                        e.preventDefault();
+
+                        textList.splice(currentIndex, 1);
+                        renderTextRows();
+
+                        // 이전 행 끝으로 포커스
+                        setTimeout(() => {
+                            const cont = document.getElementById('text-list-container');
+                            if (cont) {
+                                const rows = cont.querySelectorAll('.text-row');
+                                const prevRow = rows[Math.max(0, currentIndex - 1)];
+                                if (prevRow) {
+                                    const prevRowText = prevRow.querySelector('.row-text') as HTMLElement;
+                                    if (prevRowText) {
+                                        prevRowText.focus();
+                                        // 커서를 끝으로 이동
+                                        const range = document.createRange();
+                                        const sel = window.getSelection();
+                                        range.selectNodeContents(prevRowText);
+                                        range.collapse(false);
+                                        sel?.removeAllRanges();
+                                        sel?.addRange(range);
+                                    }
+                                }
+                            }
+                        }, 10);
+                    }
+                }
+            });
+
+            // 이벤트: 개별 행에 붙여넣기 (여러 줄 처리)
+            rowText.addEventListener('paste', (e: Event) => {
+                const pasteEvent = e as ClipboardEvent;
+                const pastedText = pasteEvent.clipboardData?.getData('text');
+
+                if (pastedText && pastedText.includes('\n')) {
+                    // 여러 줄이면 기본 동작 막고 각 줄을 새 행으로
+                    e.preventDefault();
+
+                    const lines = pastedText.split('\n').filter(line => line.trim() !== '');
+
+                    if (lines.length > 0) {
+                        // 첫 줄은 현재 행에
+                        rowText.textContent = lines[0].trim();
+
+                        // 나머지 줄들은 새 행으로 추가
+                        const currentIndex = parseInt(row.dataset.index || '0');
+                        for (let i = 1; i < lines.length; i++) {
+                            textList.splice(currentIndex + i, 0, lines[i].trim());
+                        }
+
+                        renderTextRows();
+                    }
+                }
+                // 한 줄이면 기본 동작 허용
+            });
+
+            // 이벤트: 텍스트 클릭 (이미지 강조)
+            rowText.addEventListener('click', () => {
+                const idx = parseInt(row.dataset.index || '0');
+                if (idx < imageMappings.length) {
+                    highlightImageCard(idx);
+                }
+            });
+
+            // 이벤트: 행 번호 클릭 (비디오 목업 토글)
+            rowNumber.addEventListener('click', (e: Event) => {
+                e.stopPropagation(); // 이벤트 전파 방지
+                const hasPlaceholder = index < imageMappings.length && imageMappings[index]?.isPlaceholder;
+                if (hasPlaceholder) {
+                    removeVideoPlaceholder(index);
+                } else {
+                    createVideoPlaceholder(index);
+                }
+            });
+
+            // 이벤트: 행 삭제
+            rowDelete.addEventListener('click', () => {
+                deleteTextRow(index);
+            });
+
+            // 이벤트: hover 시 해당 이미지 약하게 강조
+            row.addEventListener('mouseenter', () => {
+                const idx = parseInt(row.dataset.index || '0');
+                if (idx < imageMappings.length) {
+                    hoverHighlightImageCard(idx);
+                }
+            });
+
+            row.addEventListener('mouseleave', () => {
+                clearHoverHighlightImageCard();
+            });
+
+            // 비디오 플레이스홀더가 있는 행인지 확인하여 스타일 추가
+            if (hasPlaceholder) {
+                row.classList.add('has-video-placeholder');
+            }
+
+            row.appendChild(rowNumber);
+            row.appendChild(rowText);
+            row.appendChild(rowDelete);
+            container.appendChild(row);
+        });
+
+        updateTextCount();
+    }
+
+    /**
+     * 텍스트 리스트 업데이트 (행 기반)
+     */
+    function updateTextList(): void {
+        const container = document.getElementById('text-list-container');
+        if (!container) return;
+
+        // 각 행에서 텍스트 추출
+        const rows = container.querySelectorAll('.text-row');
+        textList = Array.from(rows).map(row => {
+            const textDiv = row.querySelector('.row-text') as HTMLElement;
+            return textDiv ? textDiv.textContent || '' : '';
+        }).filter(text => text.trim() !== ''); // 빈 줄 제거
+
+        updateTextCount();
         updateImageTextLabels();
     }
 
     /**
-     * 줄 번호 업데이트 (이미지 번호로 표시)
+     * 텍스트 개수 업데이트
+     */
+    function updateTextCount(): void {
+        const textCount = document.getElementById('text-count');
+        if (textCount) {
+            const container = document.getElementById('text-list-container');
+            const rowCount = container ? container.querySelectorAll('.text-row').length : 0;
+            textCount.textContent = `${rowCount}줄`;
+        }
+    }
+
+    /**
+     * 줄 번호 업데이트 (행 기반에서는 렌더링 시 자동 업데이트)
      */
     function updateLineNumbers(): void {
-        const textArea = document.getElementById('text-list') as HTMLTextAreaElement;
-        const lineNumbers = document.getElementById('line-numbers');
+        const container = document.getElementById('text-list-container');
+        if (!container) return;
 
-        if (!textArea || !lineNumbers) return;
-
-        const allLines = textArea.value.split('\n');
-        let textIndex = 0; // textList에서의 인덱스 (빈 줄 제외)
-
-        const lineNumbersArray = allLines.map((line) => {
-            if (line.trim() === '') {
-                // 빈 줄
-                return '';
-            } else {
-                // 실제 텍스트가 있는 줄
-                textIndex++;
-                if (textIndex <= imageMappings.length) {
-                    // 이미지와 매칭됨
-                    return `#${textIndex}`;
-                } else {
-                    // 이미지보다 텍스트가 많음 (매칭 안 됨)
-                    return '-';
-                }
+        const rows = container.querySelectorAll('.text-row');
+        rows.forEach((row, index) => {
+            const rowNumber = row.querySelector('.row-number');
+            if (rowNumber) {
+                rowNumber.textContent = index < imageMappings.length ? `#${index + 1}` : '-';
             }
         });
-
-        lineNumbers.textContent = lineNumbersArray.join('\n');
     }
 
     /**
@@ -1088,73 +1334,81 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         updateImageGrid();
     }
 
+    // 행 기반 구조에서는 텍스트 클릭 시 이미지 강조가 각 행의 이벤트에서 처리됨
+
     /**
-     * 텍스트 영역 클릭 핸들러 (해당 이미지 강조)
+     * 모든 클릭 강조 제거 (텍스트 + 이미지)
      */
-    function handleTextLineClick(_e: MouseEvent, textArea: HTMLTextAreaElement): void {
-        const utils = getUtils();
-
-        // 클릭한 위치에서 줄 번호 계산
-        const textBeforeCursor = textArea.value.substring(0, textArea.selectionStart);
-        const lineNumber = textBeforeCursor.split('\n').length;
-
-        // 해당 줄의 텍스트 인덱스 계산 (빈 줄 제외)
-        const lines = textArea.value.split('\n');
-        let textIndex = 0;
-
-        for (let i = 0; i < lineNumber; i++) {
-            if (lines[i].trim() !== '') {
-                textIndex++;
-            }
+    function clearAllHighlights(): void {
+        // 이미지 강조 제거
+        const gridDiv = document.getElementById('image-grid');
+        if (gridDiv) {
+            const highlightedImages = gridDiv.querySelectorAll('.image-card.highlight');
+            highlightedImages.forEach(card => card.classList.remove('highlight'));
         }
 
-        // 유효한 이미지 인덱스인지 확인
-        if (textIndex > 0 && textIndex <= imageMappings.length) {
-            highlightImageCard(textIndex - 1);
-            utils.logDebug(`텍스트 줄 ${lineNumber} 클릭 → 이미지 #${textIndex} 강조`);
+        // 텍스트 강조 제거
+        const container = document.getElementById('text-list-container');
+        if (container) {
+            const highlightedRows = container.querySelectorAll('.text-row.highlight');
+            highlightedRows.forEach(row => row.classList.remove('highlight'));
         }
     }
 
     /**
-     * 줄 번호 클릭 핸들러 (해당 이미지 강조)
+     * 텍스트-이미지 쌍 강조 (클릭 시)
      */
-    function handleLineNumberClick(e: MouseEvent, textArea: HTMLTextAreaElement): void {
-        const utils = getUtils();
-        const lineNumbers = document.getElementById('line-numbers');
-        if (!lineNumbers) return;
+    function highlightPair(index: number, scrollToImage: boolean = true): void {
+        const gridDiv = document.getElementById('image-grid');
+        const container = document.getElementById('text-list-container');
 
-        // 클릭 위치에서 줄 번호 계산
-        const clickY = e.offsetY;
-        const lineHeight = parseFloat(getComputedStyle(lineNumbers).lineHeight);
-        const lineNumber = Math.floor(clickY / lineHeight) + 1;
+        // 모든 기존 강조 제거
+        clearAllHighlights();
 
-        // 해당 줄의 텍스트 인덱스 계산
-        const lines = textArea.value.split('\n');
-        let textIndex = 0;
-
-        for (let i = 0; i < Math.min(lineNumber, lines.length); i++) {
-            if (lines[i].trim() !== '') {
-                textIndex++;
+        // 이미지 강조
+        if (gridDiv && index < imageMappings.length) {
+            const imageId = imageMappings[index]?.id;
+            if (imageId) {
+                const targetCard = gridDiv.querySelector(`[data-image-id="${imageId}"]`);
+                if (targetCard) {
+                    targetCard.classList.add('highlight');
+                    if (scrollToImage) {
+                        targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
             }
         }
 
-        // 유효한 이미지 인덱스인지 확인
-        if (textIndex > 0 && textIndex <= imageMappings.length) {
-            highlightImageCard(textIndex - 1);
-            utils.logDebug(`줄 번호 #${textIndex} 클릭 → 이미지 #${textIndex} 강조`);
+        // 텍스트 강조
+        if (container) {
+            const rows = container.querySelectorAll('.text-row');
+            if (index >= 0 && index < rows.length) {
+                const targetRow = rows[index];
+                targetRow.classList.add('highlight');
+                if (!scrollToImage) {
+                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
         }
     }
 
     /**
-     * 이미지 카드 강조
+     * 이미지 카드 강조 (클릭 시) - 양쪽 모두 강조
      */
     function highlightImageCard(imageIndex: number): void {
+        highlightPair(imageIndex, true);  // 이미지로 스크롤
+    }
+
+    /**
+     * 이미지 카드 hover 강조 (텍스트 hover 시)
+     */
+    function hoverHighlightImageCard(imageIndex: number): void {
         const gridDiv = document.getElementById('image-grid');
         if (!gridDiv) return;
 
-        // 기존 강조 제거
-        const previousHighlighted = gridDiv.querySelectorAll('.image-card.highlight');
-        previousHighlighted.forEach(card => card.classList.remove('highlight'));
+        // 기존 hover 강조 제거
+        const previousHovered = gridDiv.querySelectorAll('.image-card.hover-highlight');
+        previousHovered.forEach(card => card.classList.remove('hover-highlight'));
 
         // 해당 이미지 카드 찾기
         const imageId = imageMappings[imageIndex]?.id;
@@ -1162,58 +1416,76 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
 
         const targetCard = gridDiv.querySelector(`[data-image-id="${imageId}"]`);
         if (targetCard) {
-            // 강조 효과 추가
-            targetCard.classList.add('highlight');
-
-            // 스크롤하여 보이게
-            targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-            // 3초 후 자동 제거
-            setTimeout(() => {
-                targetCard.classList.remove('highlight');
-            }, 3000);
+            // hover 강조 효과 추가
+            targetCard.classList.add('hover-highlight');
         }
     }
 
     /**
-     * 이미지 카드 클릭 핸들러 (해당 텍스트 강조)
+     * 이미지 카드 hover 강조 제거
+     */
+    function clearHoverHighlightImageCard(): void {
+        const gridDiv = document.getElementById('image-grid');
+        if (!gridDiv) return;
+
+        const hovered = gridDiv.querySelectorAll('.image-card.hover-highlight');
+        hovered.forEach(card => card.classList.remove('hover-highlight'));
+    }
+
+    /**
+     * 텍스트 행 hover 강조 (이미지 hover 시)
+     */
+    function hoverHighlightTextRow(rowIndex: number): void {
+        const container = document.getElementById('text-list-container');
+        if (!container) return;
+
+        // 기존 hover 강조 제거
+        const previousHovered = container.querySelectorAll('.text-row.hover-highlight');
+        previousHovered.forEach(row => row.classList.remove('hover-highlight'));
+
+        // 해당 텍스트 행 찾기
+        const rows = container.querySelectorAll('.text-row');
+        if (rowIndex >= 0 && rowIndex < rows.length) {
+            const targetRow = rows[rowIndex];
+            targetRow.classList.add('hover-highlight');
+        }
+    }
+
+    /**
+     * 텍스트 행 hover 강조 제거
+     */
+    function clearHoverHighlightTextRow(): void {
+        const container = document.getElementById('text-list-container');
+        if (!container) return;
+
+        const hovered = container.querySelectorAll('.text-row.hover-highlight');
+        hovered.forEach(row => row.classList.remove('hover-highlight'));
+    }
+
+    /**
+     * 이미지 카드 클릭 핸들러 (해당 텍스트 행 강조)
      */
     function handleImageCardClick(imageIndex: number): void {
         const utils = getUtils();
-        const textArea = document.getElementById('text-list') as HTMLTextAreaElement;
-        if (!textArea) return;
+        const container = document.getElementById('text-list-container');
+        if (!container) return;
 
-        // 해당 텍스트 줄 찾기 (빈 줄 포함)
-        const lines = textArea.value.split('\n');
-        let textCount = 0;
-        let targetLineIndex = -1;
+        // 텍스트와 이미지 양쪽 모두 강조 (텍스트로 스크롤)
+        highlightPair(imageIndex, false);
 
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i].trim() !== '') {
-                textCount++;
-                if (textCount === imageIndex + 1) {
-                    targetLineIndex = i;
-                    break;
-                }
+        // 해당 텍스트 행 찾아서 포커스
+        const rows = container.querySelectorAll('.text-row');
+        if (imageIndex >= 0 && imageIndex < rows.length) {
+            const targetRow = rows[imageIndex];
+            const rowText = targetRow.querySelector('.row-text') as HTMLElement;
+
+            if (rowText) {
+                // 텍스트에 포커스
+                rowText.focus();
+
+                utils.logDebug(`이미지 #${imageIndex + 1} 클릭 → 쌍 강조 (텍스트 + 이미지)`);
             }
         }
-
-        if (targetLineIndex === -1) return;
-
-        // 해당 줄로 스크롤
-        const lineHeight = parseFloat(getComputedStyle(textArea).lineHeight);
-        const scrollTop = targetLineIndex * lineHeight;
-        textArea.scrollTop = scrollTop;
-
-        // 텍스트 영역에 일시적인 배경색 효과 (CSS 애니메이션 활용)
-        textArea.classList.add('highlight-line');
-
-        // 3초 후 자동 제거
-        setTimeout(() => {
-            textArea.classList.remove('highlight-line');
-        }, 3000);
-
-        utils.logDebug(`이미지 #${imageIndex + 1} 클릭 → 텍스트 줄 ${targetLineIndex + 1} 강조`);
     }
 
     /**
@@ -1253,32 +1525,56 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
 
                 // 카드 생성
                 const card = document.createElement('div');
-                card.className = 'image-card';
+                card.className = mapping.isPlaceholder ? 'image-card placeholder' : 'image-card';
                 card.dataset.imageId = mapping.id;
                 card.draggable = true;
 
-                // 텍스트 라벨 표시 (있으면)
+                // 텍스트 라벨 HTML (플레이스홀더와 일반 이미지 모두 사용)
                 const textLabelHtml = mapping.textLabel
                     ? `<div class="image-card-text" title="${mapping.textLabel}">📝 ${mapping.textLabel}</div>`
                     : '';
 
-                card.innerHTML = `
-                    <div class="image-card-number">${index + 1}</div>
-                    <button class="image-card-remove" data-image-id="${mapping.id}">✕</button>
-                    <img class="image-card-thumbnail" src="data:image/png;base64,${mapping.thumbnail}" alt="${mapping.fileName}">
-                    <div class="image-card-info">
-                        ${textLabelHtml}
-                        <div class="image-card-filename" title="${mapping.fileName}">${mapping.fileName}</div>
-                        <div class="image-card-controls">
-                            <span class="image-card-caption">캡션 ${captionStart}-${captionEnd}</span>
-                            <select data-image-id="${mapping.id}" class="image-card-caption-select">
-                                ${[1,2,3,4,5,6,7,8,9,10].map(n =>
-                                    `<option value="${n}" ${n === mapping.captionCount ? 'selected' : ''}>${n}개</option>`
-                                ).join('')}
-                            </select>
+                // 플레이스홀더 카드 렌더링
+                if (mapping.isPlaceholder) {
+                    card.innerHTML = `
+                        <div class="image-card-number">${index + 1}</div>
+                        <button class="image-card-remove" data-image-id="${mapping.id}">✕</button>
+                        <div class="image-card-thumbnail placeholder-thumbnail">
+                            <div class="placeholder-icon">🎬</div>
                         </div>
-                    </div>
-                `;
+                        <div class="image-card-info">
+                            ${textLabelHtml}
+                            <div class="image-card-filename" title="비디오 구간">비디오 구간</div>
+                            <div class="image-card-controls">
+                                <span class="image-card-caption">캡션 ${captionStart}-${captionEnd}</span>
+                                <select data-image-id="${mapping.id}" class="image-card-caption-select">
+                                    ${[1,2,3,4,5,6,7,8,9,10].map(n =>
+                                        `<option value="${n}" ${n === mapping.captionCount ? 'selected' : ''}>${n}개</option>`
+                                    ).join('')}
+                                </select>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    // 일반 이미지 카드 렌더링
+                    card.innerHTML = `
+                        <div class="image-card-number">${index + 1}</div>
+                        <button class="image-card-remove" data-image-id="${mapping.id}">✕</button>
+                        <img class="image-card-thumbnail" src="data:image/png;base64,${mapping.thumbnail}" alt="${mapping.fileName}">
+                        <div class="image-card-info">
+                            ${textLabelHtml}
+                            <div class="image-card-filename" title="${mapping.fileName}">${mapping.fileName}</div>
+                            <div class="image-card-controls">
+                                <span class="image-card-caption">캡션 ${captionStart}-${captionEnd}</span>
+                                <select data-image-id="${mapping.id}" class="image-card-caption-select">
+                                    ${[1,2,3,4,5,6,7,8,9,10].map(n =>
+                                        `<option value="${n}" ${n === mapping.captionCount ? 'selected' : ''}>${n}개</option>`
+                                    ).join('')}
+                                </select>
+                            </div>
+                        </div>
+                    `;
+                }
 
                 gridDiv.appendChild(card);
 
@@ -1303,6 +1599,15 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                     handleImageCardClick(index);
                 });
 
+                // 이미지 카드 hover 이벤트 (텍스트 약하게 강조)
+                card.addEventListener('mouseenter', () => {
+                    hoverHighlightTextRow(index);
+                });
+
+                card.addEventListener('mouseleave', () => {
+                    clearHoverHighlightTextRow();
+                });
+
                 // 드래그 이벤트
                 card.addEventListener('dragstart', handlePreviewDragStart);
                 card.addEventListener('dragover', handlePreviewDragOver);
@@ -1310,6 +1615,9 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                 card.addEventListener('dragend', handlePreviewDragEnd);
             });
         }
+
+        // 이미지 개수가 변경되었으므로 줄 번호 업데이트
+        updateLineNumbers();
     }
 
     // updateImageSummary는 updateImageGrid의 별칭으로 사용
@@ -2525,12 +2833,60 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
         };
     }
 
+    /**
+     * 비디오 목업 생성
+     */
+    function createVideoPlaceholder(rowIndex: number): void {
+        const utils = getUtils();
+
+        // 플레이스홀더 데이터 생성
+        const placeholder: ImageMapping = {
+            id: 'placeholder-' + Date.now(),
+            filePath: '',
+            fileName: '비디오 구간',
+            thumbnail: '',
+            captionCount: 1,
+            isPlaceholder: true,
+            textLabel: textList[rowIndex] || ''
+        };
+
+        // 해당 위치에 플레이스홀더 삽입
+        imageMappings.splice(rowIndex, 0, placeholder);
+
+        utils.logInfo(`비디오 목업 생성: 텍스트 행 ${rowIndex + 1}`);
+
+        // UI 업데이트
+        renderTextRows();
+        updateImageGrid();
+    }
+
+    /**
+     * 비디오 목업 제거
+     */
+    function removeVideoPlaceholder(rowIndex: number): void {
+        const utils = getUtils();
+
+        if (rowIndex >= imageMappings.length) return;
+        if (!imageMappings[rowIndex]?.isPlaceholder) return;
+
+        // 플레이스홀더 제거
+        imageMappings.splice(rowIndex, 1);
+
+        utils.logInfo(`비디오 목업 제거: 텍스트 행 ${rowIndex + 1}`);
+
+        // UI 업데이트
+        renderTextRows();
+        updateImageGrid();
+    }
+
     // 공개 API
     return {
         setupEventListeners: setupEventListeners,
         handleSoundFileButtonClick: handleSoundFileButtonClick,
         refreshSoundButtons: refreshSoundButtons, // 자동 새로고침을 위해 공개
-        getDIStatus: getDIStatus // DI 패턴 적용
+        getDIStatus: getDIStatus, // DI 패턴 적용
+        closeTextReplaceModal: closeTextReplaceModal, // 텍스트 교체 모달
+        executeTextReplace: executeTextReplace // 텍스트 교체 실행
     };
 })();
 

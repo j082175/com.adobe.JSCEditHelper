@@ -164,14 +164,11 @@
                         <div class="panel-header">
                             <h3>📝 텍스트 리스트</h3>
                         </div>
-                        <div class="text-editor-container">
-                            <div class="line-numbers" id="line-numbers"></div>
-                            <textarea id="text-list" class="text-editor" placeholder="텍스트를 한 줄씩 입력하세요...
-1번 이미지와 매칭될 텍스트
-2번 이미지와 매칭될 텍스트
-3번 이미지와 매칭될 텍스트"></textarea>
+                        <div class="text-editor-container" id="text-list-container">
+                            <!-- 텍스트 행들이 동적으로 추가됩니다 -->
                         </div>
                         <div class="text-info">
+                            <button id="replace-all-text" class="btn-text">📋 전체 교체</button>
                             <span id="text-count">0줄</span>
                         </div>
                     </div>
@@ -238,6 +235,31 @@
                 </div>
                 <div class="modal-footer">
                     <button id="modal-done" class="btn-primary">✓ 완료</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 텍스트 전체 교체 모달 -->
+        <div id="text-replace-modal" class="modal-overlay">
+            <div class="modal-container" style="max-width: 600px;">
+                <div class="modal-header">
+                    <h2>📋 텍스트 전체 교체</h2>
+                    <button id="close-text-replace-modal" class="modal-close-btn">✕</button>
+                </div>
+                <div class="modal-body">
+                    <p style="margin-bottom: 12px; color: #888; font-size: 13px;">
+                        💡 여러 줄 텍스트를 붙여넣으세요. 각 줄이 개별 텍스트로 추가됩니다.
+                    </p>
+                    <textarea id="text-replace-input"
+                              placeholder="텍스트를 한 줄씩 입력하거나 붙여넣기...
+1번 이미지와 매칭될 텍스트
+2번 이미지와 매칭될 텍스트
+3번 이미지와 매칭될 텍스트"
+                              style="width: 100%; min-height: 300px; background: var(--color-bg-primary); color: var(--color-text-primary); border: 1px solid #444; border-radius: 4px; padding: 12px; font-family: 'Consolas', monospace; font-size: 12px; resize: vertical;"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button id="cancel-text-replace" class="btn-text" style="margin-right: 8px;">취소</button>
+                    <button id="confirm-text-replace" class="btn-primary">✓ 교체하기</button>
                 </div>
             </div>
         </div>
@@ -336,6 +358,56 @@
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape' && modal.classList.contains('active')) {
                     closeModal();
+                }
+            });
+
+            // 텍스트 교체 모달
+            const textReplaceModal = document.getElementById('text-replace-modal');
+            const closeTextReplaceBtn = document.getElementById('close-text-replace-modal');
+            const cancelTextReplaceBtn = document.getElementById('cancel-text-replace');
+            const confirmTextReplaceBtn = document.getElementById('confirm-text-replace');
+
+            if (closeTextReplaceBtn) {
+                closeTextReplaceBtn.addEventListener('click', function() {
+                    if (window.JSCEventManager && window.JSCEventManager.closeTextReplaceModal) {
+                        window.JSCEventManager.closeTextReplaceModal();
+                    }
+                });
+            }
+
+            if (cancelTextReplaceBtn) {
+                cancelTextReplaceBtn.addEventListener('click', function() {
+                    if (window.JSCEventManager && window.JSCEventManager.closeTextReplaceModal) {
+                        window.JSCEventManager.closeTextReplaceModal();
+                    }
+                });
+            }
+
+            if (confirmTextReplaceBtn) {
+                confirmTextReplaceBtn.addEventListener('click', function() {
+                    if (window.JSCEventManager && window.JSCEventManager.executeTextReplace) {
+                        window.JSCEventManager.executeTextReplace();
+                    }
+                });
+            }
+
+            // 텍스트 교체 모달 오버레이 클릭 시 닫기
+            if (textReplaceModal) {
+                textReplaceModal.addEventListener('click', function(e) {
+                    if (e.target === textReplaceModal) {
+                        if (window.JSCEventManager && window.JSCEventManager.closeTextReplaceModal) {
+                            window.JSCEventManager.closeTextReplaceModal();
+                        }
+                    }
+                });
+            }
+
+            // ESC 키로 텍스트 교체 모달 닫기
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && textReplaceModal && textReplaceModal.classList.contains('active')) {
+                    if (window.JSCEventManager && window.JSCEventManager.closeTextReplaceModal) {
+                        window.JSCEventManager.closeTextReplaceModal();
+                    }
                 }
             });
         });

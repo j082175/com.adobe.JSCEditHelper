@@ -995,88 +995,299 @@ var JSCEventManager = (function () {
      * 썸네일 크기 조절 슬라이더 설정
      */
     /**
-     * 텍스트 리스트 입력 이벤트 설정
+     * 텍스트 리스트 입력 이벤트 설정 (행 기반)
      */
     function setupTextListInput() {
         var utils = getUtils();
-        var textArea = document.getElementById('text-list');
-        var lineNumbers = document.getElementById('line-numbers');
-        if (!textArea) {
-            utils.logWarn('Text list textarea not found');
+        var container = document.getElementById('text-list-container');
+        var replaceButton = document.getElementById('replace-all-text');
+        if (!container) {
+            utils.logWarn('Text list container not found');
             return;
         }
-        // 텍스트 입력 이벤트
-        textArea.addEventListener('input', function () {
-            updateTextList();
-            updateLineNumbers();
-        });
-        // 스크롤 동기화
-        textArea.addEventListener('scroll', function () {
-            if (lineNumbers) {
-                lineNumbers.scrollTop = textArea.scrollTop;
-            }
-        });
-        // 텍스트 영역 클릭 시 해당 이미지 강조
-        textArea.addEventListener('click', function (e) {
-            handleTextLineClick(e, textArea);
-        });
-        // 줄 번호 클릭 시 해당 이미지 강조
-        if (lineNumbers) {
-            lineNumbers.addEventListener('click', function (e) {
-                handleLineNumberClick(e, textArea);
+        // 전체 교체 버튼 이벤트
+        if (replaceButton) {
+            replaceButton.addEventListener('click', function () {
+                openTextReplaceModal();
             });
         }
-        // 초기 줄 번호 업데이트
-        updateLineNumbers();
+        // 초기 텍스트 리스트 설정
+        if (textList.length === 0) {
+            textList = [
+                '1번 이미지와 매칭될 텍스트',
+                '2번 이미지와 매칭될 텍스트',
+                '3번 이미지와 매칭될 텍스트'
+            ];
+        }
+        // 텍스트 행 렌더링 (이벤트 리스너 포함)
+        renderTextRows();
         utils.logDebug('Text list input setup completed');
     }
     /**
-     * 텍스트 리스트 업데이트
+     * 텍스트 전체 교체 모달 열기
+     */
+    function openTextReplaceModal() {
+        var modal = document.getElementById('text-replace-modal');
+        var textarea = document.getElementById('text-replace-input');
+        if (!modal || !textarea)
+            return;
+        // 현재 텍스트를 textarea에 표시
+        textarea.value = textList.join('\n');
+        // 모달 열기
+        modal.classList.add('active');
+        textarea.focus();
+    }
+    /**
+     * 텍스트 전체 교체 모달 닫기
+     */
+    function closeTextReplaceModal() {
+        var modal = document.getElementById('text-replace-modal');
+        if (modal) {
+            modal.classList.remove('active');
+        }
+    }
+    /**
+     * 텍스트 전체 교체 실행
+     */
+    function executeTextReplace() {
+        var utils = getUtils();
+        var textarea = document.getElementById('text-replace-input');
+        if (!textarea)
+            return;
+        var newText = textarea.value;
+        // 줄 단위로 분리
+        var lines = newText.split('\n').filter(function (line) { return line.trim() !== ''; });
+        // textList 업데이트
+        if (lines.length > 0) {
+            textList = lines.map(function (line) { return line.trim(); });
+        }
+        else {
+            textList = [''];
+        }
+        // 텍스트 행 렌더링 (이벤트 리스너 포함)
+        renderTextRows();
+        // 이미지 라벨 업데이트
+        updateImageTextLabels();
+        utils.logDebug("".concat(lines.length, "\uAC1C \uC904\uB85C \uC804\uCCB4 \uAD50\uCCB4 \uC644\uB8CC"));
+        // 모달 닫기
+        closeTextReplaceModal();
+    }
+    /**
+     * 텍스트 행 삭제
+     */
+    function deleteTextRow(index) {
+        var container = document.getElementById('text-list-container');
+        if (!container)
+            return;
+        var rows = container.querySelectorAll('.text-row');
+        if (index >= 0 && index < rows.length) {
+            rows[index].remove();
+            textList.splice(index, 1);
+            renderTextRows(); // 전체 다시 렌더링 (인덱스 재정렬)
+        }
+    }
+    /**
+     * 텍스트 행 전체 렌더링
+     */
+    function renderTextRows() {
+        var container = document.getElementById('text-list-container');
+        if (!container)
+            return;
+        container.innerHTML = '';
+        textList.forEach(function (text, index) {
+            var _a;
+            var row = document.createElement('div');
+            row.className = 'text-row';
+            row.dataset.index = index.toString();
+            var rowNumber = document.createElement('div');
+            rowNumber.className = 'row-number';
+            rowNumber.title = '클릭: 비디오 목업 토글';
+            // 비디오 플레이스홀더 여부에 따라 표시 변경
+            var hasPlaceholder = index < imageMappings.length && ((_a = imageMappings[index]) === null || _a === void 0 ? void 0 : _a.isPlaceholder);
+            if (hasPlaceholder) {
+                rowNumber.textContent = '🎬';
+                rowNumber.classList.add('video-placeholder');
+            }
+            else {
+                rowNumber.textContent = index < imageMappings.length ? "#".concat(index + 1) : '-';
+            }
+            var rowText = document.createElement('div');
+            rowText.className = 'row-text';
+            rowText.contentEditable = 'true';
+            rowText.textContent = text;
+            rowText.dataset.placeholder = '텍스트 입력...';
+            var rowDelete = document.createElement('button');
+            rowDelete.className = 'row-delete';
+            rowDelete.textContent = '✕';
+            rowDelete.title = '삭제';
+            // 이벤트: 텍스트 입력
+            rowText.addEventListener('input', function () {
+                updateTextList();
+            });
+            // 이벤트: Enter 키로 새 행 생성
+            rowText.addEventListener('keydown', function (e) {
+                var _a;
+                var keyEvent = e;
+                if (keyEvent.key === 'Enter') {
+                    e.preventDefault();
+                    var currentIndex_1 = parseInt(row.dataset.index || '0');
+                    // 새 행을 현재 행 다음에 삽입
+                    textList.splice(currentIndex_1 + 1, 0, '');
+                    renderTextRows();
+                    // 새로 생성된 행에 포커스
+                    setTimeout(function () {
+                        var cont = document.getElementById('text-list-container');
+                        if (cont) {
+                            var rows = cont.querySelectorAll('.text-row');
+                            var newRow = rows[currentIndex_1 + 1];
+                            if (newRow) {
+                                var newRowText = newRow.querySelector('.row-text');
+                                if (newRowText) {
+                                    newRowText.focus();
+                                }
+                            }
+                        }
+                    }, 10);
+                }
+                // Backspace로 빈 행 삭제
+                if (keyEvent.key === 'Backspace') {
+                    var currentIndex_2 = parseInt(row.dataset.index || '0');
+                    var isEmpty = ((_a = rowText.textContent) === null || _a === void 0 ? void 0 : _a.trim()) === '';
+                    if (isEmpty && textList.length > 1) {
+                        e.preventDefault();
+                        textList.splice(currentIndex_2, 1);
+                        renderTextRows();
+                        // 이전 행 끝으로 포커스
+                        setTimeout(function () {
+                            var cont = document.getElementById('text-list-container');
+                            if (cont) {
+                                var rows = cont.querySelectorAll('.text-row');
+                                var prevRow = rows[Math.max(0, currentIndex_2 - 1)];
+                                if (prevRow) {
+                                    var prevRowText = prevRow.querySelector('.row-text');
+                                    if (prevRowText) {
+                                        prevRowText.focus();
+                                        // 커서를 끝으로 이동
+                                        var range = document.createRange();
+                                        var sel = window.getSelection();
+                                        range.selectNodeContents(prevRowText);
+                                        range.collapse(false);
+                                        sel === null || sel === void 0 ? void 0 : sel.removeAllRanges();
+                                        sel === null || sel === void 0 ? void 0 : sel.addRange(range);
+                                    }
+                                }
+                            }
+                        }, 10);
+                    }
+                }
+            });
+            // 이벤트: 개별 행에 붙여넣기 (여러 줄 처리)
+            rowText.addEventListener('paste', function (e) {
+                var _a;
+                var pasteEvent = e;
+                var pastedText = (_a = pasteEvent.clipboardData) === null || _a === void 0 ? void 0 : _a.getData('text');
+                if (pastedText && pastedText.includes('\n')) {
+                    // 여러 줄이면 기본 동작 막고 각 줄을 새 행으로
+                    e.preventDefault();
+                    var lines = pastedText.split('\n').filter(function (line) { return line.trim() !== ''; });
+                    if (lines.length > 0) {
+                        // 첫 줄은 현재 행에
+                        rowText.textContent = lines[0].trim();
+                        // 나머지 줄들은 새 행으로 추가
+                        var currentIndex = parseInt(row.dataset.index || '0');
+                        for (var i = 1; i < lines.length; i++) {
+                            textList.splice(currentIndex + i, 0, lines[i].trim());
+                        }
+                        renderTextRows();
+                    }
+                }
+                // 한 줄이면 기본 동작 허용
+            });
+            // 이벤트: 텍스트 클릭 (이미지 강조)
+            rowText.addEventListener('click', function () {
+                var idx = parseInt(row.dataset.index || '0');
+                if (idx < imageMappings.length) {
+                    highlightImageCard(idx);
+                }
+            });
+            // 이벤트: 행 번호 클릭 (비디오 목업 토글)
+            rowNumber.addEventListener('click', function (e) {
+                var _a;
+                e.stopPropagation(); // 이벤트 전파 방지
+                var hasPlaceholder = index < imageMappings.length && ((_a = imageMappings[index]) === null || _a === void 0 ? void 0 : _a.isPlaceholder);
+                if (hasPlaceholder) {
+                    removeVideoPlaceholder(index);
+                }
+                else {
+                    createVideoPlaceholder(index);
+                }
+            });
+            // 이벤트: 행 삭제
+            rowDelete.addEventListener('click', function () {
+                deleteTextRow(index);
+            });
+            // 이벤트: hover 시 해당 이미지 약하게 강조
+            row.addEventListener('mouseenter', function () {
+                var idx = parseInt(row.dataset.index || '0');
+                if (idx < imageMappings.length) {
+                    hoverHighlightImageCard(idx);
+                }
+            });
+            row.addEventListener('mouseleave', function () {
+                clearHoverHighlightImageCard();
+            });
+            // 비디오 플레이스홀더가 있는 행인지 확인하여 스타일 추가
+            if (hasPlaceholder) {
+                row.classList.add('has-video-placeholder');
+            }
+            row.appendChild(rowNumber);
+            row.appendChild(rowText);
+            row.appendChild(rowDelete);
+            container.appendChild(row);
+        });
+        updateTextCount();
+    }
+    /**
+     * 텍스트 리스트 업데이트 (행 기반)
      */
     function updateTextList() {
-        var textArea = document.getElementById('text-list');
-        var textCount = document.getElementById('text-count');
-        if (!textArea)
+        var container = document.getElementById('text-list-container');
+        if (!container)
             return;
-        // 텍스트를 줄 단위로 분리하고 빈 줄 제거
-        var lines = textArea.value.split('\n').filter(function (line) { return line.trim() !== ''; });
-        textList = lines;
-        // 개수 표시 업데이트
-        if (textCount) {
-            textCount.textContent = "".concat(textArea.value.split('\n').length, "\uC904");
-        }
-        // 이미지 텍스트 라벨 업데이트
+        // 각 행에서 텍스트 추출
+        var rows = container.querySelectorAll('.text-row');
+        textList = Array.from(rows).map(function (row) {
+            var textDiv = row.querySelector('.row-text');
+            return textDiv ? textDiv.textContent || '' : '';
+        }).filter(function (text) { return text.trim() !== ''; }); // 빈 줄 제거
+        updateTextCount();
         updateImageTextLabels();
     }
     /**
-     * 줄 번호 업데이트 (이미지 번호로 표시)
+     * 텍스트 개수 업데이트
+     */
+    function updateTextCount() {
+        var textCount = document.getElementById('text-count');
+        if (textCount) {
+            var container = document.getElementById('text-list-container');
+            var rowCount = container ? container.querySelectorAll('.text-row').length : 0;
+            textCount.textContent = "".concat(rowCount, "\uC904");
+        }
+    }
+    /**
+     * 줄 번호 업데이트 (행 기반에서는 렌더링 시 자동 업데이트)
      */
     function updateLineNumbers() {
-        var textArea = document.getElementById('text-list');
-        var lineNumbers = document.getElementById('line-numbers');
-        if (!textArea || !lineNumbers)
+        var container = document.getElementById('text-list-container');
+        if (!container)
             return;
-        var allLines = textArea.value.split('\n');
-        var textIndex = 0; // textList에서의 인덱스 (빈 줄 제외)
-        var lineNumbersArray = allLines.map(function (line) {
-            if (line.trim() === '') {
-                // 빈 줄
-                return '';
-            }
-            else {
-                // 실제 텍스트가 있는 줄
-                textIndex++;
-                if (textIndex <= imageMappings.length) {
-                    // 이미지와 매칭됨
-                    return "#".concat(textIndex);
-                }
-                else {
-                    // 이미지보다 텍스트가 많음 (매칭 안 됨)
-                    return '-';
-                }
+        var rows = container.querySelectorAll('.text-row');
+        rows.forEach(function (row, index) {
+            var rowNumber = row.querySelector('.row-number');
+            if (rowNumber) {
+                rowNumber.textContent = index < imageMappings.length ? "#".concat(index + 1) : '-';
             }
         });
-        lineNumbers.textContent = lineNumbersArray.join('\n');
     }
     /**
      * 이미지에 텍스트 라벨 매칭
@@ -1094,115 +1305,144 @@ var JSCEventManager = (function () {
         // UI 업데이트
         updateImageGrid();
     }
+    // 행 기반 구조에서는 텍스트 클릭 시 이미지 강조가 각 행의 이벤트에서 처리됨
     /**
-     * 텍스트 영역 클릭 핸들러 (해당 이미지 강조)
+     * 모든 클릭 강조 제거 (텍스트 + 이미지)
      */
-    function handleTextLineClick(_e, textArea) {
-        var utils = getUtils();
-        // 클릭한 위치에서 줄 번호 계산
-        var textBeforeCursor = textArea.value.substring(0, textArea.selectionStart);
-        var lineNumber = textBeforeCursor.split('\n').length;
-        // 해당 줄의 텍스트 인덱스 계산 (빈 줄 제외)
-        var lines = textArea.value.split('\n');
-        var textIndex = 0;
-        for (var i = 0; i < lineNumber; i++) {
-            if (lines[i].trim() !== '') {
-                textIndex++;
-            }
+    function clearAllHighlights() {
+        // 이미지 강조 제거
+        var gridDiv = document.getElementById('image-grid');
+        if (gridDiv) {
+            var highlightedImages = gridDiv.querySelectorAll('.image-card.highlight');
+            highlightedImages.forEach(function (card) { return card.classList.remove('highlight'); });
         }
-        // 유효한 이미지 인덱스인지 확인
-        if (textIndex > 0 && textIndex <= imageMappings.length) {
-            highlightImageCard(textIndex - 1);
-            utils.logDebug("\uD14D\uC2A4\uD2B8 \uC904 ".concat(lineNumber, " \uD074\uB9AD \u2192 \uC774\uBBF8\uC9C0 #").concat(textIndex, " \uAC15\uC870"));
+        // 텍스트 강조 제거
+        var container = document.getElementById('text-list-container');
+        if (container) {
+            var highlightedRows = container.querySelectorAll('.text-row.highlight');
+            highlightedRows.forEach(function (row) { return row.classList.remove('highlight'); });
         }
     }
     /**
-     * 줄 번호 클릭 핸들러 (해당 이미지 강조)
+     * 텍스트-이미지 쌍 강조 (클릭 시)
      */
-    function handleLineNumberClick(e, textArea) {
-        var utils = getUtils();
-        var lineNumbers = document.getElementById('line-numbers');
-        if (!lineNumbers)
-            return;
-        // 클릭 위치에서 줄 번호 계산
-        var clickY = e.offsetY;
-        var lineHeight = parseFloat(getComputedStyle(lineNumbers).lineHeight);
-        var lineNumber = Math.floor(clickY / lineHeight) + 1;
-        // 해당 줄의 텍스트 인덱스 계산
-        var lines = textArea.value.split('\n');
-        var textIndex = 0;
-        for (var i = 0; i < Math.min(lineNumber, lines.length); i++) {
-            if (lines[i].trim() !== '') {
-                textIndex++;
+    function highlightPair(index, scrollToImage) {
+        var _a;
+        if (scrollToImage === void 0) { scrollToImage = true; }
+        var gridDiv = document.getElementById('image-grid');
+        var container = document.getElementById('text-list-container');
+        // 모든 기존 강조 제거
+        clearAllHighlights();
+        // 이미지 강조
+        if (gridDiv && index < imageMappings.length) {
+            var imageId = (_a = imageMappings[index]) === null || _a === void 0 ? void 0 : _a.id;
+            if (imageId) {
+                var targetCard = gridDiv.querySelector("[data-image-id=\"".concat(imageId, "\"]"));
+                if (targetCard) {
+                    targetCard.classList.add('highlight');
+                    if (scrollToImage) {
+                        targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
             }
         }
-        // 유효한 이미지 인덱스인지 확인
-        if (textIndex > 0 && textIndex <= imageMappings.length) {
-            highlightImageCard(textIndex - 1);
-            utils.logDebug("\uC904 \uBC88\uD638 #".concat(textIndex, " \uD074\uB9AD \u2192 \uC774\uBBF8\uC9C0 #").concat(textIndex, " \uAC15\uC870"));
+        // 텍스트 강조
+        if (container) {
+            var rows = container.querySelectorAll('.text-row');
+            if (index >= 0 && index < rows.length) {
+                var targetRow = rows[index];
+                targetRow.classList.add('highlight');
+                if (!scrollToImage) {
+                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
         }
     }
     /**
-     * 이미지 카드 강조
+     * 이미지 카드 강조 (클릭 시) - 양쪽 모두 강조
      */
     function highlightImageCard(imageIndex) {
+        highlightPair(imageIndex, true); // 이미지로 스크롤
+    }
+    /**
+     * 이미지 카드 hover 강조 (텍스트 hover 시)
+     */
+    function hoverHighlightImageCard(imageIndex) {
         var _a;
         var gridDiv = document.getElementById('image-grid');
         if (!gridDiv)
             return;
-        // 기존 강조 제거
-        var previousHighlighted = gridDiv.querySelectorAll('.image-card.highlight');
-        previousHighlighted.forEach(function (card) { return card.classList.remove('highlight'); });
+        // 기존 hover 강조 제거
+        var previousHovered = gridDiv.querySelectorAll('.image-card.hover-highlight');
+        previousHovered.forEach(function (card) { return card.classList.remove('hover-highlight'); });
         // 해당 이미지 카드 찾기
         var imageId = (_a = imageMappings[imageIndex]) === null || _a === void 0 ? void 0 : _a.id;
         if (!imageId)
             return;
         var targetCard = gridDiv.querySelector("[data-image-id=\"".concat(imageId, "\"]"));
         if (targetCard) {
-            // 강조 효과 추가
-            targetCard.classList.add('highlight');
-            // 스크롤하여 보이게
-            targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // 3초 후 자동 제거
-            setTimeout(function () {
-                targetCard.classList.remove('highlight');
-            }, 3000);
+            // hover 강조 효과 추가
+            targetCard.classList.add('hover-highlight');
         }
     }
     /**
-     * 이미지 카드 클릭 핸들러 (해당 텍스트 강조)
+     * 이미지 카드 hover 강조 제거
+     */
+    function clearHoverHighlightImageCard() {
+        var gridDiv = document.getElementById('image-grid');
+        if (!gridDiv)
+            return;
+        var hovered = gridDiv.querySelectorAll('.image-card.hover-highlight');
+        hovered.forEach(function (card) { return card.classList.remove('hover-highlight'); });
+    }
+    /**
+     * 텍스트 행 hover 강조 (이미지 hover 시)
+     */
+    function hoverHighlightTextRow(rowIndex) {
+        var container = document.getElementById('text-list-container');
+        if (!container)
+            return;
+        // 기존 hover 강조 제거
+        var previousHovered = container.querySelectorAll('.text-row.hover-highlight');
+        previousHovered.forEach(function (row) { return row.classList.remove('hover-highlight'); });
+        // 해당 텍스트 행 찾기
+        var rows = container.querySelectorAll('.text-row');
+        if (rowIndex >= 0 && rowIndex < rows.length) {
+            var targetRow = rows[rowIndex];
+            targetRow.classList.add('hover-highlight');
+        }
+    }
+    /**
+     * 텍스트 행 hover 강조 제거
+     */
+    function clearHoverHighlightTextRow() {
+        var container = document.getElementById('text-list-container');
+        if (!container)
+            return;
+        var hovered = container.querySelectorAll('.text-row.hover-highlight');
+        hovered.forEach(function (row) { return row.classList.remove('hover-highlight'); });
+    }
+    /**
+     * 이미지 카드 클릭 핸들러 (해당 텍스트 행 강조)
      */
     function handleImageCardClick(imageIndex) {
         var utils = getUtils();
-        var textArea = document.getElementById('text-list');
-        if (!textArea)
+        var container = document.getElementById('text-list-container');
+        if (!container)
             return;
-        // 해당 텍스트 줄 찾기 (빈 줄 포함)
-        var lines = textArea.value.split('\n');
-        var textCount = 0;
-        var targetLineIndex = -1;
-        for (var i = 0; i < lines.length; i++) {
-            if (lines[i].trim() !== '') {
-                textCount++;
-                if (textCount === imageIndex + 1) {
-                    targetLineIndex = i;
-                    break;
-                }
+        // 텍스트와 이미지 양쪽 모두 강조 (텍스트로 스크롤)
+        highlightPair(imageIndex, false);
+        // 해당 텍스트 행 찾아서 포커스
+        var rows = container.querySelectorAll('.text-row');
+        if (imageIndex >= 0 && imageIndex < rows.length) {
+            var targetRow = rows[imageIndex];
+            var rowText = targetRow.querySelector('.row-text');
+            if (rowText) {
+                // 텍스트에 포커스
+                rowText.focus();
+                utils.logDebug("\uC774\uBBF8\uC9C0 #".concat(imageIndex + 1, " \uD074\uB9AD \u2192 \uC30D \uAC15\uC870 (\uD14D\uC2A4\uD2B8 + \uC774\uBBF8\uC9C0)"));
             }
         }
-        if (targetLineIndex === -1)
-            return;
-        // 해당 줄로 스크롤
-        var lineHeight = parseFloat(getComputedStyle(textArea).lineHeight);
-        var scrollTop = targetLineIndex * lineHeight;
-        textArea.scrollTop = scrollTop;
-        // 텍스트 영역에 일시적인 배경색 효과 (CSS 애니메이션 활용)
-        textArea.classList.add('highlight-line');
-        // 3초 후 자동 제거
-        setTimeout(function () {
-            textArea.classList.remove('highlight-line');
-        }, 3000);
-        utils.logDebug("\uC774\uBBF8\uC9C0 #".concat(imageIndex + 1, " \uD074\uB9AD \u2192 \uD14D\uC2A4\uD2B8 \uC904 ").concat(targetLineIndex + 1, " \uAC15\uC870"));
     }
     /**
      * 이미지 그리드 렌더링
@@ -1233,16 +1473,25 @@ var JSCEventManager = (function () {
                 cumulativeCaptionIndex_1 += mapping.captionCount;
                 // 카드 생성
                 var card = document.createElement('div');
-                card.className = 'image-card';
+                card.className = mapping.isPlaceholder ? 'image-card placeholder' : 'image-card';
                 card.dataset.imageId = mapping.id;
                 card.draggable = true;
-                // 텍스트 라벨 표시 (있으면)
+                // 텍스트 라벨 HTML (플레이스홀더와 일반 이미지 모두 사용)
                 var textLabelHtml = mapping.textLabel
                     ? "<div class=\"image-card-text\" title=\"".concat(mapping.textLabel, "\">\uD83D\uDCDD ").concat(mapping.textLabel, "</div>")
                     : '';
-                card.innerHTML = "\n                    <div class=\"image-card-number\">".concat(index + 1, "</div>\n                    <button class=\"image-card-remove\" data-image-id=\"").concat(mapping.id, "\">\u2715</button>\n                    <img class=\"image-card-thumbnail\" src=\"data:image/png;base64,").concat(mapping.thumbnail, "\" alt=\"").concat(mapping.fileName, "\">\n                    <div class=\"image-card-info\">\n                        ").concat(textLabelHtml, "\n                        <div class=\"image-card-filename\" title=\"").concat(mapping.fileName, "\">").concat(mapping.fileName, "</div>\n                        <div class=\"image-card-controls\">\n                            <span class=\"image-card-caption\">\uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, "</span>\n                            <select data-image-id=\"").concat(mapping.id, "\" class=\"image-card-caption-select\">\n                                ").concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) {
-                    return "<option value=\"".concat(n, "\" ").concat(n === mapping.captionCount ? 'selected' : '', ">").concat(n, "\uAC1C</option>");
-                }).join(''), "\n                            </select>\n                        </div>\n                    </div>\n                ");
+                // 플레이스홀더 카드 렌더링
+                if (mapping.isPlaceholder) {
+                    card.innerHTML = "\n                        <div class=\"image-card-number\">".concat(index + 1, "</div>\n                        <button class=\"image-card-remove\" data-image-id=\"").concat(mapping.id, "\">\u2715</button>\n                        <div class=\"image-card-thumbnail placeholder-thumbnail\">\n                            <div class=\"placeholder-icon\">\uD83C\uDFAC</div>\n                        </div>\n                        <div class=\"image-card-info\">\n                            ").concat(textLabelHtml, "\n                            <div class=\"image-card-filename\" title=\"\uBE44\uB514\uC624 \uAD6C\uAC04\">\uBE44\uB514\uC624 \uAD6C\uAC04</div>\n                            <div class=\"image-card-controls\">\n                                <span class=\"image-card-caption\">\uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, "</span>\n                                <select data-image-id=\"").concat(mapping.id, "\" class=\"image-card-caption-select\">\n                                    ").concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) {
+                        return "<option value=\"".concat(n, "\" ").concat(n === mapping.captionCount ? 'selected' : '', ">").concat(n, "\uAC1C</option>");
+                    }).join(''), "\n                                </select>\n                            </div>\n                        </div>\n                    ");
+                }
+                else {
+                    // 일반 이미지 카드 렌더링
+                    card.innerHTML = "\n                        <div class=\"image-card-number\">".concat(index + 1, "</div>\n                        <button class=\"image-card-remove\" data-image-id=\"").concat(mapping.id, "\">\u2715</button>\n                        <img class=\"image-card-thumbnail\" src=\"data:image/png;base64,").concat(mapping.thumbnail, "\" alt=\"").concat(mapping.fileName, "\">\n                        <div class=\"image-card-info\">\n                            ").concat(textLabelHtml, "\n                            <div class=\"image-card-filename\" title=\"").concat(mapping.fileName, "\">").concat(mapping.fileName, "</div>\n                            <div class=\"image-card-controls\">\n                                <span class=\"image-card-caption\">\uCEA1\uC158 ").concat(captionStart, "-").concat(captionEnd, "</span>\n                                <select data-image-id=\"").concat(mapping.id, "\" class=\"image-card-caption-select\">\n                                    ").concat([1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function (n) {
+                        return "<option value=\"".concat(n, "\" ").concat(n === mapping.captionCount ? 'selected' : '', ">").concat(n, "\uAC1C</option>");
+                    }).join(''), "\n                                </select>\n                            </div>\n                        </div>\n                    ");
+                }
                 gridDiv.appendChild(card);
                 // 이벤트 리스너
                 var removeBtn = card.querySelector('.image-card-remove');
@@ -1262,6 +1511,13 @@ var JSCEventManager = (function () {
                     }
                     handleImageCardClick(index);
                 });
+                // 이미지 카드 hover 이벤트 (텍스트 약하게 강조)
+                card.addEventListener('mouseenter', function () {
+                    hoverHighlightTextRow(index);
+                });
+                card.addEventListener('mouseleave', function () {
+                    clearHoverHighlightTextRow();
+                });
                 // 드래그 이벤트
                 card.addEventListener('dragstart', handlePreviewDragStart);
                 card.addEventListener('dragover', handlePreviewDragOver);
@@ -1269,6 +1525,8 @@ var JSCEventManager = (function () {
                 card.addEventListener('dragend', handlePreviewDragEnd);
             });
         }
+        // 이미지 개수가 변경되었으므로 줄 번호 업데이트
+        updateLineNumbers();
     }
     // updateImageSummary는 updateImageGrid의 별칭으로 사용
     function updateImageSummary() {
@@ -2412,12 +2670,53 @@ var JSCEventManager = (function () {
             dependencies: dependencies
         };
     }
+    /**
+     * 비디오 목업 생성
+     */
+    function createVideoPlaceholder(rowIndex) {
+        var utils = getUtils();
+        // 플레이스홀더 데이터 생성
+        var placeholder = {
+            id: 'placeholder-' + Date.now(),
+            filePath: '',
+            fileName: '비디오 구간',
+            thumbnail: '',
+            captionCount: 1,
+            isPlaceholder: true,
+            textLabel: textList[rowIndex] || ''
+        };
+        // 해당 위치에 플레이스홀더 삽입
+        imageMappings.splice(rowIndex, 0, placeholder);
+        utils.logInfo("\uBE44\uB514\uC624 \uBAA9\uC5C5 \uC0DD\uC131: \uD14D\uC2A4\uD2B8 \uD589 ".concat(rowIndex + 1));
+        // UI 업데이트
+        renderTextRows();
+        updateImageGrid();
+    }
+    /**
+     * 비디오 목업 제거
+     */
+    function removeVideoPlaceholder(rowIndex) {
+        var _a;
+        var utils = getUtils();
+        if (rowIndex >= imageMappings.length)
+            return;
+        if (!((_a = imageMappings[rowIndex]) === null || _a === void 0 ? void 0 : _a.isPlaceholder))
+            return;
+        // 플레이스홀더 제거
+        imageMappings.splice(rowIndex, 1);
+        utils.logInfo("\uBE44\uB514\uC624 \uBAA9\uC5C5 \uC81C\uAC70: \uD14D\uC2A4\uD2B8 \uD589 ".concat(rowIndex + 1));
+        // UI 업데이트
+        renderTextRows();
+        updateImageGrid();
+    }
     // 공개 API
     return {
         setupEventListeners: setupEventListeners,
         handleSoundFileButtonClick: handleSoundFileButtonClick,
         refreshSoundButtons: refreshSoundButtons, // 자동 새로고침을 위해 공개
-        getDIStatus: getDIStatus // DI 패턴 적용
+        getDIStatus: getDIStatus, // DI 패턴 적용
+        closeTextReplaceModal: closeTextReplaceModal, // 텍스트 교체 모달
+        executeTextReplace: executeTextReplace // 텍스트 교체 실행
     };
 })();
 // 전역 접근을 위해 window 객체에 노출

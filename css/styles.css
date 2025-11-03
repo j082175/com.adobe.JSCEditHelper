@@ -98,14 +98,18 @@ body {
 }
 
 /* 동기화 옵션 한 줄 레이아웃 */
-.sync-options-inline {
+.sync-options-inline,
+.magnet-options-inline,
+.sound-insert-inline {
     display: flex;
     align-items: center;
     gap: 12px;
     width: 100%;
 }
 
-.sync-options-inline label {
+.sync-options-inline label,
+.magnet-options-inline label,
+.sound-insert-inline label {
     font-size: 13px;
     font-weight: 500;
     color: var(--color-text-primary);
@@ -113,13 +117,17 @@ body {
     flex-shrink: 0;
 }
 
-.sync-options-inline select {
+.sync-options-inline select,
+.magnet-options-inline select,
+.sound-insert-inline select {
     flex: 0 1 auto;
     min-width: 80px;
     max-width: 150px;
 }
 
-.sync-options-inline button {
+.sync-options-inline button,
+.magnet-options-inline button,
+.sound-insert-inline button {
     flex: 1;
     white-space: nowrap;
 }
@@ -352,6 +360,11 @@ body {
     padding: 10px 12px;
     color: var(--color-text-primary);
     font-size: 13px;
+}
+
+.input-group button {
+    flex-shrink: 0;
+    min-width: 40px;
 }
 
 .input-group input:focus {

@@ -128,7 +128,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             executeSoundInsertion: (_config: any) => {
                 return Promise.resolve({ success: false, message: 'SoundEngine not available' });
             },
-            executeMagnetClips: () => {
+            executeMagnetClips: (_trackOption?: string) => {
                 return Promise.resolve({ success: false, message: 'SoundEngine not available' });
             },
             getEngineStatus: () => { return { isReady: false, dependencies: [] }; }
@@ -603,38 +603,42 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             const utils = getUtils();
             const uiManager = getUIManager();
             const soundEngine = getSoundEngine();
-            
+
             utils.debugLog("magnetClips() called");
-            
+
             // Check if SoundEngine is available
             if (!soundEngine) {
                 uiManager.updateStatus("SoundEngine 모듈이 로드되지 않았습니다. 페이지를 새로고침하세요.", false);
                 utils.logError('SoundEngine not available');
                 return;
             }
-            
+
             // 엔진 상태 확인
             const engineStatus = soundEngine.getEngineStatus();
             if (!engineStatus.isReady) {
                 uiManager.updateStatus(
-                    `필요한 모듈이 로드되지 않았습니다: ${engineStatus.dependencies.join(', ')}`, 
+                    `필요한 모듈이 로드되지 않았습니다: ${engineStatus.dependencies.join(', ')}`,
                     false
                 );
                 return;
             }
-            
+
+            // 트랙 선택 옵션 읽기
+            const trackSelect = document.getElementById("magnet-video-track") as HTMLSelectElement;
+            const trackOption = trackSelect ? trackSelect.value : "auto";
+
             // UI 상태 업데이트
             uiManager.updateStatus("클립 자동 정렬 중...", true);
             uiManager.resetDebugUI();
-            
+
             const magnetStatus = document.getElementById("magnetStatus");
             if (magnetStatus) {
                 magnetStatus.textContent = "처리 중...";
                 magnetStatus.style.color = "#007acc";
             }
-            
+
             // SoundEngine으로 마그넷 기능 실행
-            const result = await soundEngine.executeMagnetClips();
+            const result = await soundEngine.executeMagnetClips(trackOption);
             
             // 결과 처리
             if (result.success) {

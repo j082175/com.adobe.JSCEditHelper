@@ -220,13 +220,14 @@ const SoundEngine = (function() {
     /**
      * 클립 자동 정렬(마그넷) 실행
      */
-    async function executeMagnetClips(): Promise<SoundEngineResult> {
+    async function executeMagnetClips(trackOption: string = "auto"): Promise<SoundEngineResult> {
         const startTime = performance.now();
         let debugInfo = `클립 자동 정렬 시작 - ${new Date().toISOString()}\n`;
+        debugInfo += `트랙 옵션: ${trackOption}\n`;
 
         try {
             // 1. 클립 정보 수집
-            const clipsResult = await getAllClipsInSequence();
+            const clipsResult = await getAllClipsInSequence(trackOption);
             if (!clipsResult.success) {
                 return {
                     success: false,
@@ -393,10 +394,10 @@ const SoundEngine = (function() {
     /**
      * 시퀀스 내 모든 클립 정보 수집
      */
-    async function getAllClipsInSequence(): Promise<SoundEngineResult> {
+    async function getAllClipsInSequence(trackOption: string = "auto"): Promise<SoundEngineResult> {
         const command: ExtendScriptCommand = {
             action: 'getAllClips',
-            data: {},
+            data: { trackOption },
             requestId: generateRequestId()
         };
 

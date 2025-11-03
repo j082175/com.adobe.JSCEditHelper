@@ -214,7 +214,7 @@ function executeSoundEngineCommand(commandJson) {
             case 'getSelectedClips':
                 return getSelectedClipsCommand();
             case 'getAllClips':
-                return getAllClipsCommand();
+                return getAllClipsCommand(command.data);
             case 'executeInsertionPlan':
                 return executeInsertionPlanCommand(command.data);
             case 'executeMagnetPlan':
@@ -364,7 +364,7 @@ function getSelectedClipsCommand() {
 /**
  * 시퀀스 내 모든 클립 정보 가져오기
  */
-function getAllClipsCommand() {
+function getAllClipsCommand(data) {
     try {
         var seq = app.project.activeSequence;
         if (!seq) {
@@ -373,77 +373,102 @@ function getAllClipsCommand() {
                 message: "활성화된 시퀀스가 없습니다."
             });
         }
-        
+
+        var trackOption = data && data.trackOption ? data.trackOption : "auto";
         var allClips = [];
         var videoTracks = seq.videoTracks;
-        
-        // 활성화된 트랙 찾기
-        var activeTrackIndex = -1;
-        var debugLog = "=== 클립 자동 정렬 - 활성 트랙 검색 ===\n";
-        
-        // 방법 1: 선택된 클립이 있는 트랙 찾기
-        debugLog += "선택된 클립으로 활성 트랙 검색 중...\n";
-        for (var trackIndex = 0; trackIndex < videoTracks.numTracks; trackIndex++) {
-            var track = videoTracks[trackIndex];
-            var clips = track.clips;
-            
-            for (var clipIndex = 0; clipIndex < clips.numItems; clipIndex++) {
-                var clip = clips[clipIndex];
-                if (clip.isSelected()) {
-                    activeTrackIndex = trackIndex;
-                    debugLog += "✅ 선택된 클립 발견 - 트랙 " + (trackIndex + 1) + " 활성으로 설정\n";
-                    break;
-                }
-            }
-            if (activeTrackIndex >= 0) break;
-        }
-        
-        // 방법 2: 선택된 클립이 없으면 track targeting (파란색 불)이 활성화된 트랙 검색
-        if (activeTrackIndex < 0) {
-            debugLog += "선택된 클립 없음 - track targeting 활성화된 트랙 검색 중...\n";
-            for (var trackIndex = 0; trackIndex < videoTracks.numTracks; trackIndex++) {
-                var track = videoTracks[trackIndex];
-                try {
-                    // track targeting 상태 확인 (파란색 불)
-                    if (track.isTargeted && track.isTargeted()) {
-                        activeTrackIndex = trackIndex;
-                        debugLog += "✅ Track targeting 활성화된 트랙 발견 - 트랙 " + (trackIndex + 1) + " 활성으로 설정\n";
-                        break;
-                    }
-                } catch (e) {
-                    debugLog += "⚠️ 트랙 " + (trackIndex + 1) + " targeting 상태 확인 실패: " + e.message + "\n";
-                }
-            }
-            
-            // track targeting이 없으면 첫 번째 비어있지 않은 트랙으로 fallback
-            if (activeTrackIndex < 0) {
-                debugLog += "Track targeting 트랙 없음 - 첫 번째 비어있지 않은 트랙으로 fallback...\n";
-                for (var trackIndex = 0; trackIndex < videoTracks.numTracks; trackIndex++) {
-                    var track = videoTracks[trackIndex];
-                    if (track.clips.numItems > 0) {
-                        activeTrackIndex = trackIndex;
-                        debugLog += "✅ 첫 번째 비어있지 않은 트랙 발견 - 트랙 " + (trackIndex + 1) + " 활성으로 설정 (fallback)\n";
-                        break;
-                    }
-                }
-            }
-        }
-        
-        // 활성화된 트랙이 없으면 모든 트랙 처리 (기존 방식)
         var tracksToProcess = [];
-        if (activeTrackIndex >= 0) {
-            tracksToProcess.push(activeTrackIndex);
-            debugLog += "📍 활성 트랙 " + (activeTrackIndex + 1) + "만 처리 예정\n";
-            debugWriteln("클립 자동 정렬: 활성 트랙 " + (activeTrackIndex + 1) + "만 처리");
-        } else {
-            // 모든 트랙 처리 (fallback)
+        var debugLog = "=== 클립 자동 정렬 - 트랙 선택 ===\n";
+        debugLog += "트랙 옵션: " + trackOption + "\n";
+
+        // trackOption에 따라 처리할 트랙 결정
+        if (trackOption === "all") {
+            // 모든 트랙 처리
             for (var i = 0; i < videoTracks.numTracks; i++) {
                 tracksToProcess.push(i);
             }
-            debugLog += "⚠️ 활성 트랙 없음 - 모든 트랙 " + videoTracks.numTracks + "개 처리 예정\n";
-            debugWriteln("클립 자동 정렬: 활성 트랙 없음, 모든 트랙 처리");
+            debugLog += "📍 모든 트랙 " + videoTracks.numTracks + "개 처리 예정\n";
+            debugWriteln("클립 자동 정렬: 모든 트랙 처리");
+
+        } else if (trackOption !== "auto" && !isNaN(parseInt(trackOption))) {
+            // 특정 트랙 처리
+            var specificTrackIndex = parseInt(trackOption);
+            if (specificTrackIndex >= 0 && specificTrackIndex < videoTracks.numTracks) {
+                tracksToProcess.push(specificTrackIndex);
+                debugLog += "📍 트랙 " + (specificTrackIndex + 1) + "만 처리 예정\n";
+                debugWriteln("클립 자동 정렬: 트랙 " + (specificTrackIndex + 1) + "만 처리");
+            } else {
+                debugLog += "⚠️ 잘못된 트랙 인덱스: " + specificTrackIndex + "\n";
+            }
+
+        } else {
+            // auto: 자동 감지 (기존 로직)
+            var activeTrackIndex = -1;
+            debugLog += "자동 트랙 감지 시작...\n";
+
+            // 방법 1: 선택된 클립이 있는 트랙 찾기
+            debugLog += "선택된 클립으로 활성 트랙 검색 중...\n";
+            for (var trackIndex = 0; trackIndex < videoTracks.numTracks; trackIndex++) {
+                var track = videoTracks[trackIndex];
+                var clips = track.clips;
+
+                for (var clipIndex = 0; clipIndex < clips.numItems; clipIndex++) {
+                    var clip = clips[clipIndex];
+                    if (clip.isSelected()) {
+                        activeTrackIndex = trackIndex;
+                        debugLog += "✅ 선택된 클립 발견 - 트랙 " + (trackIndex + 1) + " 활성으로 설정\n";
+                        break;
+                    }
+                }
+                if (activeTrackIndex >= 0) break;
+            }
+
+            // 방법 2: 선택된 클립이 없으면 track targeting (파란색 불)이 활성화된 트랙 검색
+            if (activeTrackIndex < 0) {
+                debugLog += "선택된 클립 없음 - track targeting 활성화된 트랙 검색 중...\n";
+                for (var trackIndex = 0; trackIndex < videoTracks.numTracks; trackIndex++) {
+                    var track = videoTracks[trackIndex];
+                    try {
+                        // track targeting 상태 확인 (파란색 불)
+                        if (track.isTargeted && track.isTargeted()) {
+                            activeTrackIndex = trackIndex;
+                            debugLog += "✅ Track targeting 활성화된 트랙 발견 - 트랙 " + (trackIndex + 1) + " 활성으로 설정\n";
+                            break;
+                        }
+                    } catch (e) {
+                        debugLog += "⚠️ 트랙 " + (trackIndex + 1) + " targeting 상태 확인 실패: " + e.message + "\n";
+                    }
+                }
+
+                // track targeting이 없으면 첫 번째 비어있지 않은 트랙으로 fallback
+                if (activeTrackIndex < 0) {
+                    debugLog += "Track targeting 트랙 없음 - 첫 번째 비어있지 않은 트랙으로 fallback...\n";
+                    for (var trackIndex = 0; trackIndex < videoTracks.numTracks; trackIndex++) {
+                        var track = videoTracks[trackIndex];
+                        if (track.clips.numItems > 0) {
+                            activeTrackIndex = trackIndex;
+                            debugLog += "✅ 첫 번째 비어있지 않은 트랙 발견 - 트랙 " + (trackIndex + 1) + " 활성으로 설정 (fallback)\n";
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // 활성화된 트랙이 없으면 모든 트랙 처리 (기존 방식)
+            if (activeTrackIndex >= 0) {
+                tracksToProcess.push(activeTrackIndex);
+                debugLog += "📍 활성 트랙 " + (activeTrackIndex + 1) + "만 처리 예정\n";
+                debugWriteln("클립 자동 정렬: 활성 트랙 " + (activeTrackIndex + 1) + "만 처리");
+            } else {
+                // 모든 트랙 처리 (fallback)
+                for (var i = 0; i < videoTracks.numTracks; i++) {
+                    tracksToProcess.push(i);
+                }
+                debugLog += "⚠️ 활성 트랙 없음 - 모든 트랙 " + videoTracks.numTracks + "개 처리 예정\n";
+                debugWriteln("클립 자동 정렬: 활성 트랙 없음, 모든 트랙 처리");
+            }
         }
-        
+
         debugWriteln(debugLog);
         
         // 지정된 트랙들의 클립만 처리

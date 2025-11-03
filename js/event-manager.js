@@ -169,7 +169,7 @@ var JSCEventManager = (function () {
             executeSoundInsertion: function (_config) {
                 return Promise.resolve({ success: false, message: 'SoundEngine not available' });
             },
-            executeMagnetClips: function () {
+            executeMagnetClips: function (_trackOption) {
                 return Promise.resolve({ success: false, message: 'SoundEngine not available' });
             },
             getEngineStatus: function () { return { isReady: false, dependencies: [] }; }
@@ -630,7 +630,7 @@ var JSCEventManager = (function () {
     // 클립 자동 정렬 처리 (새로운 SoundEngine 사용)
     function magnetClips() {
         return __awaiter(this, void 0, void 0, function () {
-            var utils, uiManager, soundEngine, engineStatus, magnetStatus, result, e_2, utils, uiManager;
+            var utils, uiManager, soundEngine, engineStatus, trackSelect, trackOption, magnetStatus, result, e_2, utils, uiManager;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
@@ -650,6 +650,8 @@ var JSCEventManager = (function () {
                             uiManager.updateStatus("\uD544\uC694\uD55C \uBAA8\uB4C8\uC774 \uB85C\uB4DC\uB418\uC9C0 \uC54A\uC558\uC2B5\uB2C8\uB2E4: ".concat(engineStatus.dependencies.join(', ')), false);
                             return [2 /*return*/];
                         }
+                        trackSelect = document.getElementById("magnet-video-track");
+                        trackOption = trackSelect ? trackSelect.value : "auto";
                         // UI 상태 업데이트
                         uiManager.updateStatus("클립 자동 정렬 중...", true);
                         uiManager.resetDebugUI();
@@ -658,7 +660,7 @@ var JSCEventManager = (function () {
                             magnetStatus.textContent = "처리 중...";
                             magnetStatus.style.color = "#007acc";
                         }
-                        return [4 /*yield*/, soundEngine.executeMagnetClips()];
+                        return [4 /*yield*/, soundEngine.executeMagnetClips(trackOption)];
                     case 1:
                         result = _a.sent();
                         // 결과 처리

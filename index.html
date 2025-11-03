@@ -15,29 +15,14 @@
 
         <!-- 탭 네비게이션 -->
         <div class="tabs-navigation">
-            <button class="tab-button active" data-tab="clip">🧲 클립 정렬</button>
-            <button class="tab-button" data-tab="sound">🎵 효과음</button>
+            <button class="tab-button active" data-tab="sound">🎵 효과음</button>
             <button class="tab-button" data-tab="image">🎬 이미지 매칭</button>
+            <button class="tab-button" data-tab="clip">🧲 클립 정렬</button>
             <button class="tab-button" data-tab="dev">🛠️ 개발자</button>
         </div>
 
-        <!-- 탭 1: 클립 정렬 -->
-        <div class="tab-content active" id="tab-clip">
-            <div class="quick-actions">
-            <div class="action-card primary-card">
-                <div class="card-header">
-                    <h2>🧲 클립 자동 정렬</h2>
-                    <span class="shortcut-badge">Ctrl+Shift+M</span>
-                </div>
-                <p class="card-description">클립 사이 빈 공간 제거</p>
-                <button id="magnetClips" class="btn-primary">정렬 실행</button>
-                <div id="magnetStatus" class="status-indicator"></div>
-            </div>
-            </div>
-        </div>
-
-        <!-- 탭 2: 효과음 -->
-        <div class="tab-content" id="tab-sound">
+        <!-- 탭 1: 효과음 -->
+        <div class="tab-content active" id="tab-sound">
 
         <!-- 효과음 관리 섹션 -->
         <div class="workflow-section">
@@ -53,32 +38,28 @@
                 <div class="action-card">
                     <div class="card-header">
                         <h3>📁 폴더 설정</h3>
-                        <span class="shortcut-badge">Ctrl+Shift+B</span>
                     </div>
                     <div class="input-group">
                         <input type="text" id="sound-folder" placeholder="효과음 폴더를 선택하세요..." readonly>
                         <button id="browseFolder" class="btn-secondary">찾아보기</button>
+                        <button id="refreshSounds" class="btn-secondary" disabled>🔄</button>
                     </div>
-                    <button id="refreshSounds" class="btn-text" disabled>🔄 새로고침</button>
                 </div>
 
                 <!-- 효과음 삽입 카드 -->
                 <div class="action-card">
                     <div class="card-header">
                         <h3>🎵 효과음 삽입</h3>
-                        <span class="shortcut-badge">Ctrl+Shift+I</span>
                     </div>
-                    <div class="form-group compact">
-                        <label for="audio-track">삽입 트랙:</label>
-                    </div>
-                    <div class="inline-controls">
-                        <select id="audio-track" class="select-modern flex-item">
+                    <div class="sound-insert-inline">
+                        <label for="audio-track">⚙️ 오디오 트랙:</label>
+                        <select id="audio-track" class="select-modern">
                             <option value="auto">자동 선택</option>
                             <option value="1">오디오 트랙 1</option>
                             <option value="2">오디오 트랙 2</option>
                             <option value="3">오디오 트랙 3</option>
                         </select>
-                        <button id="insert-sounds" class="btn-primary flex-item">효과음 삽입</button>
+                        <button id="insert-sounds" class="btn-primary">효과음 삽입</button>
                     </div>
                 </div>
             </div>
@@ -125,7 +106,7 @@
 
         </div>
 
-        <!-- 탭 3: 이미지 매칭 -->
+        <!-- 탭 2: 이미지 매칭 -->
         <div class="tab-content" id="tab-image">
 
         <!-- 캡션-이미지 동기화 섹션 -->
@@ -192,6 +173,31 @@
             </div>
         </div>
 
+        </div>
+
+        <!-- 탭 3: 클립 정렬 -->
+        <div class="tab-content" id="tab-clip">
+            <div class="quick-actions">
+            <div class="action-card primary-card">
+                <div class="card-header">
+                    <h2>🧲 클립 자동 정렬</h2>
+                </div>
+                <p class="card-description">클립 사이 빈 공간 제거</p>
+                <div class="magnet-options-inline">
+                    <label for="magnet-video-track">⚙️ 비디오 트랙:</label>
+                    <select id="magnet-video-track" class="select-modern">
+                        <option value="auto">자동 선택</option>
+                        <option value="0">V1 트랙</option>
+                        <option value="1">V2 트랙</option>
+                        <option value="2">V3 트랙</option>
+                        <option value="3">V4 트랙</option>
+                        <option value="all">모든 트랙</option>
+                    </select>
+                    <button id="magnetClips" class="btn-primary">정렬 실행</button>
+                </div>
+                <div id="magnetStatus" class="status-indicator"></div>
+            </div>
+            </div>
         </div>
 
         <!-- 탭 4: 개발자 도구 -->

@@ -266,17 +266,19 @@ var SoundEngine = (function () {
      * 클립 자동 정렬(마그넷) 실행
      */
     function executeMagnetClips() {
-        return __awaiter(this, void 0, void 0, function () {
+        return __awaiter(this, arguments, void 0, function (trackOption) {
             var startTime, debugInfo, clipsResult, clips, clipCalculator, magnetPlan, command, executionResult, executionTime, error_2, executionTime;
+            if (trackOption === void 0) { trackOption = "auto"; }
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
                         startTime = performance.now();
                         debugInfo = "\uD074\uB9BD \uC790\uB3D9 \uC815\uB82C \uC2DC\uC791 - ".concat(new Date().toISOString(), "\n");
+                        debugInfo += "\uD2B8\uB799 \uC635\uC158: ".concat(trackOption, "\n");
                         _a.label = 1;
                     case 1:
                         _a.trys.push([1, 4, , 5]);
-                        return [4 /*yield*/, getAllClipsInSequence()];
+                        return [4 /*yield*/, getAllClipsInSequence(trackOption)];
                     case 2:
                         clipsResult = _a.sent();
                         if (!clipsResult.success) {
@@ -447,14 +449,15 @@ var SoundEngine = (function () {
      * 시퀀스 내 모든 클립 정보 수집
      */
     function getAllClipsInSequence() {
-        return __awaiter(this, void 0, void 0, function () {
+        return __awaiter(this, arguments, void 0, function (trackOption) {
             var command;
+            if (trackOption === void 0) { trackOption = "auto"; }
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
                         command = {
                             action: 'getAllClips',
-                            data: {},
+                            data: { trackOption: trackOption },
                             requestId: generateRequestId()
                         };
                         return [4 /*yield*/, executeExtendScriptCommand(command)];

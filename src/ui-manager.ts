@@ -140,7 +140,7 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
         // 오른쪽 클릭으로 미리보기 재생/정지 토글
         button.addEventListener('contextmenu', async function(event: MouseEvent) {
             event.preventDefault(); // 기본 컨텍스트 메뉴 방지
-            
+
             try {
                 const audioPreview = (window as any).AudioPreviewManager;
                 if (audioPreview) {

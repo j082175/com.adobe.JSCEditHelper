@@ -79,7 +79,16 @@
                     <span class="status-label">현재 폴더:</span>
                     <span id="folderPathSpan" class="folder-path">폴더가 선택되지 않음</span>
                 </div>
-                
+
+                <!-- 미리보기 볼륨 조절 -->
+                <div class="preview-volume-control">
+                    <label for="previewVolumeSlider" class="volume-label">
+                        🔊 미리보기 볼륨:
+                    </label>
+                    <input type="range" id="previewVolumeSlider" min="0" max="100" value="100" step="1" class="volume-slider">
+                    <span id="previewVolumeValue" class="volume-value">100%</span>
+                </div>
+
                 <div id="individualSoundButtonsContainer" class="sound-grid">
                     <div id="soundButtonPlaceholder" class="empty-state">
                         <div class="empty-icon">🎵</div>

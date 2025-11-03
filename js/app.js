@@ -83,6 +83,32 @@ var JSCApp = (function () {
         };
         return (window.JSCUtils || fallback);
     }
+    // 미리보기 볼륨 슬라이더 설정
+    function setupPreviewVolumeSlider() {
+        var slider = document.getElementById('previewVolumeSlider');
+        var valueDisplay = document.getElementById('previewVolumeValue');
+        if (!slider || !valueDisplay) {
+            getUtils().logWarn('볼륨 슬라이더 요소를 찾을 수 없음');
+            return;
+        }
+        // localStorage에서 저장된 볼륨 로드
+        var savedVolume = localStorage.getItem('audioPreviewVolume');
+        if (savedVolume) {
+            slider.value = savedVolume;
+            valueDisplay.textContent = "".concat(savedVolume, "%");
+        }
+        // 슬라이더 변경 이벤트
+        slider.addEventListener('input', function (e) {
+            var target = e.target;
+            var value = target.value;
+            // UI 업데이트
+            valueDisplay.textContent = "".concat(value, "%");
+            // localStorage에 저장
+            localStorage.setItem('audioPreviewVolume', value);
+            getUtils().logDebug("\uBBF8\uB9AC\uBCF4\uAE30 \uBCFC\uB968 \uC124\uC815: ".concat(value, "%"));
+        });
+        getUtils().logDebug('미리보기 볼륨 슬라이더 초기화 완료');
+    }
     // 디버그 UI 설정
     function setupDebugUI() {
         // 이미 존재하는지 확인
@@ -233,6 +259,8 @@ var JSCApp = (function () {
             stateManager_1.initializeFolderPath();
             // 이벤트 리스너 설정
             eventManager_1.setupEventListeners();
+            // 미리보기 볼륨 슬라이더 초기화
+            setupPreviewVolumeSlider();
             // 워크스페이스 리스너 제거 - Premiere Pro가 완전히 관리하도록 함
             // setupSafeWorkspaceListener(csInterface, uiManager, stateManager, eventManager);
             // 저장된 폴더에서 자동 로드

@@ -151,12 +151,28 @@ var AudioPreviewManager = (function () {
     var fadeInterval = null;
     // 기본 설정
     var defaultConfig = {
-        volume: 0.7,
+        volume: 1.0, // 각 오디오 파일의 원본 볼륨이 다르므로 최대 볼륨 사용
         maxDuration: 10, // 10초 최대 재생
-        fadeInDuration: 0.5,
+        fadeInDuration: 0, // 페이드인 사용 안 함 (즉시 재생)
         fadeOutDuration: 1.0
     };
     var config = __assign({}, defaultConfig);
+    /**
+     * localStorage에서 미리보기 볼륨 가져오기
+     */
+    function getPreviewVolume() {
+        try {
+            var saved = localStorage.getItem('audioPreviewVolume');
+            if (saved) {
+                var volume = parseInt(saved, 10) / 100; // 0-100 → 0-1
+                return Math.max(0, Math.min(1, volume)); // 0-1 범위로 제한
+            }
+        }
+        catch (e) {
+            getUtils().logWarn('볼륨 설정 로드 실패');
+        }
+        return 1.0; // 기본값
+    }
     /**
      * 미리보기 설정 업데이트
      */
@@ -195,8 +211,8 @@ var AudioPreviewManager = (function () {
                     // HTML5 Audio 객체 생성
                     currentAudio = new Audio(fileUrl);
                     currentButton = buttonElement || null;
-                    // 오디오 설정
-                    currentAudio.volume = 0; // 페이드인을 위해 0으로 시작
+                    // 오디오 설정 (사용자 설정 볼륨 적용)
+                    currentAudio.volume = getPreviewVolume();
                     currentAudio.preload = 'auto';
                     // 이벤트 리스너 설정
                     return [2 /*return*/, new Promise(function (resolve) {
@@ -220,8 +236,6 @@ var AudioPreviewManager = (function () {
                                     currentButton.style.backgroundColor = '#4CAF50';
                                     currentButton.style.transform = 'scale(0.95)';
                                 }
-                                // 페이드인 효과
-                                startFadeIn();
                                 // UI 상태 업데이트
                                 getUIManager().updateStatus('🔊 미리보기 재생 중...', true);
                                 resolve({
@@ -230,10 +244,10 @@ var AudioPreviewManager = (function () {
                                     duration: (currentAudio === null || currentAudio === void 0 ? void 0 : currentAudio.duration) || undefined
                                 });
                             });
-                            // 재생 종료 시
+                            // 재생 종료 시 (자연스럽게 끝났을 때는 즉시 정지)
                             currentAudio.addEventListener('ended', function () {
                                 getUtils().logDebug('미리보기 재생 완료');
-                                stopCurrentPreview();
+                                stopCurrentPreviewImmediately();
                             });
                             // 오류 발생 시
                             currentAudio.addEventListener('error', function (e) {
@@ -287,6 +301,11 @@ var AudioPreviewManager = (function () {
      */
     function stopCurrentPreview() {
         try {
+            // 페이드 인터벌 정리
+            if (fadeInterval) {
+                clearInterval(fadeInterval);
+                fadeInterval = null;
+            }
             if (currentAudio) {
                 // 페이드아웃 시작
                 startFadeOut(function () {
@@ -295,21 +314,26 @@ var AudioPreviewManager = (function () {
                         currentAudio.currentTime = 0;
                         currentAudio = null;
                     }
+                    // 페이드아웃 완료 후 버튼 상태 복원
+                    if (currentButton) {
+                        currentButton.style.backgroundColor = '';
+                        currentButton.style.transform = '';
+                        currentButton = null;
+                    }
+                    // UI 상태 업데이트
+                    getUIManager().updateStatus('미리보기 정지됨', true);
                 });
             }
-            // 버튼 상태 복원
-            if (currentButton) {
-                currentButton.style.backgroundColor = '';
-                currentButton.style.transform = '';
-                currentButton = null;
+            else {
+                // currentAudio가 없으면 즉시 버튼만 복원
+                if (currentButton) {
+                    currentButton.style.backgroundColor = '';
+                    currentButton.style.transform = '';
+                    currentButton = null;
+                }
+                // UI 상태 업데이트
+                getUIManager().updateStatus('미리보기 정지됨', true);
             }
-            // 페이드 인터벌 정리
-            if (fadeInterval) {
-                clearInterval(fadeInterval);
-                fadeInterval = null;
-            }
-            // UI 상태 업데이트
-            getUIManager().updateStatus('미리보기 정지됨', true);
         }
         catch (error) {
             getUtils().logWarn("\uBBF8\uB9AC\uBCF4\uAE30 \uC815\uC9C0 \uC911 \uC624\uB958: ".concat(error.message));
@@ -338,23 +362,37 @@ var AudioPreviewManager = (function () {
                 currentButton = null;
             }
             // UI 상태 업데이트
-            getUIManager().updateStatus('🔇 미리보기 즉시 정지됨', true);
+            getUIManager().updateStatus('🔇 미리보기 정지됨', true);
         }
         catch (error) {
             getUtils().logWarn("\uBBF8\uB9AC\uBCF4\uAE30 \uC989\uC2DC \uC815\uC9C0 \uC911 \uC624\uB958: ".concat(error.message));
         }
     }
     /**
-     * 페이드인 효과
+     * 페이드인 효과 (현재 사용 안 함 - 즉시 재생)
      */
-    function startFadeIn() {
-        if (!currentAudio)
+    /*
+    function startFadeIn(): void {
+        if (!currentAudio) {
+            getUtils().logDebug(`🎵 [FadeIn] ❌ currentAudio가 null이어서 페이드인 중단`);
             return;
-        var targetVolume = config.volume;
-        var stepCount = Math.floor(config.fadeInDuration * 20); // 50ms 간격
-        var volumeStep = targetVolume / stepCount;
-        var currentStep = 0;
-        fadeInterval = setInterval(function () {
+        }
+
+        // 기존 페이드 인터벌 정리 (중복 방지)
+        if (fadeInterval) {
+            getUtils().logDebug(`🎵 [FadeIn] 기존 fadeInterval 정리`);
+            clearInterval(fadeInterval);
+            fadeInterval = null;
+        }
+
+        const targetVolume = config.volume;
+        const stepCount = Math.floor(config.fadeInDuration * 20); // 50ms 간격
+        const volumeStep = targetVolume / stepCount;
+        let currentStep = 0;
+
+        getUtils().logDebug(`🎵 [FadeIn] 시작 - targetVolume: ${targetVolume}, stepCount: ${stepCount}, volumeStep: ${volumeStep}, initialVolume: ${currentAudio.volume}`);
+
+        fadeInterval = setInterval(() => {
             if (!currentAudio || currentStep >= stepCount) {
                 if (fadeInterval) {
                     clearInterval(fadeInterval);
@@ -362,13 +400,25 @@ var AudioPreviewManager = (function () {
                 }
                 if (currentAudio) {
                     currentAudio.volume = targetVolume;
+                    getUtils().logDebug(`🎵 [FadeIn] ✅ 완료 - 최종 volume: ${currentAudio.volume}`);
+                } else {
+                    getUtils().logDebug(`🎵 [FadeIn] ❌ currentAudio가 null이 됨`);
                 }
                 return;
             }
-            currentAudio.volume = Math.min(targetVolume, volumeStep * currentStep);
+
+            const newVolume = Math.min(targetVolume, volumeStep * currentStep);
+            currentAudio.volume = newVolume;
+
+            // 5단계마다 로그 (너무 많은 로그 방지)
+            if (currentStep % 5 === 0 || currentStep === 0) {
+                getUtils().logDebug(`🎵 [FadeIn] Step ${currentStep}/${stepCount} - volume: ${newVolume.toFixed(3)}`);
+            }
+
             currentStep++;
-        }, 50);
+        }, 50) as any;
     }
+    */
     /**
      * 페이드아웃 효과
      */
@@ -377,6 +427,11 @@ var AudioPreviewManager = (function () {
             if (onComplete)
                 onComplete();
             return;
+        }
+        // 기존 페이드 인터벌 정리 (중복 방지)
+        if (fadeInterval) {
+            clearInterval(fadeInterval);
+            fadeInterval = null;
         }
         var initialVolume = currentAudio.volume;
         var stepCount = Math.floor(config.fadeOutDuration * 20); // 50ms 간격

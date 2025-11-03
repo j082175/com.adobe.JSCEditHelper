@@ -2475,19 +2475,29 @@ function insertImageAtTime(imagePath, trackIndex, startTime, endTime) {
         }
         debugLog += "이미지 파일 확인됨\n";
 
-        debugLog += "프로젝트에 임포트 시작...\n";
-        app.project.importFiles([imagePath], true, app.project.rootItem, false);
-        debugLog += "임포트 완료\n";
+        // 기존 프로젝트 아이템 먼저 확인 (재사용)
+        var projectItem = findProjectItemByFilePath(imagePath);
 
-        var fileName = imagePath.split("\\").pop().split("/").pop();
-        debugLog += "파일명: " + fileName + "\n";
+        if (projectItem) {
+            debugLog += "✅ 기존 프로젝트 아이템 발견, 임포트 생략: " + projectItem.name + "\n";
+            debugWriteln("✅ 기존 프로젝트 아이템 재사용: " + projectItem.name);
+        } else {
+            // 없으면 새로 임포트
+            debugLog += "프로젝트에 임포트 시작...\n";
+            app.project.importFiles([imagePath], true, app.project.rootItem, false);
+            debugLog += "임포트 완료\n";
 
-        var projectItem = findProjectItemByName(fileName);
-        if (!projectItem) {
-            debugLog += "ERROR: 프로젝트 아이템을 찾을 수 없음\n";
-            return JSCEditHelperJSON.stringify({success: false, message: "이미지를 임포트할 수 없습니다", debug: debugLog});
+            var fileName = imagePath.split("\\").pop().split("/").pop();
+            debugLog += "파일명: " + fileName + "\n";
+
+            projectItem = findProjectItemByName(fileName);
+            if (!projectItem) {
+                debugLog += "ERROR: 프로젝트 아이템을 찾을 수 없음\n";
+                return JSCEditHelperJSON.stringify({success: false, message: "이미지를 임포트할 수 없습니다", debug: debugLog});
+            }
+            debugLog += "✅ 새로운 이미지 임포트 완료: " + projectItem.name + "\n";
+            debugWriteln("✅ 새로운 이미지 임포트 완료: " + projectItem.name);
         }
-        debugLog += "프로젝트 아이템 발견: " + projectItem.name + "\n";
 
         // ✨ 사전 트림: 프로젝트 아이템의 길이를 미리 설정 (사운드 로직과 동일)
         debugLog += "=== 삽입 전 사전 트림 시도 ===\n";

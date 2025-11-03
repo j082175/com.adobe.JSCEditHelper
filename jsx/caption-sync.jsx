@@ -11,18 +11,29 @@ debugWriteln("=== Caption-Sync Module Loading ===");
  * 프로젝트에서 파일 경로로 기존 아이템 찾기
  */
 function findProjectItemByFilePath(filePath) {
+    debugWriteln("=== 기존 이미지 검색 시작 ===");
+    debugWriteln("검색할 경로: " + filePath);
+
     function searchInBin(bin) {
         for (var i = 0; i < bin.children.numItems; i++) {
             var item = bin.children[i];
             if (item.type === ProjectItemType.CLIP || item.type === ProjectItemType.FILE) {
                 // 실제 파일 경로 확인
-                if (item.getMediaPath && item.getMediaPath() === filePath) {
-                    return item;
+                var itemPath = item.getMediaPath ? item.getMediaPath() : null;
+                if (itemPath) {
+                    debugWriteln("비교중 - 아이템 경로: " + itemPath);
+                    if (itemPath === filePath) {
+                        debugWriteln("✅ 경로 완전 일치!");
+                        return item;
+                    }
                 }
+
                 // 파일명도 확인 (확장자 포함)
-                var itemFileName = item.getMediaPath ? item.getMediaPath().split("\\").pop().split("/").pop() : item.name;
+                var itemFileName = itemPath ? itemPath.split("\\").pop().split("/").pop() : item.name;
                 var targetFileName = filePath.split("\\").pop().split("/").pop();
+                debugWriteln("파일명 비교 - 아이템: " + itemFileName + " vs 타겟: " + targetFileName);
                 if (itemFileName === targetFileName) {
+                    debugWriteln("✅ 파일명 일치!");
                     return item;
                 }
             } else if (item.type === ProjectItemType.BIN) {
@@ -33,7 +44,13 @@ function findProjectItemByFilePath(filePath) {
         return null;
     }
 
-    return searchInBin(app.project.rootItem);
+    var result = searchInBin(app.project.rootItem);
+    if (result) {
+        debugWriteln("=== 기존 이미지 발견: " + result.name + " ===");
+    } else {
+        debugWriteln("=== 기존 이미지 없음, 새로 임포트 필요 ===");
+    }
+    return result;
 }
 
 /**

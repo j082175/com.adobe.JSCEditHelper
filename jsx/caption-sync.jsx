@@ -8,6 +8,35 @@
 debugWriteln("=== Caption-Sync Module Loading ===");
 
 /**
+ * 프로젝트에서 파일 경로로 기존 아이템 찾기
+ */
+function findProjectItemByFilePath(filePath) {
+    function searchInBin(bin) {
+        for (var i = 0; i < bin.children.numItems; i++) {
+            var item = bin.children[i];
+            if (item.type === ProjectItemType.CLIP || item.type === ProjectItemType.FILE) {
+                // 실제 파일 경로 확인
+                if (item.getMediaPath && item.getMediaPath() === filePath) {
+                    return item;
+                }
+                // 파일명도 확인 (확장자 포함)
+                var itemFileName = item.getMediaPath ? item.getMediaPath().split("\\").pop().split("/").pop() : item.name;
+                var targetFileName = filePath.split("\\").pop().split("/").pop();
+                if (itemFileName === targetFileName) {
+                    return item;
+                }
+            } else if (item.type === ProjectItemType.BIN) {
+                var found = searchInBin(item);
+                if (found) return found;
+            }
+        }
+        return null;
+    }
+
+    return searchInBin(app.project.rootItem);
+}
+
+/**
  * 선택된 클립들의 정보를 가져옴 (캡션-이미지 동기화용)
  */
 function getSelectedClipsForImageSync() {
@@ -345,22 +374,33 @@ function insertImageAtTime(imagePath, trackIndex, startTime, endTime) {
         debugWriteln("원본 경로: " + imagePath);
         debugWriteln("정규화된 경로 (fsName): " + normalizedPath);
 
-        // 임포트 전 아이템 개수 저장
-        var itemCountBefore = app.project.rootItem.children.numItems;
-        debugWriteln("임포트 전 프로젝트 아이템 개수: " + itemCountBefore);
+        // 기존 프로젝트 아이템 먼저 확인 (재사용)
+        var projectItem = findProjectItemByFilePath(normalizedPath);
 
-        debugWriteln("프로젝트에 임포트 시작...");
-        app.project.importFiles([normalizedPath], true, app.project.rootItem, false);
+        if (projectItem) {
+            debugWriteln("✅ 기존 프로젝트 아이템 발견, 임포트 생략: " + projectItem.name);
+        } else {
+            // 없으면 새로 임포트
+            debugWriteln("프로젝트에 임포트 시작...");
 
-        // 방금 임포트된 아이템은 마지막에 추가됨 (O(1) 접근, 검색 불필요!)
-        var projectItem = app.project.rootItem.children[itemCountBefore];
+            // 임포트 전 아이템 개수 저장
+            var itemCountBefore = app.project.rootItem.children.numItems;
+            debugWriteln("임포트 전 프로젝트 아이템 개수: " + itemCountBefore);
 
-        if (!projectItem) {
-            debugWriteln("프로젝트 아이템을 찾을 수 없음");
-            return JSCEditHelperJSON.stringify({
-                success: false,
-                message: "이미지를 임포트할 수 없습니다"
-            });
+            app.project.importFiles([normalizedPath], true, app.project.rootItem, false);
+
+            // 방금 임포트된 아이템은 마지막에 추가됨 (O(1) 접근, 검색 불필요!)
+            projectItem = app.project.rootItem.children[itemCountBefore];
+
+            if (!projectItem) {
+                debugWriteln("프로젝트 아이템을 찾을 수 없음");
+                return JSCEditHelperJSON.stringify({
+                    success: false,
+                    message: "이미지를 임포트할 수 없습니다"
+                });
+            }
+
+            debugWriteln("✅ 새로운 이미지 임포트 완료: " + projectItem.name);
         }
 
         debugWriteln("프로젝트 아이템 발견: " + projectItem.name);

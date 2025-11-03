@@ -155,7 +155,7 @@ var SoundEngine = (function () {
      */
     function executeSoundInsertion(config) {
         return __awaiter(this, void 0, void 0, function () {
-            var startTime, debugInfo, validation, audioResult, audioFiles, clipsResult, clips, audioTrackNumber, clipCalculator, insertionPlan, command, executionResult, executionTime, result, error_1, executionTime;
+            var startTime, debugInfo, validation, audioResult, audioFiles, clipsResult, clips, audioTrackNumber, clipCalculator, insertionPlan, command, executionResult, executionTime, result, error_1, executionTime, err, utils;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
@@ -250,10 +250,16 @@ var SoundEngine = (function () {
                     case 5:
                         error_1 = _a.sent();
                         executionTime = performance.now() - startTime;
-                        debugInfo += "\uC608\uC678 \uBC1C\uC0DD: ".concat(error_1.message, "\n");
+                        err = error_1;
+                        debugInfo += "\uC608\uC678 \uBC1C\uC0DD: ".concat(err.message, "\n");
+                        if (err.stack) {
+                            debugInfo += "\uC2A4\uD0DD \uCD94\uC801:\n".concat(err.stack, "\n");
+                        }
+                        utils = getUtils();
+                        utils.logError('효과음 삽입 중 오류:', { message: err.message, stack: err.stack });
                         return [2 /*return*/, {
                                 success: false,
-                                message: "효과음 삽입 중 오류가 발생했습니다.",
+                                message: "\uD6A8\uACFC\uC74C \uC0BD\uC785 \uC911 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD588\uC2B5\uB2C8\uB2E4: ".concat(err.message),
                                 debug: debugInfo,
                                 executionTime: executionTime
                             }];
@@ -516,69 +522,85 @@ var SoundEngine = (function () {
      */
     function executeExtendScriptCommand(command) {
         return __awaiter(this, void 0, void 0, function () {
+            var TIMEOUT_MS;
             return __generator(this, function (_a) {
-                return [2 /*return*/, new Promise(function (resolve) {
-                        var commandJson = JSON.stringify(command);
-                        var jsxFunction = "executeSoundEngineCommand(".concat(JSON.stringify(commandJson), ")");
-                        // 디버그 로그 수집
-                        var debugLog = "";
-                        var utils = getUtils();
-                        utils.logDebug("ExtendScript call: ".concat(jsxFunction));
-                        debugLog += "\uD83D\uDD27 ExtendScript \uD638\uCD9C: ".concat(jsxFunction, "\n");
-                        var communication = getCommunication();
-                        communication.callExtendScript(jsxFunction, function (result) {
-                            try {
-                                utils.logDebug("Response: ".concat(result));
-                                debugLog += "\uD83D\uDD27 \uC751\uB2F5: ".concat(result, "\n");
-                                if (result === "true" || result === "false") {
-                                    utils.logDebug("Boolean string response");
-                                    debugLog += "🔧 Boolean 응답 처리\n";
-                                    resolve({
-                                        success: result === "true",
-                                        message: result === "true" ? "Success" : "Failed",
-                                        debugLog: debugLog
-                                    });
-                                    return;
-                                }
-                                // JSON 응답 파싱 시도
-                                var parsedResult = utils.safeJSONParse(result);
-                                if (parsedResult) {
-                                    utils.logDebug("JSON parsing successful");
-                                    debugLog += "🔧 JSON 파싱 성공\n";
-                                    resolve(__assign(__assign({}, parsedResult), { debugLog: debugLog }));
-                                    return;
-                                }
-                                // 에러 메시지 처리
-                                if (result && result.startsWith('error:')) {
-                                    utils.logError("Error response: " + result);
-                                    debugLog += "🔧 에러 응답\n";
+                TIMEOUT_MS = 30000;
+                return [2 /*return*/, Promise.race([
+                        new Promise(function (resolve) {
+                            var commandJson = JSON.stringify(command);
+                            var jsxFunction = "executeSoundEngineCommand(".concat(JSON.stringify(commandJson), ")");
+                            // 디버그 로그 수집
+                            var debugLog = "";
+                            var utils = getUtils();
+                            utils.logDebug("ExtendScript call: ".concat(jsxFunction));
+                            debugLog += "\uD83D\uDD27 ExtendScript \uD638\uCD9C: ".concat(jsxFunction, "\n");
+                            var communication = getCommunication();
+                            communication.callExtendScript(jsxFunction, function (result) {
+                                try {
+                                    utils.logDebug("Response: ".concat(result));
+                                    debugLog += "\uD83D\uDD27 \uC751\uB2F5: ".concat(result, "\n");
+                                    if (result === "true" || result === "false") {
+                                        utils.logDebug("Boolean string response");
+                                        debugLog += "🔧 Boolean 응답 처리\n";
+                                        resolve({
+                                            success: result === "true",
+                                            message: result === "true" ? "Success" : "Failed",
+                                            debugLog: debugLog
+                                        });
+                                        return;
+                                    }
+                                    // JSON 응답 파싱 시도
+                                    var parsedResult = utils.safeJSONParse(result);
+                                    if (parsedResult) {
+                                        utils.logDebug("JSON parsing successful");
+                                        debugLog += "🔧 JSON 파싱 성공\n";
+                                        resolve(__assign(__assign({}, parsedResult), { debugLog: debugLog }));
+                                        return;
+                                    }
+                                    // 에러 메시지 처리
+                                    if (result && result.startsWith('error:')) {
+                                        utils.logError("Error response: " + result);
+                                        debugLog += "🔧 에러 응답\n";
+                                        resolve({
+                                            success: false,
+                                            message: result.substring(6), // 'error:' 제거
+                                            debugLog: debugLog
+                                        });
+                                        return;
+                                    }
+                                    // 기본 실패 응답
+                                    utils.logWarn("Unknown response format: " + result);
+                                    debugLog += "🔧 알 수 없는 응답\n";
                                     resolve({
                                         success: false,
-                                        message: result.substring(6), // 'error:' 제거
+                                        message: result || "알 수 없는 오류가 발생했습니다.",
                                         debugLog: debugLog
                                     });
-                                    return;
                                 }
-                                // 기본 실패 응답
-                                utils.logWarn("Unknown response format: " + result);
-                                debugLog += "🔧 알 수 없는 응답\n";
+                                catch (error) {
+                                    utils.logError("Exception: " + error.message);
+                                    debugLog += "\uD83D\uDD27 \uC608\uC678: ".concat(error.message, "\n");
+                                    resolve({
+                                        success: false,
+                                        message: "응답 처리 중 오류가 발생했습니다: " + error.message,
+                                        debugLog: debugLog
+                                    });
+                                }
+                            });
+                        }),
+                        // 타임아웃 Promise
+                        new Promise(function (resolve) {
+                            setTimeout(function () {
+                                var utils = getUtils();
+                                utils.logError("ExtendScript \uD638\uCD9C \uD0C0\uC784\uC544\uC6C3 (".concat(TIMEOUT_MS, "ms)"));
                                 resolve({
                                     success: false,
-                                    message: result || "알 수 없는 오류가 발생했습니다.",
-                                    debugLog: debugLog
+                                    message: "\uC791\uC5C5 \uC2DC\uAC04\uC774 \uCD08\uACFC\uB418\uC5C8\uC2B5\uB2C8\uB2E4 (".concat(TIMEOUT_MS / 1000, "\uCD08). Premiere Pro\uAC00 \uC751\uB2F5\uD558\uC9C0 \uC54A\uB294 \uAC83 \uAC19\uC2B5\uB2C8\uB2E4."),
+                                    debugLog: "\u23F1\uFE0F \uD0C0\uC784\uC544\uC6C3 \uBC1C\uC0DD (".concat(TIMEOUT_MS, "ms)\n")
                                 });
-                            }
-                            catch (error) {
-                                utils.logError("Exception: " + error.message);
-                                debugLog += "\uD83D\uDD27 \uC608\uC678: ".concat(error.message, "\n");
-                                resolve({
-                                    success: false,
-                                    message: "응답 처리 중 오류가 발생했습니다: " + error.message,
-                                    debugLog: debugLog
-                                });
-                            }
-                        });
-                    })];
+                            }, TIMEOUT_MS);
+                        })
+                    ])];
             });
         });
     }

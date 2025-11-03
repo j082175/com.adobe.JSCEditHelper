@@ -206,11 +206,18 @@ const SoundEngine = (function() {
 
         } catch (error) {
             const executionTime = performance.now() - startTime;
-            debugInfo += `예외 발생: ${(error as Error).message}\n`;
-            
+            const err = error as Error;
+            debugInfo += `예외 발생: ${err.message}\n`;
+            if (err.stack) {
+                debugInfo += `스택 추적:\n${err.stack}\n`;
+            }
+
+            const utils = getUtils();
+            utils.logError('효과음 삽입 중 오류:', { message: err.message, stack: err.stack });
+
             return {
                 success: false,
-                message: "효과음 삽입 중 오류가 발생했습니다.",
+                message: `효과음 삽입 중 오류가 발생했습니다: ${err.message}`,
                 debug: debugInfo,
                 executionTime
             };
@@ -459,19 +466,22 @@ const SoundEngine = (function() {
      * ExtendScript 명령 실행
      */
     async function executeExtendScriptCommand(command: ExtendScriptCommand): Promise<SoundEngineResult & { debugLog?: string }> {
-        return new Promise((resolve) => {
-            const commandJson = JSON.stringify(command);
-            const jsxFunction = `executeSoundEngineCommand(${JSON.stringify(commandJson)})`;
+        const TIMEOUT_MS = 30000; // 30초 타임아웃
 
-            // 디버그 로그 수집
-            let debugLog = "";
-            const utils = getUtils();
+        return Promise.race([
+            new Promise<SoundEngineResult & { debugLog?: string }>((resolve) => {
+                const commandJson = JSON.stringify(command);
+                const jsxFunction = `executeSoundEngineCommand(${JSON.stringify(commandJson)})`;
 
-            utils.logDebug(`ExtendScript call: ${jsxFunction}`);
-            debugLog += `🔧 ExtendScript 호출: ${jsxFunction}\n`;
+                // 디버그 로그 수집
+                let debugLog = "";
+                const utils = getUtils();
 
-            const communication = getCommunication();
-            communication.callExtendScript(jsxFunction, (result: string) => {
+                utils.logDebug(`ExtendScript call: ${jsxFunction}`);
+                debugLog += `🔧 ExtendScript 호출: ${jsxFunction}\n`;
+
+                const communication = getCommunication();
+                communication.callExtendScript(jsxFunction, (result: string) => {
                 try {
                     utils.logDebug(`Response: ${result}`);
                     debugLog += `🔧 응답: ${result}\n`;
@@ -535,7 +545,20 @@ const SoundEngine = (function() {
                     });
                 }
             });
-        });
+            }),
+            // 타임아웃 Promise
+            new Promise<SoundEngineResult & { debugLog: string }>((resolve) => {
+                setTimeout(() => {
+                    const utils = getUtils();
+                    utils.logError(`ExtendScript 호출 타임아웃 (${TIMEOUT_MS}ms)`);
+                    resolve({
+                        success: false,
+                        message: `작업 시간이 초과되었습니다 (${TIMEOUT_MS / 1000}초). Premiere Pro가 응답하지 않는 것 같습니다.`,
+                        debugLog: `⏱️ 타임아웃 발생 (${TIMEOUT_MS}ms)\n`
+                    });
+                }, TIMEOUT_MS);
+            })
+        ]);
     }
 
     /**

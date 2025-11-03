@@ -251,22 +251,39 @@ var JSCEventManager = (function () {
                 var inputPath = this.value.trim();
                 var utils = getUtils();
                 var stateManager = getStateManager();
+                var uiManager = getUIManager();
                 utils.debugLog("Folder input changed: " + inputPath);
-                if (inputPath && utils.isValidPath(inputPath)) {
-                    stateManager.saveFolderPath(inputPath);
-                    utils.logDebug("Valid path stored: " + inputPath);
-                }
-                else {
-                    if (inputPath) {
-                        utils.logWarn("Invalid path entered: " + inputPath);
-                        var uiManager = getUIManager();
-                        uiManager.updateStatus("입력된 폴더 경로가 유효하지 않습니다.", false);
-                        this.value = stateManager.getCurrentFolderPath(); // 이전 유효한 경로로 복원
+                if (inputPath) {
+                    // 길이 검증 (Windows MAX_PATH)
+                    var MAX_PATH_LENGTH = 260;
+                    if (inputPath.length > MAX_PATH_LENGTH) {
+                        utils.logWarn("Path too long: ".concat(inputPath.length, " characters"));
+                        uiManager.updateStatus("\uACBD\uB85C\uAC00 \uB108\uBB34 \uAE41\uB2C8\uB2E4 (\uCD5C\uB300 ".concat(MAX_PATH_LENGTH, "\uC790)"), false);
+                        this.value = stateManager.getCurrentFolderPath();
+                        return;
+                    }
+                    // 특수 문자 검증 (Windows 파일 시스템 금지 문자)
+                    var invalidChars = /[<>:"|?*\x00-\x1f]/g;
+                    if (invalidChars.test(inputPath)) {
+                        utils.logWarn("Path contains invalid characters: " + inputPath);
+                        uiManager.updateStatus("경로에 사용할 수 없는 문자가 포함되어 있습니다", false);
+                        this.value = stateManager.getCurrentFolderPath();
+                        return;
+                    }
+                    // 경로 유효성 검증
+                    if (utils.isValidPath(inputPath)) {
+                        stateManager.saveFolderPath(inputPath);
+                        utils.logDebug("Valid path stored: " + inputPath);
                     }
                     else {
-                        stateManager.clearFolderPath();
-                        utils.logDebug("Path cleared");
+                        utils.logWarn("Invalid path entered: " + inputPath);
+                        uiManager.updateStatus("입력된 폴더 경로가 유효하지 않습니다.", false);
+                        this.value = stateManager.getCurrentFolderPath();
                     }
+                }
+                else {
+                    stateManager.clearFolderPath();
+                    utils.logDebug("Path cleared");
                 }
             });
             utils.debugLog("Event listener added to sound-folder input");

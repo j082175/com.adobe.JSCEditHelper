@@ -1082,6 +1082,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             rows[index].remove();
             textList.splice(index, 1);
             renderTextRows(); // 전체 다시 렌더링 (인덱스 재정렬)
+            updateImageTextLabels(); // 이미지 라벨 업데이트
         }
     }
 
@@ -1140,6 +1141,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                     // 새 행을 현재 행 다음에 삽입
                     textList.splice(currentIndex + 1, 0, '');
                     renderTextRows();
+                    updateImageTextLabels();
 
                     // 새로 생성된 행에 포커스
                     setTimeout(() => {
@@ -1167,6 +1169,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
 
                         textList.splice(currentIndex, 1);
                         renderTextRows();
+                        updateImageTextLabels();
 
                         // 이전 행 끝으로 포커스
                         setTimeout(() => {
@@ -1215,6 +1218,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
                         }
 
                         renderTextRows();
+                        updateImageTextLabels();
                     }
                 }
                 // 한 줄이면 기본 동작 허용

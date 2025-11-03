@@ -1123,23 +1123,9 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             rowDelete.textContent = '✕';
             rowDelete.title = '삭제';
 
-            // IME 조합 상태 추적 (한글 입력)
-            let isComposing = false;
-
-            rowText.addEventListener('compositionstart', () => {
-                isComposing = true;
-            });
-
-            rowText.addEventListener('compositionend', () => {
-                isComposing = false;
-                updateTextList(); // 조합 완료 후 즉시 업데이트
-            });
-
             // 이벤트: 텍스트 입력
             rowText.addEventListener('input', () => {
-                if (!isComposing) {
-                    updateTextList();
-                }
+                updateTextList();
             });
 
             // 이벤트: Enter 키로 새 행 생성

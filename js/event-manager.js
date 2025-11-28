@@ -1228,9 +1228,10 @@ var JSCEventManager = (function () {
             });
             // 이벤트: 텍스트 클릭 (이미지 강조)
             rowText.addEventListener('click', function () {
-                var idx = parseInt(row.dataset.index || '0');
-                if (idx < imageMappings.length) {
-                    highlightImageCard(idx);
+                var textRowIndex = parseInt(row.dataset.index || '0');
+                var imageIndex = getImageIndexForTextRow(textRowIndex);
+                if (imageIndex >= 0 && imageIndex < imageMappings.length) {
+                    highlightImageCard(imageIndex);
                 }
             });
             // 이벤트: 행 번호 클릭 (비디오 목업 토글)
@@ -1251,9 +1252,10 @@ var JSCEventManager = (function () {
             });
             // 이벤트: hover 시 해당 이미지 약하게 강조
             row.addEventListener('mouseenter', function () {
-                var idx = parseInt(row.dataset.index || '0');
-                if (idx < imageMappings.length) {
-                    hoverHighlightImageCard(idx);
+                var textRowIndex = parseInt(row.dataset.index || '0');
+                var imageIndex = getImageIndexForTextRow(textRowIndex);
+                if (imageIndex >= 0 && imageIndex < imageMappings.length) {
+                    hoverHighlightImageCard(imageIndex);
                 }
             });
             row.addEventListener('mouseleave', function () {
@@ -1314,12 +1316,23 @@ var JSCEventManager = (function () {
     }
     /**
      * 이미지에 텍스트 라벨 매칭
+     * captionCount가 2개 이상일 경우, 여러 텍스트를 합쳐서 표시
      */
     function updateImageTextLabels() {
         var lines = textList;
-        imageMappings.forEach(function (mapping, index) {
-            if (index < lines.length) {
-                mapping.textLabel = lines[index];
+        var textIndex = 0; // 텍스트 리스트의 현재 위치
+        imageMappings.forEach(function (mapping) {
+            var assignedTexts = [];
+            // captionCount만큼의 텍스트 가져오기
+            for (var i = 0; i < mapping.captionCount; i++) {
+                if (textIndex < lines.length) {
+                    assignedTexts.push(lines[textIndex]);
+                    textIndex++;
+                }
+            }
+            // 여러 텍스트를 하나로 합치기
+            if (assignedTexts.length > 0) {
+                mapping.textLabel = assignedTexts.join(' / ');
             }
             else {
                 mapping.textLabel = undefined;
@@ -1329,6 +1342,40 @@ var JSCEventManager = (function () {
         updateImageGrid();
     }
     // 행 기반 구조에서는 텍스트 클릭 시 이미지 강조가 각 행의 이벤트에서 처리됨
+    /**
+     * 이미지 인덱스를 텍스트 행 범위로 변환
+     * @param imageIndex 이미지 인덱스
+     * @returns 텍스트 행의 시작과 끝 인덱스
+     */
+    function getTextRowRangeForImage(imageIndex) {
+        if (imageIndex < 0 || imageIndex >= imageMappings.length) {
+            return null;
+        }
+        var textStartIndex = 0;
+        for (var i = 0; i < imageIndex; i++) {
+            textStartIndex += imageMappings[i].captionCount;
+        }
+        var textEndIndex = textStartIndex + imageMappings[imageIndex].captionCount - 1;
+        return { start: textStartIndex, end: textEndIndex };
+    }
+    /**
+     * 텍스트 행 인덱스를 이미지 인덱스로 변환
+     * @param textRowIndex 텍스트 행 인덱스
+     * @returns 이미지 인덱스
+     */
+    function getImageIndexForTextRow(textRowIndex) {
+        if (textRowIndex < 0) {
+            return -1;
+        }
+        var textCounter = 0;
+        for (var i = 0; i < imageMappings.length; i++) {
+            textCounter += imageMappings[i].captionCount;
+            if (textRowIndex < textCounter) {
+                return i;
+            }
+        }
+        return -1; // 범위를 벗어난 경우
+    }
     /**
      * 모든 클릭 강조 제거 (텍스트 + 이미지)
      */
@@ -1369,14 +1416,21 @@ var JSCEventManager = (function () {
                 }
             }
         }
-        // 텍스트 강조
+        // 텍스트 강조 (captionCount만큼의 여러 행 강조)
         if (container) {
-            var rows = container.querySelectorAll('.text-row');
-            if (index >= 0 && index < rows.length) {
-                var targetRow = rows[index];
-                targetRow.classList.add('highlight');
-                if (!scrollToImage) {
-                    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            var textRange = getTextRowRangeForImage(index);
+            if (textRange) {
+                var rows = container.querySelectorAll('.text-row');
+                var firstRow = null;
+                for (var i = textRange.start; i <= textRange.end && i < rows.length; i++) {
+                    rows[i].classList.add('highlight');
+                    if (!firstRow) {
+                        firstRow = rows[i];
+                    }
+                }
+                // 첫 번째 강조된 행으로 스크롤
+                if (!scrollToImage && firstRow) {
+                    firstRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             }
         }
@@ -1421,18 +1475,20 @@ var JSCEventManager = (function () {
     /**
      * 텍스트 행 hover 강조 (이미지 hover 시)
      */
-    function hoverHighlightTextRow(rowIndex) {
+    function hoverHighlightTextRow(imageIndex) {
         var container = document.getElementById('text-list-container');
         if (!container)
             return;
         // 기존 hover 강조 제거
         var previousHovered = container.querySelectorAll('.text-row.hover-highlight');
         previousHovered.forEach(function (row) { return row.classList.remove('hover-highlight'); });
-        // 해당 텍스트 행 찾기
+        // 해당 이미지의 텍스트 범위 찾기 (captionCount만큼)
+        var textRange = getTextRowRangeForImage(imageIndex);
+        if (!textRange)
+            return;
         var rows = container.querySelectorAll('.text-row');
-        if (rowIndex >= 0 && rowIndex < rows.length) {
-            var targetRow = rows[rowIndex];
-            targetRow.classList.add('hover-highlight');
+        for (var i = textRange.start; i <= textRange.end && i < rows.length; i++) {
+            rows[i].classList.add('hover-highlight');
         }
     }
     /**
@@ -1455,15 +1511,19 @@ var JSCEventManager = (function () {
             return;
         // 텍스트와 이미지 양쪽 모두 강조 (텍스트로 스크롤)
         highlightPair(imageIndex, false);
-        // 해당 텍스트 행 찾아서 포커스
-        var rows = container.querySelectorAll('.text-row');
-        if (imageIndex >= 0 && imageIndex < rows.length) {
-            var targetRow = rows[imageIndex];
-            var rowText = targetRow.querySelector('.row-text');
-            if (rowText) {
-                // 텍스트에 포커스
-                rowText.focus();
-                utils.logDebug("\uC774\uBBF8\uC9C0 #".concat(imageIndex + 1, " \uD074\uB9AD \u2192 \uC30D \uAC15\uC870 (\uD14D\uC2A4\uD2B8 + \uC774\uBBF8\uC9C0)"));
+        // 해당 이미지의 첫 번째 텍스트 행 찾아서 포커스
+        var textRange = getTextRowRangeForImage(imageIndex);
+        if (textRange) {
+            var rows = container.querySelectorAll('.text-row');
+            if (textRange.start < rows.length) {
+                var targetRow = rows[textRange.start];
+                var rowText = targetRow.querySelector('.row-text');
+                if (rowText) {
+                    // 텍스트에 포커스
+                    rowText.focus();
+                    var captionCount = imageMappings[imageIndex].captionCount;
+                    utils.logDebug("\uC774\uBBF8\uC9C0 #".concat(imageIndex + 1, " \uD074\uB9AD \u2192 ").concat(captionCount, "\uAC1C \uD14D\uC2A4\uD2B8 \uAC15\uC870 (\uD14D\uC2A4\uD2B8 ").concat(textRange.start + 1, "-").concat(textRange.end + 1, ")"));
+                }
             }
         }
     }
@@ -1856,6 +1916,8 @@ var JSCEventManager = (function () {
                         imageMappings[index].captionCount = newValue;
                         updateImageSummary();
                         updateCaptionRanges(index);
+                        // 텍스트 라벨 다시 매칭 (captionCount가 변경되었으므로)
+                        updateImageTextLabels();
                     }
                 }
             };
@@ -1879,8 +1941,8 @@ var JSCEventManager = (function () {
             if (index !== -1) {
                 var mapping = imageMappings[index];
                 mapping.captionCount = value;
-                // 그리드 재렌더링 (캡션 범위 업데이트)
-                updateImageGrid();
+                // 텍스트 라벨 다시 매칭 (captionCount가 변경되었으므로)
+                updateImageTextLabels();
             }
         }
     }

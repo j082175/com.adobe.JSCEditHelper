@@ -2152,6 +2152,29 @@ body {
 }
 
 /* ================================
+   효과음 검색
+   ================================ */
+.sound-search-control {
+    margin-bottom: 8px;
+}
+
+.sound-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 10px;
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    border: 1px solid #444;
+    border-radius: 4px;
+    font-size: 12px;
+    outline: none;
+}
+
+.sound-search-input:focus {
+    border-color: var(--color-accent, #5b8dd9);
+}
+
+/* ================================
    미리보기 볼륨 조절
    ================================ */
 .preview-volume-control {

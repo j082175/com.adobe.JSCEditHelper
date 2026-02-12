@@ -264,6 +264,19 @@ var JSCUIManager = (function () {
                 }
             });
             updateStatus(soundFiles.length + "개의 효과음 파일을 폴더에서 로드했습니다. (우클릭으로 미리보기 가능)", true);
+            // 검색 필터 연결
+            var searchInput_1 = document.getElementById("soundSearchInput");
+            if (searchInput_1) {
+                searchInput_1.value = "";
+                searchInput_1.oninput = function () {
+                    var query = searchInput_1.value.toLowerCase();
+                    var buttons = container.querySelectorAll("button");
+                    buttons.forEach(function (btn) {
+                        var name = btn.textContent ? btn.textContent.toLowerCase() : "";
+                        btn.style.display = name.includes(query) ? "" : "none";
+                    });
+                };
+            }
         }
         else {
             updateStatus("선택된 폴더에 오디오 파일이 없습니다.", false);

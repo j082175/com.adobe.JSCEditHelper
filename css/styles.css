@@ -102,8 +102,9 @@ body {
 .magnet-options-inline,
 .sound-insert-inline {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
     width: 100%;
 }
 
@@ -128,7 +129,7 @@ body {
 .sync-options-inline button,
 .magnet-options-inline button,
 .sound-insert-inline button {
-    flex: 1;
+    flex: 1 1 100px;
     white-space: nowrap;
 }
 
@@ -348,12 +349,14 @@ body {
    ================================ */
 .input-group {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--spacing-sm);
     margin-bottom: var(--spacing-sm);
 }
 
 .input-group input {
-    flex: 1;
+    flex: 1 1 120px;
+    min-width: 0;
     background: var(--color-bg-primary);
     border: 1px solid #555;
     border-radius: var(--radius-sm);

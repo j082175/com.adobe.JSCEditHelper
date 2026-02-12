@@ -18,6 +18,48 @@
         <!-- 탭 1: 효과음 -->
         <div class="tab-content active" id="tab-sound">
 
+        <!-- 개별 효과음 라이브러리 -->
+        <div class="workflow-section">
+            <div class="section-header">
+                <h2>🎼 효과음 라이브러리</h2>
+                <button class="btn-collapse" data-target="sound-library">
+                    <span class="collapse-icon">−</span>
+                </button>
+            </div>
+
+            <div id="sound-library" class="workflow-content">
+                <!-- 효과음 검색 -->
+                <div class="sound-search-control">
+                    <input type="text" id="soundSearchInput" placeholder="🔍 효과음 검색..." class="sound-search-input">
+                </div>
+
+                <!-- 미리보기 볼륨 조절 -->
+                <div class="preview-volume-control">
+                    <label for="previewVolumeSlider" class="volume-label">
+                        🔊 미리보기 볼륨:
+                    </label>
+                    <input type="range" id="previewVolumeSlider" min="0" max="100" value="100" step="1" class="volume-slider">
+                    <span id="previewVolumeValue" class="volume-value">100%</span>
+                </div>
+
+                <div id="individualSoundButtonsContainer" class="sound-grid">
+                    <div id="soundButtonPlaceholder" class="empty-state">
+                        <div class="empty-icon">🎵</div>
+                        <h3>효과음 라이브러리</h3>
+                        <p>폴더를 선택하면 효과음이 표시됩니다</p>
+                        <button class="btn-cta" onclick="document.getElementById('browseFolder').click()">
+                            📁 폴더 선택하기
+                        </button>
+                    </div>
+                </div>
+
+                <div class="library-status">
+                    <span class="status-label">현재 폴더:</span>
+                    <span id="folderPathSpan" class="folder-path">폴더가 선택되지 않음</span>
+                </div>
+            </div>
+        </div>
+
         <!-- 효과음 관리 섹션 -->
         <div class="workflow-section">
             <div class="section-header">
@@ -26,7 +68,7 @@
                     <span class="collapse-icon">−</span>
                 </button>
             </div>
-            
+
             <div id="sound-workflow" class="workflow-content">
                 <!-- 폴더 설정 카드 -->
                 <div class="action-card">
@@ -54,48 +96,6 @@
                             <option value="3">오디오 트랙 3</option>
                         </select>
                         <button id="insert-sounds" class="btn-primary">효과음 삽입</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 개별 효과음 라이브러리 -->
-        <div class="workflow-section">
-            <div class="section-header">
-                <h2>🎼 효과음 라이브러리</h2>
-                <button class="btn-collapse" data-target="sound-library">
-                    <span class="collapse-icon">−</span>
-                </button>
-            </div>
-            
-            <div id="sound-library" class="workflow-content">
-                <div class="library-status">
-                    <span class="status-label">현재 폴더:</span>
-                    <span id="folderPathSpan" class="folder-path">폴더가 선택되지 않음</span>
-                </div>
-
-                <!-- 효과음 검색 -->
-                <div class="sound-search-control">
-                    <input type="text" id="soundSearchInput" placeholder="🔍 효과음 검색..." class="sound-search-input">
-                </div>
-
-                <!-- 미리보기 볼륨 조절 -->
-                <div class="preview-volume-control">
-                    <label for="previewVolumeSlider" class="volume-label">
-                        🔊 미리보기 볼륨:
-                    </label>
-                    <input type="range" id="previewVolumeSlider" min="0" max="100" value="100" step="1" class="volume-slider">
-                    <span id="previewVolumeValue" class="volume-value">100%</span>
-                </div>
-
-                <div id="individualSoundButtonsContainer" class="sound-grid">
-                    <div id="soundButtonPlaceholder" class="empty-state">
-                        <div class="empty-icon">🎵</div>
-                        <h3>효과음 라이브러리</h3>
-                        <p>폴더를 선택하면 효과음이 표시됩니다</p>
-                        <button class="btn-cta" onclick="document.getElementById('browseFolder').click()">
-                            📁 폴더 선택하기
-                        </button>
                     </div>
                 </div>
             </div>

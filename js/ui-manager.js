@@ -240,7 +240,7 @@ var JSCUIManager = (function () {
             soundFiles.forEach(function (soundFile) {
                 if (soundFile && soundFile.name && soundFile.fsName) {
                     var button = document.createElement("button");
-                    button.textContent = soundFile.name;
+                    button.textContent = soundFile.name.replace(/\.[^/.]+$/, "");
                     button.setAttribute("data-fsname", soundFile.fsName);
                     // 기존 클릭 이벤트 (효과음 삽입)
                     button.addEventListener("click", function (event) {

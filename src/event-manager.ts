@@ -726,6 +726,7 @@ const JSCEventManager = (function(): JSCEventManagerInterface {
             const tempInput = document.createElement('input');
             tempInput.style.position = 'absolute';
             tempInput.style.left = '-9999px';
+            tempInput.style.top = '-9999px';
             tempInput.style.opacity = '0';
             document.body.appendChild(tempInput);
             tempInput.focus();

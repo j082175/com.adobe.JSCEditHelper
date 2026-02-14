@@ -464,13 +464,13 @@ body {
     cursor: pointer;
     transition: all 0.2s ease;
     text-align: center;
-    line-height: 1.2;
+    line-height: 1.3;
     min-height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    word-break: break-word;
-    hyphens: auto;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    word-break: break-all;
 }
 
 .sound-grid button:hover {

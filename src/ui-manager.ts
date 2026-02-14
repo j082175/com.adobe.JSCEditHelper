@@ -171,6 +171,54 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
     }
 
     // 개별 효과음 버튼 업데이트
+    // 그룹 색상 팔레트
+    const GROUP_COLORS = [
+        "#0078d4", // 파랑
+        "#16c79a", // 청록
+        "#f39c12", // 주황
+        "#9b59b6", // 보라
+        "#e74c3c", // 빨강
+        "#03a9f4", // 하늘
+        "#e91e63", // 분홍
+        "#8bc34a", // 연두
+    ];
+
+    // 파일명에서 접두어 추출: "(강조)" → "강조", 없으면 null
+    function extractPrefix(filename: string): string | null {
+        const match = filename.match(/^\(([^)]+)\)/);
+        return match ? match[1] : null;
+    }
+
+    // 버튼 생성 헬퍼
+    function createSoundButton(soundFile: SoundFile, color: string): HTMLButtonElement {
+        const utils = getUtils();
+        const button = document.createElement("button");
+        const displayName = soundFile.name
+            .replace(/\.[^/.]+$/, "")       // 확장자 제거
+            .replace(/^\([^)]+\)/, "").trim(); // 접두어 제거 (그룹 헤더에 이미 표시)
+        button.textContent = displayName || soundFile.name.replace(/\.[^/.]+$/, "");
+        button.setAttribute("data-fsname", soundFile.fsName);
+        button.style.borderColor = color;
+
+        button.addEventListener("click", function(event: Event) {
+            const eventManager = getEventManager();
+            if (eventManager && eventManager.handleSoundFileButtonClick) {
+                eventManager.handleSoundFileButtonClick(event);
+            }
+        });
+
+        button.addEventListener("keydown", function(event: KeyboardEvent) {
+            if (event.code === "Space" || event.key === " ") {
+                event.preventDefault();
+                event.stopPropagation();
+                utils.logDebug("효과음 버튼 스페이스바 이벤트 차단됨");
+            }
+        });
+
+        setupAudioPreviewEvent(button, soundFile.fsName);
+        return button;
+    }
+
     function updateSoundButtons(soundFiles: SoundFile[], currentFolderPath: string): void {
         const utils = getUtils();
         const container = document.getElementById("individualSoundButtonsContainer");
@@ -178,55 +226,73 @@ const JSCUIManager = (function(): JSCUIManagerInterface {
 
         if (!container) return;
 
-        container.innerHTML = ""; // 이전 버튼들 제거
+        container.innerHTML = "";
 
         if (folderPathSpan && currentFolderPath) {
             folderPathSpan.textContent = utils.getShortPath(currentFolderPath);
         }
 
         if (soundFiles && soundFiles.length > 0) {
+            // 접두어 기준으로 그룹화 (순서 유지)
+            const groups: Map<string, SoundFile[]> = new Map();
             soundFiles.forEach(function(soundFile: SoundFile) {
-                if (soundFile && soundFile.name && soundFile.fsName) {
-                    const button = document.createElement("button");
-                    button.textContent = soundFile.name.replace(/\.[^/.]+$/, "");
-                    button.setAttribute("data-fsname", soundFile.fsName);
-                    
-                    // 기존 클릭 이벤트 (효과음 삽입)
-                    button.addEventListener("click", function(event: Event) {
-                        // 이벤트는 나중에 event-manager에서 처리하도록 위임
-                        const eventManager = getEventManager();
-                        if (eventManager && eventManager.handleSoundFileButtonClick) {
-                            eventManager.handleSoundFileButtonClick(event);
-                        }
-                    });
-                    
-                    // 키보드 이벤트 차단 (스페이스바로 인한 의도치 않은 활성화 방지)
-                    button.addEventListener("keydown", function(event: KeyboardEvent) {
-                        if (event.code === "Space" || event.key === " ") {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            utils.logDebug("효과음 버튼 스페이스바 이벤트 차단됨");
-                        }
-                    });
-                    
-                    // 미리보기 이벤트 추가
-                    setupAudioPreviewEvent(button, soundFile.fsName);
-                    
-                    container.appendChild(button);
-                }
+                if (!soundFile || !soundFile.name || !soundFile.fsName) return;
+                const prefix = extractPrefix(soundFile.name) || "기타";
+                if (!groups.has(prefix)) groups.set(prefix, []);
+                groups.get(prefix)!.push(soundFile);
             });
-            updateStatus(soundFiles.length + "개의 효과음 파일을 폴더에서 로드했습니다. (우클릭으로 미리보기 가능)", true);
 
-            // 검색 필터 연결
+            // 그룹별 섹션 렌더링
+            let colorIndex = 0;
+            groups.forEach(function(files: SoundFile[], prefix: string) {
+                const color = GROUP_COLORS[colorIndex % GROUP_COLORS.length];
+                colorIndex++;
+
+                // 섹션 래퍼
+                const section = document.createElement("div");
+                section.className = "sound-group-section";
+                section.setAttribute("data-group", prefix);
+
+                // 그룹 헤더
+                const header = document.createElement("div");
+                header.className = "sound-group-header";
+                header.textContent = prefix;
+                header.style.borderLeftColor = color;
+                header.style.color = color;
+                section.appendChild(header);
+
+                // 버튼 그리드
+                const grid = document.createElement("div");
+                grid.className = "sound-group-grid";
+                files.forEach(function(soundFile: SoundFile) {
+                    grid.appendChild(createSoundButton(soundFile, color));
+                });
+                section.appendChild(grid);
+                container.appendChild(section);
+            });
+
+            updateStatus(soundFiles.length + "개의 효과음 파일을 로드했습니다. (우클릭으로 미리보기 가능)", true);
+
+            // 검색 필터: 버튼 + 빈 섹션 숨김
             const searchInput = document.getElementById("soundSearchInput") as HTMLInputElement;
             if (searchInput) {
                 searchInput.value = "";
                 searchInput.oninput = function() {
                     const query = searchInput.value.toLowerCase();
-                    const buttons = container.querySelectorAll("button");
-                    buttons.forEach(function(btn) {
-                        const name = btn.textContent ? btn.textContent.toLowerCase() : "";
-                        (btn as HTMLElement).style.display = name.includes(query) ? "" : "none";
+                    const sections = container.querySelectorAll<HTMLElement>(".sound-group-section");
+                    sections.forEach(function(section) {
+                        const buttons = section.querySelectorAll<HTMLElement>("button");
+                        let visibleCount = 0;
+                        buttons.forEach(function(btn) {
+                            // 버튼 텍스트 + 그룹명 모두 검색
+                            const btnText = btn.textContent ? btn.textContent.toLowerCase() : "";
+                            const groupName = section.getAttribute("data-group")?.toLowerCase() || "";
+                            const visible = btnText.includes(query) || groupName.includes(query);
+                            btn.style.display = visible ? "" : "none";
+                            if (visible) visibleCount++;
+                        });
+                        // 버튼이 모두 숨겨지면 섹션 헤더도 숨김
+                        section.style.display = visibleCount === 0 ? "none" : "";
                     });
                 };
             }

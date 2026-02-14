@@ -445,9 +445,6 @@ body {
 }
 
 .sound-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-    gap: var(--spacing-xs);
     max-height: 350px;
     min-height: 200px;
     overflow-y: auto;
@@ -2152,6 +2149,31 @@ body {
 /* 비디오 목업 이미지 카드 - 일반 카드와 동일한 구조 사용 */
 .image-card.placeholder {
     /* 플레이스홀더도 일반 카드와 동일한 레이아웃 사용 */
+}
+
+/* ================================
+   효과음 그룹 섹션
+   ================================ */
+.sound-group-section {
+    margin-bottom: 10px;
+}
+
+.sound-group-header {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    margin-bottom: 4px;
+    border-left: 3px solid;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+
+.sound-group-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: var(--spacing-xs);
 }
 
 /* ================================

@@ -226,54 +226,117 @@ var JSCUIManager = (function () {
         button.title = "\uC88C\uD074\uB9AD: \uD6A8\uACFC\uC74C \uC0BD\uC785\n\uC6B0\uD074\uB9AD: \uBBF8\uB9AC\uBCF4\uAE30 \uC7AC\uC0DD/\uC815\uC9C0";
     }
     // 개별 효과음 버튼 업데이트
+    // 그룹 색상 팔레트
+    var GROUP_COLORS = [
+        "#0078d4", // 파랑
+        "#16c79a", // 청록
+        "#f39c12", // 주황
+        "#9b59b6", // 보라
+        "#e74c3c", // 빨강
+        "#03a9f4", // 하늘
+        "#e91e63", // 분홍
+        "#8bc34a", // 연두
+    ];
+    // 파일명에서 접두어 추출: "(강조)" → "강조", 없으면 null
+    function extractPrefix(filename) {
+        var match = filename.match(/^\(([^)]+)\)/);
+        return match ? match[1] : null;
+    }
+    // 버튼 생성 헬퍼
+    function createSoundButton(soundFile, color) {
+        var utils = getUtils();
+        var button = document.createElement("button");
+        var displayName = soundFile.name
+            .replace(/\.[^/.]+$/, "") // 확장자 제거
+            .replace(/^\([^)]+\)/, "").trim(); // 접두어 제거 (그룹 헤더에 이미 표시)
+        button.textContent = displayName || soundFile.name.replace(/\.[^/.]+$/, "");
+        button.setAttribute("data-fsname", soundFile.fsName);
+        button.style.borderColor = color;
+        button.addEventListener("click", function (event) {
+            var eventManager = getEventManager();
+            if (eventManager && eventManager.handleSoundFileButtonClick) {
+                eventManager.handleSoundFileButtonClick(event);
+            }
+        });
+        button.addEventListener("keydown", function (event) {
+            if (event.code === "Space" || event.key === " ") {
+                event.preventDefault();
+                event.stopPropagation();
+                utils.logDebug("효과음 버튼 스페이스바 이벤트 차단됨");
+            }
+        });
+        setupAudioPreviewEvent(button, soundFile.fsName);
+        return button;
+    }
     function updateSoundButtons(soundFiles, currentFolderPath) {
         var utils = getUtils();
         var container = document.getElementById("individualSoundButtonsContainer");
         var folderPathSpan = document.getElementById("folderPathSpan");
         if (!container)
             return;
-        container.innerHTML = ""; // 이전 버튼들 제거
+        container.innerHTML = "";
         if (folderPathSpan && currentFolderPath) {
             folderPathSpan.textContent = utils.getShortPath(currentFolderPath);
         }
         if (soundFiles && soundFiles.length > 0) {
+            // 접두어 기준으로 그룹화 (순서 유지)
+            var groups_1 = new Map();
             soundFiles.forEach(function (soundFile) {
-                if (soundFile && soundFile.name && soundFile.fsName) {
-                    var button = document.createElement("button");
-                    button.textContent = soundFile.name.replace(/\.[^/.]+$/, "");
-                    button.setAttribute("data-fsname", soundFile.fsName);
-                    // 기존 클릭 이벤트 (효과음 삽입)
-                    button.addEventListener("click", function (event) {
-                        // 이벤트는 나중에 event-manager에서 처리하도록 위임
-                        var eventManager = getEventManager();
-                        if (eventManager && eventManager.handleSoundFileButtonClick) {
-                            eventManager.handleSoundFileButtonClick(event);
-                        }
-                    });
-                    // 키보드 이벤트 차단 (스페이스바로 인한 의도치 않은 활성화 방지)
-                    button.addEventListener("keydown", function (event) {
-                        if (event.code === "Space" || event.key === " ") {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            utils.logDebug("효과음 버튼 스페이스바 이벤트 차단됨");
-                        }
-                    });
-                    // 미리보기 이벤트 추가
-                    setupAudioPreviewEvent(button, soundFile.fsName);
-                    container.appendChild(button);
-                }
+                if (!soundFile || !soundFile.name || !soundFile.fsName)
+                    return;
+                var prefix = extractPrefix(soundFile.name) || "기타";
+                if (!groups_1.has(prefix))
+                    groups_1.set(prefix, []);
+                groups_1.get(prefix).push(soundFile);
             });
-            updateStatus(soundFiles.length + "개의 효과음 파일을 폴더에서 로드했습니다. (우클릭으로 미리보기 가능)", true);
-            // 검색 필터 연결
+            // 그룹별 섹션 렌더링
+            var colorIndex_1 = 0;
+            groups_1.forEach(function (files, prefix) {
+                var color = GROUP_COLORS[colorIndex_1 % GROUP_COLORS.length];
+                colorIndex_1++;
+                // 섹션 래퍼
+                var section = document.createElement("div");
+                section.className = "sound-group-section";
+                section.setAttribute("data-group", prefix);
+                // 그룹 헤더
+                var header = document.createElement("div");
+                header.className = "sound-group-header";
+                header.textContent = prefix;
+                header.style.borderLeftColor = color;
+                header.style.color = color;
+                section.appendChild(header);
+                // 버튼 그리드
+                var grid = document.createElement("div");
+                grid.className = "sound-group-grid";
+                files.forEach(function (soundFile) {
+                    grid.appendChild(createSoundButton(soundFile, color));
+                });
+                section.appendChild(grid);
+                container.appendChild(section);
+            });
+            updateStatus(soundFiles.length + "개의 효과음 파일을 로드했습니다. (우클릭으로 미리보기 가능)", true);
+            // 검색 필터: 버튼 + 빈 섹션 숨김
             var searchInput_1 = document.getElementById("soundSearchInput");
             if (searchInput_1) {
                 searchInput_1.value = "";
                 searchInput_1.oninput = function () {
                     var query = searchInput_1.value.toLowerCase();
-                    var buttons = container.querySelectorAll("button");
-                    buttons.forEach(function (btn) {
-                        var name = btn.textContent ? btn.textContent.toLowerCase() : "";
-                        btn.style.display = name.includes(query) ? "" : "none";
+                    var sections = container.querySelectorAll(".sound-group-section");
+                    sections.forEach(function (section) {
+                        var buttons = section.querySelectorAll("button");
+                        var visibleCount = 0;
+                        buttons.forEach(function (btn) {
+                            var _a;
+                            // 버튼 텍스트 + 그룹명 모두 검색
+                            var btnText = btn.textContent ? btn.textContent.toLowerCase() : "";
+                            var groupName = ((_a = section.getAttribute("data-group")) === null || _a === void 0 ? void 0 : _a.toLowerCase()) || "";
+                            var visible = btnText.includes(query) || groupName.includes(query);
+                            btn.style.display = visible ? "" : "none";
+                            if (visible)
+                                visibleCount++;
+                        });
+                        // 버튼이 모두 숨겨지면 섹션 헤더도 숨김
+                        section.style.display = visibleCount === 0 ? "none" : "";
                     });
                 };
             }

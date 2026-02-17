@@ -1311,11 +1311,11 @@ function replaceSelectedAudioClipsInternal(soundFilePath) {
             var currentTimeInSeconds = typeof currentTime.seconds !== 'undefined' ? currentTime.seconds : currentTime;
             debugInfo += "현재 인디케이터 위치: " + currentTimeInSeconds + "초\n";
             
-            // 2. 1.67초 길이의 가상 클립 생성 (기존 삽입 함수 재활용을 위해)
+            // 2. 가상 클립 생성 (duration: 0 = 효과음 원본 길이 전체 삽입)
             var virtualClip = {
                 start: { seconds: currentTimeInSeconds },
-                end: { seconds: currentTimeInSeconds + 1.67 },
-                duration: { seconds: 1.67 },
+                end: { seconds: currentTimeInSeconds },
+                duration: { seconds: 0 },
                 projectItem: null, // 가상 클립이므로 null
                 name: "가상 클립 (인디케이터 위치)"
             };
@@ -1959,13 +1959,16 @@ function addAudioToGeneratedClip(generatedClip, audioProjectItem, soundFilePath)
         debugWriteln("=== 삽입 전 사전 트림 시도 ===");
         var preTrimSuccess = false;
         try {
-            if (audioProjectItem.setInPoint && audioProjectItem.setOutPoint) {
+            if (clipDuration <= 0) {
+                // duration이 0이면 원본 전체 길이 삽입 - setOutPoint 생략
+                debugWriteln("clipDuration = 0, 원본 전체 길이로 삽입 (setOutPoint 생략)");
+            } else if (audioProjectItem.setInPoint && audioProjectItem.setOutPoint) {
                 debugWriteln("프로젝트 아이템에 인/아웃 포인트 설정 시도");
-                
+
                 // 프로젝트 아이템 레벨에서 인/아웃 포인트 설정
                 audioProjectItem.setInPoint(0, 4); // 0초부터 시작
                 audioProjectItem.setOutPoint(clipDuration, 4); // 클립 길이만큼
-                
+
                 debugWriteln("프로젝트 아이템 인/아웃 포인트 설정 완료: 0s ~ " + clipDuration.toFixed(2) + "s");
                 preTrimSuccess = true;
             } else {

@@ -1347,8 +1347,27 @@ function replaceSelectedAudioClipsInternal(soundFilePath) {
 
                     var importedItems = app.project.importFiles([soundFilePath], true, audioBin, false);
                     if (importedItems && importedItems.length > 0) {
+                        // 배열 반환 (구버전 API)
                         projectItem = importedItems[0];
-                        debugWriteln("파일 임포트 성공 (Audio 폴더)");
+                        debugWriteln("파일 임포트 성공 (Audio 폴더, 배열 반환)");
+                    } else if (importedItems === true) {
+                        // boolean true 반환 (신버전 API) - 임포트 성공, 프로젝트에서 다시 검색
+                        debugWriteln("파일 임포트 성공 (boolean true), 프로젝트에서 아이템 검색...");
+                        projectItem = findProjectItemByFilePath(soundFilePath);
+                        if (!projectItem) {
+                            var fileName = soundFilePath.substring(soundFilePath.lastIndexOf('/') + 1);
+                            fileName = fileName.substring(fileName.lastIndexOf('\\') + 1);
+                            projectItem = findProjectItemByName(fileName);
+                        }
+                        if (!projectItem) {
+                            debugInfo += "ERROR: 임포트 후에도 아이템을 찾을 수 없음\n";
+                            return JSON.stringify({
+                                success: false,
+                                message: "임포트된 아이템을 프로젝트에서 찾을 수 없습니다.",
+                                debug: debugInfo
+                            });
+                        }
+                        debugWriteln("✅ 임포트된 아이템 발견: " + projectItem.name);
                     } else {
                         debugInfo += "ERROR: 파일 임포트 실패\n";
                         return JSON.stringify({
